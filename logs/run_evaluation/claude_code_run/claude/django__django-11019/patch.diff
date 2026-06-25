@@ -1,0 +1,105 @@
+diff --git a/django/forms/widgets.py b/django/forms/widgets.py
+index 02aa32b207..717f2a9772 100644
+--- a/django/forms/widgets.py
++++ b/django/forms/widgets.py
+@@ -70,11 +70,8 @@ class Media:
+ 
+     @property
+     def _js(self):
+-        js = self._js_lists[0]
+         # filter(None, ...) avoids calling merge() with empty lists.
+-        for obj in filter(None, self._js_lists[1:]):
+-            js = self.merge(js, obj)
+-        return js
++        return self.merge(*filter(None, self._js_lists))
+ 
+     def render(self):
+         return mark_safe('\n'.join(chain.from_iterable(getattr(self, 'render_' + name)() for name in MEDIA_TYPES)))
+@@ -115,39 +112,60 @@ class Media:
+         raise KeyError('Unknown media type "%s"' % name)
+ 
+     @staticmethod
+-    def merge(list_1, list_2):
++    def merge(*lists):
+         """
+-        Merge two lists while trying to keep the relative order of the elements.
+-        Warn if the lists have the same two elements in a different relative
+-        order.
++        Merge multiple lists while trying to keep the relative order of the elements.
++        Warn if the lists have the same two elements in a different relative order.
+ 
+         For static assets it can be important to have them included in the DOM
+         in a certain order. In JavaScript you may not be able to reference a
+         global or in CSS you might want to override a style.
+         """
+-        # Start with a copy of list_1.
+-        combined_list = list(list_1)
+-        last_insert_index = len(list_1)
+-        # Walk list_2 in reverse, inserting each element into combined_list if
+-        # it doesn't already exist.
+-        for path in reversed(list_2):
+-            try:
+-                # Does path already exist in the list?
+-                index = combined_list.index(path)
+-            except ValueError:
+-                # Add path to combined_list since it doesn't exist.
+-                combined_list.insert(last_insert_index, path)
+-            else:
+-                if index > last_insert_index:
+-                    warnings.warn(
+-                        'Detected duplicate Media files in an opposite order:\n'
+-                        '%s\n%s' % (combined_list[last_insert_index], combined_list[index]),
+-                        MediaOrderConflictWarning,
+-                    )
+-                # path already exists in the list. Update last_insert_index so
+-                # that the following elements are inserted in front of this one.
+-                last_insert_index = index
+-        return combined_list
++        # Collect all unique items in first-appearance order across all lists.
++        all_items = []
++        seen = set()
++        for lst in lists:
++            for item in lst:
++                if item not in seen:
++                    all_items.append(item)
++                    seen.add(item)
++        # Build a dependency graph: consecutive items in each list give an edge
++        # meaning "must come before". Use lists (not sets) for successors to keep
++        # a deterministic order when processing.
++        successors = {item: [] for item in all_items}
++        in_degree = {item: 0 for item in all_items}
++        seen_edges = set()
++        for lst in lists:
++            for i in range(len(lst) - 1):
++                a, b = lst[i], lst[i + 1]
++                if (a, b) not in seen_edges:
++                    seen_edges.add((a, b))
++                    successors[a].append(b)
++                    in_degree[b] += 1
++        # Topological sort: always pick the first eligible item in all_items order
++        # to produce a deterministic result that respects the original list order.
++        result = []
++        remaining = list(all_items)
++        while remaining:
++            found = False
++            for item in remaining:
++                if in_degree[item] == 0:
++                    result.append(item)
++                    remaining.remove(item)
++                    for successor in successors[item]:
++                        in_degree[successor] -= 1
++                    found = True
++                    break
++            if not found:
++                # Cycle means a genuine conflict exists between two lists.
++                warnings.warn(
++                    'Detected duplicate Media files in an opposite order:\n'
++                    '%s\n%s' % (remaining[0], remaining[1]),
++                    MediaOrderConflictWarning,
++                )
++                result.extend(remaining)
++                break
++        return result
+ 
+     def __add__(self, other):
+         combined = Media()

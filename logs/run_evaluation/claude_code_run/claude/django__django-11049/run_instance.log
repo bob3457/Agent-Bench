@@ -1,0 +1,45 @@
+2026-06-25 13:42:05,782 - INFO - Creating container for django__django-11049...
+2026-06-25 13:42:06,692 - INFO - Container for django__django-11049 created: a1d2ea4de200dfbbcfb9551726aaa8080e6db5f521bf0871f555c3bf4cc21614
+2026-06-25 13:42:07,049 - INFO - Container for django__django-11049 started: a1d2ea4de200dfbbcfb9551726aaa8080e6db5f521bf0871f555c3bf4cc21614
+2026-06-25 13:42:07,050 - INFO - Intermediate patch for django__django-11049 written to logs/run_evaluation/claude_code_run/claude/django__django-11049/patch.diff, now applying to container...
+2026-06-25 13:42:07,323 - INFO - >>>>> Applied Patch:
+Checking patch django/db/models/fields/__init__.py...
+Applied patch django/db/models/fields/__init__.py cleanly.
+
+2026-06-25 13:42:08,431 - INFO - Git diff before:
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index f32ce64629..71005490f3 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -1587,7 +1587,7 @@ class DurationField(Field):
+     empty_strings_allowed = False
+     default_error_messages = {
+         'invalid': _("'%(value)s' value has an invalid format. It must be in "
+-                     "[DD] [HH:[MM:]]ss[.uuuuuu] format.")
++                     "[DD] [[HH:]MM:]ss[.uuuuuu] format.")
+     }
+     description = _("Duration")
+2026-06-25 13:42:08,431 - INFO - Eval script for django__django-11049 written to logs/run_evaluation/claude_code_run/claude/django__django-11049/eval.sh; copying to container...
+2026-06-25 13:42:13,910 - INFO - Test runtime: 5.34 seconds
+2026-06-25 13:42:13,910 - INFO - Test output for django__django-11049 written to logs/run_evaluation/claude_code_run/claude/django__django-11049/test_output.txt
+2026-06-25 13:42:14,004 - INFO - Git diff after:
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index f32ce64629..71005490f3 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -1587,7 +1587,7 @@ class DurationField(Field):
+     empty_strings_allowed = False
+     default_error_messages = {
+         'invalid': _("'%(value)s' value has an invalid format. It must be in "
+-                     "[DD] [HH:[MM:]]ss[.uuuuuu] format.")
++                     "[DD] [[HH:]MM:]ss[.uuuuuu] format.")
+     }
+     description = _("Duration")
+2026-06-25 13:42:14,004 - INFO - Grading answer for django__django-11049...
+2026-06-25 13:42:14,005 - INFO - report: {'django__django-11049': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['test_invalid_string (model_fields.test_durationfield.TestValidation)'], 'failure': []}, 'PASS_TO_PASS': {'success': ['test_dumping (model_fields.test_durationfield.TestSerialization)', 'test_loading (model_fields.test_durationfield.TestSerialization)', 'test_formfield (model_fields.test_durationfield.TestFormField)', 'test_exact (model_fields.test_durationfield.TestQuerying)', 'test_gt (model_fields.test_durationfield.TestQuerying)', 'test_create_empty (model_fields.test_durationfield.TestSaveLoad)', 'test_fractional_seconds (model_fields.test_durationfield.TestSaveLoad)', 'test_simple_roundtrip (model_fields.test_durationfield.TestSaveLoad)'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for django__django-11049: resolved: True
+2026-06-25 13:42:14,005 - INFO - Attempting to stop container sweb.eval.django__django-11049.claude_code_run...
+2026-06-25 13:42:29,216 - INFO - Attempting to remove container sweb.eval.django__django-11049.claude_code_run...
+2026-06-25 13:42:29,262 - INFO - Container sweb.eval.django__django-11049.claude_code_run removed.
+2026-06-25 13:42:29,262 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.django_1776_django-11049:latest...
+2026-06-25 13:42:29,432 - INFO - Image swebench/sweb.eval.x86_64.django_1776_django-11049:latest removed.

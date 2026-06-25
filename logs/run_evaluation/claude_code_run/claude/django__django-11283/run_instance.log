@@ -1,0 +1,67 @@
+2026-06-25 13:45:38,994 - INFO - Creating container for django__django-11283...
+2026-06-25 13:45:39,133 - INFO - Container for django__django-11283 created: 2b4db9f01b69de11f82d30799ac0c7029244c643c75435ef90f63d5bb7dcf1c4
+2026-06-25 13:45:39,358 - INFO - Container for django__django-11283 started: 2b4db9f01b69de11f82d30799ac0c7029244c643c75435ef90f63d5bb7dcf1c4
+2026-06-25 13:45:39,359 - INFO - Intermediate patch for django__django-11283 written to logs/run_evaluation/claude_code_run/claude/django__django-11283/patch.diff, now applying to container...
+2026-06-25 13:45:39,581 - INFO - >>>>> Applied Patch:
+Checking patch django/contrib/auth/migrations/0011_update_proxy_permissions.py...
+Applied patch django/contrib/auth/migrations/0011_update_proxy_permissions.py cleanly.
+
+2026-06-25 13:45:40,553 - INFO - Git diff before:
+diff --git a/django/contrib/auth/migrations/0011_update_proxy_permissions.py b/django/contrib/auth/migrations/0011_update_proxy_permissions.py
+index 0e66649695..76d24218ee 100644
+--- a/django/contrib/auth/migrations/0011_update_proxy_permissions.py
++++ b/django/contrib/auth/migrations/0011_update_proxy_permissions.py
+@@ -24,9 +24,19 @@ def update_proxy_model_permissions(apps, schema_editor, reverse=False):
+         proxy_content_type = ContentType.objects.get_for_model(Model, for_concrete_model=False)
+         old_content_type = proxy_content_type if reverse else concrete_content_type
+         new_content_type = concrete_content_type if reverse else proxy_content_type
+-        Permission.objects.filter(
++        old_permissions = Permission.objects.filter(
+             permissions_query,
+             content_type=old_content_type,
++        )
++        # Exclude permissions that already exist for the new content type to
++        # avoid IntegrityError on unique constraint (content_type, codename).
++        # This handles the case where a model was recreated as a proxy.
++        new_content_type_permission_codenames = set(Permission.objects.filter(
++            permissions_query,
++            content_type=new_content_type,
++        ).values_list('codename', flat=True))
++        old_permissions.exclude(
++            codename__in=new_content_type_permission_codenames,
+         ).update(content_type=new_content_type)
+2026-06-25 13:45:40,553 - INFO - Eval script for django__django-11283 written to logs/run_evaluation/claude_code_run/claude/django__django-11283/eval.sh; copying to container...
+2026-06-25 13:45:46,944 - INFO - Test runtime: 6.26 seconds
+2026-06-25 13:45:46,945 - INFO - Test output for django__django-11283 written to logs/run_evaluation/claude_code_run/claude/django__django-11283/test_output.txt
+2026-06-25 13:45:47,085 - INFO - Git diff after:
+diff --git a/django/contrib/auth/migrations/0011_update_proxy_permissions.py b/django/contrib/auth/migrations/0011_update_proxy_permissions.py
+index 0e66649695..76d24218ee 100644
+--- a/django/contrib/auth/migrations/0011_update_proxy_permissions.py
++++ b/django/contrib/auth/migrations/0011_update_proxy_permissions.py
+@@ -24,9 +24,19 @@ def update_proxy_model_permissions(apps, schema_editor, reverse=False):
+         proxy_content_type = ContentType.objects.get_for_model(Model, for_concrete_model=False)
+         old_content_type = proxy_content_type if reverse else concrete_content_type
+         new_content_type = concrete_content_type if reverse else proxy_content_type
+-        Permission.objects.filter(
++        old_permissions = Permission.objects.filter(
+             permissions_query,
+             content_type=old_content_type,
++        )
++        # Exclude permissions that already exist for the new content type to
++        # avoid IntegrityError on unique constraint (content_type, codename).
++        # This handles the case where a model was recreated as a proxy.
++        new_content_type_permission_codenames = set(Permission.objects.filter(
++            permissions_query,
++            content_type=new_content_type,
++        ).values_list('codename', flat=True))
++        old_permissions.exclude(
++            codename__in=new_content_type_permission_codenames,
+         ).update(content_type=new_content_type)
+2026-06-25 13:45:47,085 - INFO - Grading answer for django__django-11283...
+2026-06-25 13:45:47,086 - INFO - report: {'django__django-11283': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['test_migrate_with_existing_target_permission (auth_tests.test_migrations.ProxyModelWithSameAppLabelTests)']}, 'PASS_TO_PASS': {'success': ['test_migrate_backwards (auth_tests.test_migrations.ProxyModelWithDifferentAppLabelTests)', 'test_proxy_model_permissions_contenttype (auth_tests.test_migrations.ProxyModelWithDifferentAppLabelTests)', 'test_user_has_now_proxy_model_permissions (auth_tests.test_migrations.ProxyModelWithDifferentAppLabelTests)', 'test_user_keeps_same_permissions_after_migrating_backward (auth_tests.test_migrations.ProxyModelWithDifferentAppLabelTests)', 'test_migrate_backwards (auth_tests.test_migrations.ProxyModelWithSameAppLabelTests)', 'test_proxy_model_permissions_contenttype (auth_tests.test_migrations.ProxyModelWithSameAppLabelTests)', 'test_user_keeps_same_permissions_after_migrating_backward (auth_tests.test_migrations.ProxyModelWithSameAppLabelTests)', 'test_user_still_has_proxy_model_permissions (auth_tests.test_migrations.ProxyModelWithSameAppLabelTests)'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for django__django-11283: resolved: False
+2026-06-25 13:45:47,086 - INFO - Attempting to stop container sweb.eval.django__django-11283.claude_code_run...
+2026-06-25 13:46:02,414 - INFO - Attempting to remove container sweb.eval.django__django-11283.claude_code_run...
+2026-06-25 13:46:02,472 - INFO - Container sweb.eval.django__django-11283.claude_code_run removed.
+2026-06-25 13:46:02,472 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.django_1776_django-11283:latest...
+2026-06-25 13:46:03,346 - INFO - Image swebench/sweb.eval.x86_64.django_1776_django-11283:latest removed.
