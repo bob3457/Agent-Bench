@@ -27,7 +27,9 @@ claude:
 
 codex:
   type: shell
-  command: ["codex", "exec", "--full-auto"]   # TODO: verify flags vs current Codex CLI
+  command: ["codex", "exec", "--sandbox", "workspace-write",
+            "-c", "model_reasoning_effort=medium",
+            "-m", "gpt-5.5"]
   prompt_via: arg
   model_flag: "-m"
   required_env: ["OPENAI_API_KEY"]
