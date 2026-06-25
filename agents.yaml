@@ -1,0 +1,54 @@
+# Agent registry for the SWE-bench generation harness.
+#
+# Each top-level key is an agent name you pass to --agent.
+# Two kinds of agent:
+#
+#   type: shell   (default)  — a CLI that edits files in its working directory.
+#                              Defined entirely by config; NO Python needed.
+#   type: plugin             — needs real logic (e.g. runs its own runtime).
+#                              Points at a Python class implementing Agent.
+#
+# Shell agent fields:
+#   command       : argv list to launch the agent (no prompt yet).
+#   prompt_via    : "stdin" (piped to stdin) or "arg" (appended as last argv).
+#   model_flag    : flag used to pass --model (optional; omit if N/A).
+#   required_env  : env vars that MUST be set, or the run aborts in preflight.
+#                   [] means auth is assumed already in the environment.
+#   telemetry     : how to read its output — "claude_json", "codex_session",
+#                   or "none" (default: just wall-clock + returncode).
+
+claude:
+  type: shell
+  command: ["claude", "-p", "--output-format", "json", "--permission-mode", "acceptEdits"]
+  prompt_via: stdin
+  model_flag: "--model"
+  required_env: []          # OAuth (CLAUDE_CODE_OAUTH_TOKEN) or ANTHROPIC_API_KEY already in env
+  telemetry: claude_json
+
+codex:
+  type: shell
+  command: ["codex", "exec", "--full-auto"]   # TODO: verify flags vs current Codex CLI
+  prompt_via: arg
+  model_flag: "-m"
+  required_env: ["OPENAI_API_KEY"]
+  telemetry: codex_session
+
+openhands:
+  type: plugin
+  module: "agents_plugins.openhands_agent"     # importable path to the .py
+  class: "OpenHandsAgent"
+  required_env: ["LLM_API_KEY"]                # LiteLLM provider key, not an "OpenHands key"
+
+# ---------------------------------------------------------------------------
+# TEMPLATE — copy, rename, fill in. This is all it takes to add a new agent.
+# Example shown for aider; works for gemini-cli, cursor-agent, a homegrown
+# script, anything that edits files in cwd and exits.
+#
+# aider:
+#   type: shell
+#   command: ["aider", "--yes", "--message"]   # prompt follows --message
+#   prompt_via: arg
+#   model_flag: "--model"
+#   required_env: ["OPENAI_API_KEY"]
+#   telemetry: none
+# ---------------------------------------------------------------------------
