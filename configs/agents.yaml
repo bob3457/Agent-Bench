@@ -37,7 +37,7 @@ codex:
 
 openhands:
   type: plugin
-  module: "agents_plugins.openhands_agent"     # importable path to the .py
+  module: "agent_plugins.openhands_agent"     # importable path to the .py
   class: "OpenHandsAgent"
   required_env: ["LLM_API_KEY"]                # LiteLLM provider key, not an "OpenHands key"
 

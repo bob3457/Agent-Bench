@@ -26,6 +26,8 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root
 
 # Shared defaults. AGENT_TIMEOUT_S is read by ShellAgent.run at call time, so a
 # harness can override the wall-clock budget with `agent_core.AGENT_TIMEOUT_S = N`
