@@ -151,12 +151,20 @@ def main():
     ap.add_argument("--agent", default="claude",
                     help="Agent name from the agents file (default: claude).")
     ap.add_argument("--n", type=int, default=DEFAULT_N_INSTANCES,
-                    help=f"Number of instances (default: {DEFAULT_N_INSTANCES}).")
+                    help=f"Number of instances from the start of the split "
+                         f"(default: {DEFAULT_N_INSTANCES}). Ignored if --instances is given.")
+    ap.add_argument("--instances", nargs="+", default=None, metavar="INSTANCE_ID",
+                    help="Run only these specific instance_id(s), e.g. "
+                         "--instances astropy__astropy-12907. Accepts several "
+                         "(space- or comma-separated) and overrides --n.")
     ap.add_argument("--model", default=None, help="Optional model override.")
     ap.add_argument("--agents-file", default=str(AGENTS_FILE),
                     help=f"Path to the agent registry (default: {AGENTS_FILE}).")
     ap.add_argument("--list-agents", action="store_true",
                     help="Print known agents and exit.")
+    ap.add_argument("--list-instances", nargs="?", const="", default=None, metavar="FILTER",
+                    help="Print available SWE-bench_Lite instance_ids and exit. "
+                         "Optionally filter by substring, e.g. --list-instances astropy.")
     args = ap.parse_args()
 
     agents_cfg = load_agents_file(args.agents_file)
@@ -164,6 +172,17 @@ def main():
     if args.list_agents:
         for name, cfg in agents_cfg.items():
             print(f"  {name:12} ({cfg.get('type', 'shell')})")
+        return
+
+    if args.list_instances is not None:
+        flt = args.list_instances.lower()
+        ds = load_dataset("princeton-nlp/SWE-bench_Lite", split="test")
+        ids = sorted(ex["instance_id"] for ex in ds
+                     if flt in ex["instance_id"].lower())
+        for iid in ids:
+            print(iid)
+        suffix = f" matching '{flt}'" if flt else ""
+        print(f"\n{len(ids)} instance(s){suffix}")
         return
 
     if shutil.which("git") is None:
@@ -176,13 +195,27 @@ def main():
     REPO_CACHE.mkdir(parents=True, exist_ok=True)
 
     model_name = args.model or args.agent
-    dataset = load_dataset("princeton-nlp/SWE-bench_Lite",
-                           split=f"test[:{args.n}]")
+    if args.instances:
+        # accept either repeated args or comma-separated lists, flattened
+        wanted = {iid.strip() for chunk in args.instances
+                  for iid in chunk.split(",") if iid.strip()}
+        full = load_dataset("princeton-nlp/SWE-bench_Lite", split="test")
+        dataset = full.filter(lambda ex: ex["instance_id"] in wanted)
+        found = {ex["instance_id"] for ex in dataset}
+        missing = wanted - found
+        if missing:
+            print(f"  WARNING: not in SWE-bench_Lite test split: {', '.join(sorted(missing))}")
+        if len(dataset) == 0:
+            raise SystemExit("No matching instances found; nothing to run.")
+        print(f"Selected {len(dataset)} specific instance(s): {', '.join(sorted(found))}")
+    else:
+        dataset = load_dataset("princeton-nlp/SWE-bench_Lite",
+                               split=f"test[:{args.n}]")
 
     done = already_done(pred_path)
     if done:
         print(f"Resuming: {len(done)} instance(s) already in {pred_path}, skipping.")
-    print(f"Agent: {args.agent} | instances: {args.n} | output: {pred_path.parent}/")
+    print(f"Agent: {args.agent} | instances: {len(dataset)} | output: {pred_path.parent}/")
 
     with open(pred_path, "a") as pf, open(metrics_path, "a") as mf:
         for i, ex in enumerate(dataset):

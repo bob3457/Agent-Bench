@@ -30,7 +30,14 @@ from pathlib import Path
 # Shared defaults. AGENT_TIMEOUT_S is read by ShellAgent.run at call time, so a
 # harness can override the wall-clock budget with `agent_core.AGENT_TIMEOUT_S = N`
 # before invoking an agent.
-AGENTS_FILE = Path("agents.yaml")
+# Shared defaults. The agents registry lives at <repo>/configs/agents.yaml, and
+# this file lives at <repo>/harness/agent_core.py -- so resolve the default from
+# __file__ rather than the cwd, letting you run the harness from anywhere. A
+# cwd-local ./agents.yaml, if present, still wins (handy for ad-hoc overrides).
+# Either way, --agents-file overrides this.
+_HARNESS_DIR = Path(__file__).resolve().parent
+_CWD_AGENTS = Path("agents.yaml")
+AGENTS_FILE = _CWD_AGENTS if _CWD_AGENTS.is_file() else _HARNESS_DIR.parent / "configs" / "agents.yaml"
 AGENT_TIMEOUT_S = 600
 
 
