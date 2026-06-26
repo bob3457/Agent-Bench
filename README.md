@@ -88,7 +88,7 @@ python eval/swebench_eval.py \
     --predictions_path data/claude/predictions.jsonl \
     --dataset_name SWE-bench/SWE-bench --split test \
     --run_id claude_code_run_v2 \
-    --max_workers 8 --report_dir .
+    --max_workers 2 --report_dir .
 
 # 2b. Grade on a SLURM/Apptainer cluster (e.g. Hopper, no Docker)
 python eval/swebench_singularity_eval.py \
@@ -105,11 +105,9 @@ not in the runner's output.
 ```bash
 # 1. Run (tool-isolated by default for closed-context QA)
 python harness/run_hotpot_agent.py \
-    --agent "claude" \
+    --agent claude-closedbook \ #specifically blocks searching
     --input hotpot_dev_distractor_v1.json \
-    --output data/claude/hotpot_predictions.json \
-    --metrics data/claude/hotpot_metrics.jsonl \
-    --limit 50 --resume            # --no-isolate to allow external tools; --stdin to pipe the prompt
+    --limit 50 --resume     
 
 # 2. Grade against the gold file
 python eval/hotpot_evaluate_v1.py data/claude/hotpot_predictions.json hotpot_dev_distractor_v1.json
@@ -121,11 +119,9 @@ python eval/hotpot_evaluate_v1.py data/claude/hotpot_predictions.json hotpot_dev
 ```bash
 # 1. Run
 python harness/run_freshqa_agent.py \
-    --agent "claude" \
+    --agent claude-search \ #allows searching
     --input freshqa.csv \
-    --output data/claude/freshqa_responses.jsonl \
     --limit 50
-#   --allowed-tools "..." controls which tools the agent may use (web search for FreshQA)
 
 # 2. Grade with an LLM judge
 python eval/eval_freshqa.py \
