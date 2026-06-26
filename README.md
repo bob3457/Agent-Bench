@@ -81,17 +81,17 @@ Use a distinct `--run_id` / output path per run so you never overwrite prior res
 
 ```bash
 # 1. Run the agent over N instances -> data/<agent>/predictions.jsonl + metrics.jsonl
-python run_swebench_agent.py --agent claude --n 25            # add --model to override
+python harness/run_swebench_agent.py --agent claude --n 25            # add --model to override
 
 # 2a. Grade locally (Docker)
-python swebench_eval.py \
+python eval/swebench_eval.py \
     --predictions_path data/claude/predictions.jsonl \
     --dataset_name SWE-bench/SWE-bench --split test \
     --run_id claude_code_run_v2 \
     --max_workers 8 --report_dir .
 
 # 2b. Grade on a SLURM/Apptainer cluster (e.g. Hopper, no Docker)
-python swebench_singularity_eval.py \
+python eval/swebench_singularity_eval.py \
     --predictions data/claude/predictions.jsonl \
     --dataset SWE-bench/SWE-bench --split test \
     --sif-dir ./sifs --overlay-size 4096 --timeout 1800
@@ -104,7 +104,7 @@ not in the runner's output.
 
 ```bash
 # 1. Run (tool-isolated by default for closed-context QA)
-python run_hotpot_agent.py \
+python harness/run_hotpot_agent.py \
     --agent-cmd "claude -p" \
     --input hotpot_dev_distractor_v1.json \
     --output data/claude/hotpot_predictions.json \
@@ -112,7 +112,7 @@ python run_hotpot_agent.py \
     --limit 50 --resume            # --no-isolate to allow external tools; --stdin to pipe the prompt
 
 # 2. Grade against the gold file
-python hotpot_evaluate_v1.py data/claude/hotpot_predictions.json hotpot_dev_distractor_v1.json
+python eval/hotpot_evaluate_v1.py data/claude/hotpot_predictions.json hotpot_dev_distractor_v1.json
 # optional third arg caps the number of cases scored
 ```
 
@@ -120,7 +120,7 @@ python hotpot_evaluate_v1.py data/claude/hotpot_predictions.json hotpot_dev_dist
 
 ```bash
 # 1. Run
-python run_freshqa_agent.py \
+python harness/run_freshqa_agent.py \
     --agent-cmd "claude -p --output-format json" \
     --input freshqa.csv \
     --output data/claude/freshqa_responses.jsonl \
@@ -128,7 +128,7 @@ python run_freshqa_agent.py \
 #   --allowed-tools "..." controls which tools the agent may use (web search for FreshQA)
 
 # 2. Grade with an LLM judge
-python eval_freshqa.py \
+python eval/eval_freshqa.py \
     --responses data/claude/freshqa_responses.jsonl \
     --mode both \
     --judge-cmd "claude -p" \
