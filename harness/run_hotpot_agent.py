@@ -6,10 +6,10 @@ set and write predictions.json in the exact format the official scorer
 
 Agent-open, exactly like run_swebench_agent.py: pick an agent by name (--agent),
 it's loaded from agents.yaml, and the harness only hands it a prompt and reads
-back its answer. Per-question telemetry (wall time, returncode, and — for
-claude_json/codex_session agents — tokens/cost/latency or the rollout-file path)
-goes to a SEPARATE metrics file so predictions.json stays exactly what the scorer
-reads.
+back its answer. Per-question telemetry (wall time, returncode, tokens, cost,
+latency, turn count, per-usage breakdown, and any other field an agent chooses
+to emit) goes to a SEPARATE metrics file so predictions.json stays exactly what
+the scorer reads.
 
     python run_hotpot_agent.py --agent claude-closedbook \
         --input hotpot_dev_distractor_v1.json --limit 100
@@ -24,28 +24,25 @@ Then score:
     python hotpot_evaluate_v1.py predictions.json hotpot_dev_distractor_v1.json
 
 ------------------------------------------------------------------------------
-CONTEXT-ONLY ANSWERING IS NOW DATA, NOT CODE
+TELEMETRY IS PASS-THROUGH BY DEFAULT
+------------------------------------------------------------------------------
+flatten_telemetry no longer uses an allowlist. It keeps EVERY key an agent puts
+in meta, then lifts the nested token buckets (meta['usage']) to the top level so
+agents that nest them (Claude Code via claude_json) line up with agents that
+report them top-level (OpenHands, Codex). The upshot: any field a plugin emits
+-- reasoning_tokens, usage_breakdown, per-call latency, num_turns, llm_calls,
+anything new -- lands in the metrics file with no harness change. Don't re-add
+an allowlist; that's the bug this replaced.
+
+------------------------------------------------------------------------------
+CONTEXT-ONLY ANSWERING IS DATA, NOT CODE
 ------------------------------------------------------------------------------
 HotpotQA is closed-book: the agent must answer from the prompt context ONLY, not
-the web or local files. The old version hard-coded claude-specific isolation
-flags here. That logic is gone: tool posture is part of "how to invoke it" and
-lives in the agent's agents.yaml row. Define a closed-book claude variant once:
-
-    claude-closedbook:
-      type: shell
-      command: ["claude", "-p", "--output-format", "json",
-                "--allowedTools", "",
-                "--disallowedTools",
-                "WebSearch,WebFetch,Bash,Read,Edit,Write,Glob,Grep,NotebookEdit,Task",
-                "--strict-mcp-config"]
-      prompt_via: stdin
-      model_flag: "--model"
-      required_env: []
-      telemetry: claude_json
-
-The prompt also instructs context-only answering, which is the only lever for
-agents that don't expose tool gating (codex, local scripts) — for those,
-closed-book is enforced by the empty scratch cwd plus the prompt, not by flags.
+the web or local files. Tool posture is part of "how to invoke it" and lives in
+the agent's agents.yaml row (e.g. claude-closedbook with empty --allowedTools +
+a denylist). The prompt also instructs context-only answering, which is the only
+lever for agents that don't expose tool gating (codex, local scripts) -- for
+those, closed-book is enforced by the empty scratch cwd plus the prompt.
 """
 
 import argparse
@@ -72,6 +69,32 @@ SP_SENTINEL = "SUPPORTING FACTS:"
 # Root under which every harness writes its per-agent output. Keeping data
 # together by agent family is what the reward-vs-cost join keys off of.
 DATA_ROOT = "data"
+
+# Token buckets that some agents nest under meta['usage'] (Claude Code) and
+# others report top-level (OpenHands, Codex). flatten_telemetry lifts these to
+# the top level with a top-level-wins / nested-fallback rule.
+TOKEN_BUCKETS = (
+    "input_tokens",
+    "output_tokens",
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+    "reasoning_tokens",
+)
+
+# Keys summarize() will sum if present and numeric. Superset across agents;
+# missing keys are simply skipped, so adding an agent that emits more is free.
+SUMMABLE = (
+    "total_cost_usd",
+    "input_tokens",
+    "output_tokens",
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+    "reasoning_tokens",
+    "wall_time_s",
+    "num_turns",
+    "llm_calls",
+    "latency_total_s",
+)
 
 
 def default_paths(agent_name):
@@ -160,27 +183,19 @@ def extract_supporting_facts(raw, item):
 
 
 def flatten_telemetry(meta):
-    """Lift the flat telemetry fields out of meta (token buckets are nested
-    under meta['usage'])."""
+    """Keep EVERYTHING the agent emitted, then lift nested token buckets.
+
+    Pass-through, not allowlist: previously this named a fixed set of fields and
+    silently dropped the rest (that's why usage_breakdown / reasoning_tokens went
+    missing). Now we copy all of meta and only normalize the one cross-agent
+    inconsistency -- token buckets nested under meta['usage'] (Claude Code) vs.
+    reported top-level (OpenHands, Codex). Top-level wins; nested fills gaps.
+    """
+    flat = dict(meta)  # everything the agent reported, verbatim
     usage = meta.get("usage") or {}
-    flat = {
-        "wall_time_s": meta.get("wall_time_s"),
-        "returncode": meta.get("returncode"),
-        "total_cost_usd": meta.get("total_cost_usd"),
-        "input_tokens": usage.get("input_tokens"),
-        "output_tokens": usage.get("output_tokens"),
-        "cache_read_input_tokens": usage.get("cache_read_input_tokens"),
-        "cache_creation_input_tokens": usage.get("cache_creation_input_tokens"),
-        "num_turns": meta.get("num_turns"),
-        "duration_ms": meta.get("duration_ms"),
-        "duration_api_ms": meta.get("duration_api_ms"),
-        "ttft_ms": meta.get("ttft_ms"),
-        "session_id": meta.get("session_id"),
-        "codex_session_file": meta.get("codex_session_file"),
-    }
-    for k in ("timeout", "stderr", "error"):
-        if meta.get(k) is not None:
-            flat[k] = meta[k]
+    for k in TOKEN_BUCKETS:
+        if flat.get(k) is None and usage.get(k) is not None:
+            flat[k] = usage.get(k)
     return flat
 
 
@@ -193,6 +208,9 @@ def summarize(metrics):
     def s(key):
         return sum(v[key] for v in vals if isinstance(v.get(key), (int, float)))
 
+    def present(key):
+        return any(isinstance(v.get(key), (int, float)) for v in vals)
+
     errors = sum(1 for v in vals if v.get("returncode") not in (0, None)
                  or v.get("timeout") or "error" in v)
     print("\n--- run summary ---")
@@ -200,8 +218,19 @@ def summarize(metrics):
     print(f"total cost (usd): {s('total_cost_usd'):.4f}   (notional if on a subscription)")
     print(f"input tokens:     {s('input_tokens'):,}")
     print(f"output tokens:    {s('output_tokens'):,}")
+    if present("reasoning_tokens"):
+        print(f"reasoning tokens: {s('reasoning_tokens'):,}")
     print(f"cache read:       {s('cache_read_input_tokens'):,}   "
           f"cache create: {s('cache_creation_input_tokens'):,}")
+    if present("num_turns"):
+        nt = s("num_turns")
+        print(f"turns:            {nt:,}   (mean {nt / n:.1f}/q)")
+    if present("llm_calls"):
+        lc = s("llm_calls")
+        print(f"llm calls:        {lc:,}   (mean {lc / n:.1f}/q)")
+    if present("latency_total_s"):
+        lt = s("latency_total_s")
+        print(f"api latency (s):  {lt:.1f}   (sum of per-call model latency)")
     wall = s("wall_time_s")
     print(f"wall time (s):    {wall:.1f}   (mean {wall / n:.1f}/q)")
 

@@ -1,0 +1,74 @@
+{
+    "results": {
+        "tool": {
+            "name": "pytest",
+            "version": "8.4.1"
+        },
+        "summary": {
+            "tests": 6,
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0,
+            "pending": 0,
+            "other": 0,
+            "start": 1782496925.6140208,
+            "stop": 1782496935.4925299
+        },
+        "tests": [
+            {
+                "name": "test_outputs.py::test_weights_file_exists",
+                "status": "passed",
+                "duration": 0.00036499000270850956,
+                "start": 1782496933.1167915,
+                "stop": 1782496933.1174724,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            },
+            {
+                "name": "test_outputs.py::test_cli_tool_exists",
+                "status": "passed",
+                "duration": 0.00023911199969006702,
+                "start": 1782496933.117668,
+                "stop": 1782496933.1180844,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            },
+            {
+                "name": "test_outputs.py::test_prediction_file_exists",
+                "status": "passed",
+                "duration": 0.00021570199896814302,
+                "start": 1782496933.1182525,
+                "stop": 1782496933.118628,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            },
+            {
+                "name": "test_outputs.py::test_prediction_file_content",
+                "status": "passed",
+                "duration": 0.00031515500450041145,
+                "start": 1782496933.1187875,
+                "stop": 1782496933.1192763,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            },
+            {
+                "name": "test_outputs.py::test_cli_tool_executable",
+                "status": "passed",
+                "duration": 0.005972904007649049,
+                "start": 1782496933.1194468,
+                "stop": 1782496933.125668,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            },
+            {
+                "name": "test_outputs.py::test_cli_tool_output",
+                "status": "passed",
+                "duration": 2.366034516999207,
+                "start": 1782496933.125876,
+                "stop": 1782496935.4923794,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            }
+        ]
+    }
+}

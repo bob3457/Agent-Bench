@@ -1,0 +1,83 @@
+{
+    "schema_version": 1,
+    "created_at": "2026-06-26T17:05:05.309857Z",
+    "harbor": {
+        "version": "0.15.0",
+        "is_editable": false
+    },
+    "invocation": [
+        "/home/czhai/miniconda3/envs/bench/bin/harbor",
+        "run",
+        "--dataset",
+        "terminal-bench@2.0",
+        "--agent",
+        "codex",
+        "--ak",
+        "model=gpt-5.5",
+        "--ak",
+        "model_reasoning_effort=medium",
+        "--n-concurrent",
+        "1",
+        "--n-tasks",
+        "1",
+        "--ae",
+        "OPENAI_API_KEY=${OPENAI_API_KEY}"
+    ],
+    "n_concurrent_trials": 1,
+    "retry": {
+        "max_retries": 0,
+        "exclude_exceptions": [
+            "VerifierTimeoutError",
+            "VerifierOutputParseError",
+            "AgentTimeoutError",
+            "RewardFileEmptyError",
+            "RewardFileNotFoundError"
+        ],
+        "wait_multiplier": 1.0,
+        "min_wait_sec": 1.0,
+        "max_wait_sec": 60.0
+    },
+    "trials": [
+        {
+            "task": {
+                "name": "gpt2-codegolf",
+                "type": "git",
+                "digest": "sha256:e2617991ffbe474e67ea4667c352e181982179e1be3229cce65e2c15248fc1df",
+                "source": "terminal-bench",
+                "path": "gpt2-codegolf",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "model": "gpt-5.5",
+                    "model_reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        }
+    ]
+}

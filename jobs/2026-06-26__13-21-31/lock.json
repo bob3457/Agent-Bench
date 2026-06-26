@@ -1,0 +1,1067 @@
+{
+    "schema_version": 1,
+    "created_at": "2026-06-26T17:21:31.864909Z",
+    "harbor": {
+        "version": "0.15.0",
+        "is_editable": false
+    },
+    "invocation": [
+        "/home/czhai/miniconda3/envs/bench/bin/harbor",
+        "run",
+        "--dataset",
+        "terminal-bench@2.0",
+        "--agent",
+        "codex",
+        "--model",
+        "gpt-5.5",
+        "--ak",
+        "reasoning_effort=medium",
+        "--n-concurrent",
+        "1",
+        "--n-tasks",
+        "25",
+        "--ae",
+        "OPENAI_API_KEY=${OPENAI_API_KEY}"
+    ],
+    "n_concurrent_trials": 1,
+    "retry": {
+        "max_retries": 0,
+        "exclude_exceptions": [
+            "RewardFileNotFoundError",
+            "AgentTimeoutError",
+            "VerifierOutputParseError",
+            "VerifierTimeoutError",
+            "RewardFileEmptyError"
+        ],
+        "wait_multiplier": 1.0,
+        "min_wait_sec": 1.0,
+        "max_wait_sec": 60.0
+    },
+    "trials": [
+        {
+            "task": {
+                "name": "gpt2-codegolf",
+                "type": "git",
+                "digest": "sha256:e2617991ffbe474e67ea4667c352e181982179e1be3229cce65e2c15248fc1df",
+                "source": "terminal-bench",
+                "path": "gpt2-codegolf",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "llm-inference-batching-scheduler",
+                "type": "git",
+                "digest": "sha256:8431edee8deaaf215f2ad53ad3384a50337f67a55bed2255315ac34e535f3932",
+                "source": "terminal-bench",
+                "path": "llm-inference-batching-scheduler",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "break-filter-js-from-html",
+                "type": "git",
+                "digest": "sha256:7087019da8f9ff651d8f97a89c34ab80e8c9a552922ad1a3ef737e202d0b9931",
+                "source": "terminal-bench",
+                "path": "break-filter-js-from-html",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "reshard-c4-data",
+                "type": "git",
+                "digest": "sha256:454a8e031ffe26e1037ea8979cef492d3a639ab7eb5b83495c457237cb5505a5",
+                "source": "terminal-bench",
+                "path": "reshard-c4-data",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "write-compressor",
+                "type": "git",
+                "digest": "sha256:a42b2892cb795f2b85b52d17b5332f2a887c42af9b4b7d26d0c12f1e496fadd5",
+                "source": "terminal-bench",
+                "path": "write-compressor",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "merge-diff-arc-agi-task",
+                "type": "git",
+                "digest": "sha256:c0e0271c1de95292f948ab64634c5a21d68d8f579bb8f0b97319d4e805b078cb",
+                "source": "terminal-bench",
+                "path": "merge-diff-arc-agi-task",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "winning-avg-corewars",
+                "type": "git",
+                "digest": "sha256:0007e3c0e9e08b084590d71e494b4ddbe4ae0c591b17939985fe23f46f09734b",
+                "source": "terminal-bench",
+                "path": "winning-avg-corewars",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "log-summary-date-ranges",
+                "type": "git",
+                "digest": "sha256:f76f69f54e1ebe7572e51945c44190df577d7eed341139c817c853d065a18e23",
+                "source": "terminal-bench",
+                "path": "log-summary-date-ranges",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "pytorch-model-cli",
+                "type": "git",
+                "digest": "sha256:5c0d3625b5dd974a2352d61a034e9e6fd54b496a4bb33a7b8122ff81682d9ece",
+                "source": "terminal-bench",
+                "path": "pytorch-model-cli",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "largest-eigenval",
+                "type": "git",
+                "digest": "sha256:2bfa63009e386065e419e09018ddf20ecaeceaeb864844ebcac67e87360a8304",
+                "source": "terminal-bench",
+                "path": "largest-eigenval",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "password-recovery",
+                "type": "git",
+                "digest": "sha256:df7675941ecea4dd4711af5533c1aa771e86dd4e669180b85d783387b8b8736b",
+                "source": "terminal-bench",
+                "path": "password-recovery",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "portfolio-optimization",
+                "type": "git",
+                "digest": "sha256:39d86721d013a5f5b2337efd0aa7cca5723f79d9b397ef72ff533698cd03600d",
+                "source": "terminal-bench",
+                "path": "portfolio-optimization",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "path-tracing-reverse",
+                "type": "git",
+                "digest": "sha256:d89b7f1b2a7dc968f7f0faf116b66e19dfa2ee6757d67cb5cbf7d08ce00610d0",
+                "source": "terminal-bench",
+                "path": "path-tracing-reverse",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "regex-chess",
+                "type": "git",
+                "digest": "sha256:18a2f8de79b9a1c70148b7431ad2eb906d2298cdc9ac6c33aba950fd401b4fcf",
+                "source": "terminal-bench",
+                "path": "regex-chess",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "modernize-scientific-stack",
+                "type": "git",
+                "digest": "sha256:4bb2ee7f9b332cdd1c4f912becdfa0e0f095a9259280e7c9e2a4949eec1ab915",
+                "source": "terminal-bench",
+                "path": "modernize-scientific-stack",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "torch-tensor-parallelism",
+                "type": "git",
+                "digest": "sha256:b95c4082135aa71f5d910cbe61b64ef1651f565d1c73b020431c99ab151585ab",
+                "source": "terminal-bench",
+                "path": "torch-tensor-parallelism",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "path-tracing",
+                "type": "git",
+                "digest": "sha256:dfff1e9272b44ff8918e0b28414b126c21a6703cf76a6fb88122c44bff41f943",
+                "source": "terminal-bench",
+                "path": "path-tracing",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "prove-plus-comm",
+                "type": "git",
+                "digest": "sha256:62f11257d2c274a0f57cbc3cb17b286f1500dffc326c7aa5280fc2c93edfa085",
+                "source": "terminal-bench",
+                "path": "prove-plus-comm",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "feal-linear-cryptanalysis",
+                "type": "git",
+                "digest": "sha256:e2ee9fe28a3836f58b6c2b69f71b9d1fb100abad096ec6a02b889a125e2027e8",
+                "source": "terminal-bench",
+                "path": "feal-linear-cryptanalysis",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "caffe-cifar-10",
+                "type": "git",
+                "digest": "sha256:60e3b6306739b6c91128013a5fc17b913b5348f0995fff5da209c7348394ab36",
+                "source": "terminal-bench",
+                "path": "caffe-cifar-10",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "distribution-search",
+                "type": "git",
+                "digest": "sha256:c1e2e8878b08e80ab3223b0bb9e648b8d8b527b082fd4e10b424f40a8891b263",
+                "source": "terminal-bench",
+                "path": "distribution-search",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "mteb-retrieve",
+                "type": "git",
+                "digest": "sha256:9e5ad1058f8b72bc77ea64279b5490dea4260ca80c7b0e6311f82ae9f7de8554",
+                "source": "terminal-bench",
+                "path": "mteb-retrieve",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "pypi-server",
+                "type": "git",
+                "digest": "sha256:0644861427264cd213466f25e4f5be985e53124dff843f42a0ecc1261830f7a6",
+                "source": "terminal-bench",
+                "path": "pypi-server",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "custom-memory-heap-crash",
+                "type": "git",
+                "digest": "sha256:e0d2dd47db5563f3605aa663551cb80a646a135962a0f2e39fa4de9899021abc",
+                "source": "terminal-bench",
+                "path": "custom-memory-heap-crash",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        },
+        {
+            "task": {
+                "name": "adaptive-rejection-sampler",
+                "type": "git",
+                "digest": "sha256:b4c60177f24d0308859cde8da1ead1e668f5f0717d6d9fc6e5f4c32729bb7b40",
+                "source": "terminal-bench",
+                "path": "adaptive-rejection-sampler",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "model_name": "gpt-5.5",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {
+                    "reasoning_effort": "medium"
+                },
+                "env": {
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+                },
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        }
+    ]
+}

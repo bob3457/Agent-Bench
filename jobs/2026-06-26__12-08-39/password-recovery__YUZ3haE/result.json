@@ -1,0 +1,110 @@
+{
+    "id": "a831b0b6-34c5-4637-8bbb-ea2826cf5b18",
+    "task_name": "password-recovery",
+    "trial_name": "password-recovery__YUZ3haE",
+    "trial_uri": "file:///home/czhai/Agent-Bench/jobs/2026-06-26__12-08-39/password-recovery__YUZ3haE",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "password-recovery"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "55e4df1aaefa8c3b2910a6a19ada0187b55ebf29358a05b22d52716029817cdb",
+    "config": {
+        "task": {
+            "path": "password-recovery",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "password-recovery__YUZ3haE",
+        "trials_dir": "jobs/2026-06-26__12-08-39",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "codex",
+            "import_path": null,
+            "model_name": null,
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {},
+            "env": {
+                "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+            },
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "env": {},
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "env": {},
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "00d3bf1b-1502-4a4f-8a5d-4974f454de9b"
+    },
+    "agent_info": {
+        "name": "codex",
+        "version": "0.142.2",
+        "model_info": null
+    },
+    "agent_result": {
+        "n_input_tokens": null,
+        "n_cache_tokens": null,
+        "n_output_tokens": null,
+        "cost_usd": null,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": null,
+    "exception_info": {
+        "exception_type": "ValueError",
+        "exception_message": "Model name is required",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py\", line 338, in run\n    await self._run()\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 35, in _run\n    await self._run_agent()\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 71, in _run_agent\n    await self._run_agent_phase(\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py\", line 424, in _run_agent_phase\n    await asyncio.wait_for(\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/tasks.py\", line 520, in wait_for\n    return await fut\n           ^^^^^^^^^\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/agents/installed/base.py\", line 52, in wrapper\n    return await fn(self, instruction, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/agents/installed/codex.py\", line 738, in run\n    raise ValueError(\"Model name is required\")\nValueError: Model name is required\n",
+        "occurred_at": "2026-06-26T12:16:38.703978"
+    },
+    "started_at": "2026-06-26T16:16:18.358314Z",
+    "finished_at": "2026-06-26T16:16:48.594322Z",
+    "environment_setup": {
+        "started_at": "2026-06-26T16:16:18.361807Z",
+        "finished_at": "2026-06-26T16:16:20.603509Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-06-26T16:16:20.603531Z",
+        "finished_at": "2026-06-26T16:16:38.193335Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-06-26T16:16:38.193405Z",
+        "finished_at": "2026-06-26T16:16:38.193551Z"
+    },
+    "verifier": null,
+    "step_results": null
+}
