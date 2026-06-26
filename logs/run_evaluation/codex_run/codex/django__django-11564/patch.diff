@@ -1,0 +1,66 @@
+diff --git a/django/core/files/storage.py b/django/core/files/storage.py
+index 4c27fce605..c9ead57dba 100644
+--- a/django/core/files/storage.py
++++ b/django/core/files/storage.py
+@@ -1,6 +1,6 @@
+ import os
+ from datetime import datetime
+-from urllib.parse import urljoin
++from urllib.parse import urljoin, urlsplit
+ 
+ from django.conf import settings
+ from django.core.exceptions import SuspiciousFileOperation
+@@ -326,13 +326,25 @@ class FileSystemStorage(Storage):
+     def size(self, name):
+         return os.path.getsize(self.path(name))
+ 
++    def _script_prefix(self, url):
++        from django.urls import get_script_prefix
++
++        script_prefix = get_script_prefix()
++        url_parts = urlsplit(url)
++        if (
++            script_prefix != '/' and not url_parts.scheme and
++            not url_parts.netloc and not url.startswith(script_prefix)
++        ):
++            return urljoin(script_prefix, url.lstrip('/'))
++        return url
++
+     def url(self, name):
+         if self.base_url is None:
+             raise ValueError("This file is not accessible via a URL.")
+         url = filepath_to_uri(name)
+         if url is not None:
+             url = url.lstrip('/')
+-        return urljoin(self.base_url, url)
++        return urljoin(self._script_prefix(self.base_url), url)
+ 
+     def _datetime_from_timestamp(self, ts):
+         """
+diff --git a/django/templatetags/static.py b/django/templatetags/static.py
+index 39712aaba0..8738cf7a62 100644
+--- a/django/templatetags/static.py
++++ b/django/templatetags/static.py
+@@ -1,4 +1,4 @@
+-from urllib.parse import quote, urljoin
++from urllib.parse import quote, urljoin, urlsplit
+ 
+ from django import template
+ from django.apps import apps
+@@ -44,6 +44,16 @@ class PrefixNode(template.Node):
+             prefix = ''
+         else:
+             prefix = iri_to_uri(getattr(settings, name, ''))
++        from django.urls import get_script_prefix
++
++        script_prefix = get_script_prefix()
++        if prefix is not None:
++            prefix_parts = urlsplit(prefix)
++            if (
++                script_prefix != '/' and not prefix_parts.scheme and
++                not prefix_parts.netloc and not prefix.startswith(script_prefix)
++            ):
++                prefix = urljoin(script_prefix, prefix.lstrip('/'))
+         return prefix
+ 
+     def render(self, context):

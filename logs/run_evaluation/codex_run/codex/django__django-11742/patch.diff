@@ -1,0 +1,54 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 9ce46e3f73..e5f3058ab4 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -248,6 +248,13 @@ class Field(RegisterLookupMixin):
+         def is_value(value, accept_promise=True):
+             return isinstance(value, (str, Promise) if accept_promise else str) or not is_iterable(value)
+ 
++        max_length = self.max_length if (
++            isinstance(self.max_length, int) and
++            not isinstance(self.max_length, bool) and
++            self.max_length > 0
++        ) else None
++        choice_max_length = 0
++
+         if is_value(self.choices, accept_promise=False):
+             return [
+                 checks.Error(
+@@ -265,6 +272,7 @@ class Field(RegisterLookupMixin):
+                 # Containing non-pairs
+                 break
+             try:
++                group_choices = list(group_choices)
+                 if not all(
+                     is_value(value) and is_value(human_name)
+                     for value, human_name in group_choices
+@@ -275,11 +283,27 @@ class Field(RegisterLookupMixin):
+                 value, human_name = group_name, group_choices
+                 if not is_value(value) or not is_value(human_name):
+                     break
++                if max_length is not None and value is not None:
++                    choice_max_length = max(choice_max_length, len(str(value)))
++            else:
++                if max_length is not None:
++                    for value, _ in group_choices:
++                        if value is not None:
++                            choice_max_length = max(choice_max_length, len(str(value)))
+ 
+             # Special case: choices=['ab']
+             if isinstance(choices_group, str):
+                 break
+         else:
++            if max_length is not None and choice_max_length > max_length:
++                return [
++                    checks.Error(
++                        "'max_length' is too small to fit the longest value "
++                        "in 'choices' (%d characters)." % choice_max_length,
++                        obj=self,
++                        id='fields.E009',
++                    ),
++                ]
+             return []
+ 
+         return [

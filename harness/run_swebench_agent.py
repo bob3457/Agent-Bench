@@ -47,11 +47,17 @@ from pathlib import Path
 
 from datasets import load_dataset
 
-# --- config -----------------------------------------------------------------
+# Shared, agent-agnostic machinery now lives in agent_core. Re-export the names
+# here so anything still doing `from run_swebench_agent import Agent, ...`
+# (e.g. older plugin code) keeps working unchanged.
+from agent_core import (  # noqa: E402,F401
+    AGENTS_FILE, AGENT_TIMEOUT_S, TELEMETRY,
+    Agent, ShellAgent, load_agent, load_agents_file,
+)
+
+# --- config (SWE-bench-specific) --------------------------------------------
 DATA_DIR = Path("data")
 REPO_CACHE = DATA_DIR / "repo_cache"
-AGENTS_FILE = Path("agents.yaml")
-AGENT_TIMEOUT_S = 600
 DEFAULT_N_INSTANCES = 25
 # ----------------------------------------------------------------------------
 
@@ -60,147 +66,6 @@ def out_paths(agent):
     d = DATA_DIR / agent
     d.mkdir(parents=True, exist_ok=True)
     return d / "predictions.jsonl", d / "metrics.jsonl"
-
-
-# === telemetry parsers ======================================================
-# Each takes (stdout, meta) and returns raw_text (used by the printed-diff
-# fallback). They MUTATE meta with whatever agent-specific fields they can
-# pull. Unknown/none just passes stdout through.
-
-def _tel_claude_json(stdout, meta):
-    try:
-        data = json.loads(stdout)
-        meta["result_keys"] = list(data.keys())
-        meta["usage"] = data.get("usage")           # 4 token buckets
-        for k in ("total_cost_usd", "cost_usd", "duration_ms",
-                  "duration_api_ms", "ttft_ms", "num_turns", "session_id"):
-            if k in data:
-                meta[k] = data[k]
-        return data.get("result", "") or ""          # diff/prose lives here
-    except json.JSONDecodeError:
-        meta["parse_error"] = True
-        return stdout
-
-
-def _tel_codex_session(stdout, meta):
-    # Rich token/latency data isn't reliably on stdout for codex exec; it lands
-    # in rollout files under ~/.codex/sessions/. Record the newest one's path
-    # so aggregate_telemetry.py can parse it later.
-    try:
-        sessions = sorted(
-            Path.home().joinpath(".codex", "sessions").rglob("*.json*"),
-            key=lambda p: p.stat().st_mtime,
-        )
-        if sessions:
-            meta["codex_session_file"] = str(sessions[-1])
-    except OSError:
-        pass
-    return stdout
-
-
-def _tel_none(stdout, meta):
-    return stdout
-
-
-TELEMETRY = {
-    "claude_json": _tel_claude_json,
-    "codex_session": _tel_codex_session,
-    "none": _tel_none,
-}
-
-
-# === agent interface ========================================================
-
-class Agent:
-    """Minimal contract the harness depends on. Subclass for plugin agents."""
-
-    def __init__(self, name, cfg):
-        self.name = name
-        self.cfg = cfg
-        self.required_env = cfg.get("required_env", [])
-
-    def check(self):
-        """Preflight: abort with a clear message if it can't possibly run."""
-        missing = [k for k in self.required_env if not os.environ.get(k)]
-        if missing:
-            raise SystemExit(
-                f"Missing required env var(s) for --agent {self.name}: "
-                f"{', '.join(missing)}.\nSet them (e.g. in your .env / SLURM "
-                f"job) before running. Keys are read from the env, never hardcoded."
-            )
-
-    def run(self, prompt, cwd, model=None):
-        """Return (raw_text, meta). raw_text only feeds the printed-diff
-        fallback; the real result is whatever it edited in the tree."""
-        raise NotImplementedError
-
-
-class ShellAgent(Agent):
-    """Any CLI agent that edits files in cwd. Fully defined by its YAML row."""
-
-    def check(self):
-        binary = self.cfg["command"][0]
-        if shutil.which(binary) is None:
-            raise SystemExit(
-                f"`{binary}` not found on PATH (needed for --agent {self.name})."
-            )
-        super().check()
-
-    def run(self, prompt, cwd, model=None):
-        cmd = list(self.cfg["command"])
-        model_flag = self.cfg.get("model_flag")
-        if model and model_flag:
-            cmd += [model_flag, model]
-
-        prompt_via = self.cfg.get("prompt_via", "arg")
-        stdin_text = None
-        if prompt_via == "arg":
-            cmd += [prompt]
-        elif prompt_via == "stdin":
-            stdin_text = prompt
-        else:
-            raise SystemExit(f"agent {self.name}: bad prompt_via '{prompt_via}'.")
-
-        t0 = time.time()
-        try:
-            result = subprocess.run(
-                cmd, input=stdin_text, capture_output=True, text=True,
-                cwd=cwd, timeout=AGENT_TIMEOUT_S,
-            )
-        except subprocess.TimeoutExpired:
-            return "", {"agent": self.name, "wall_time_s": round(time.time() - t0, 2),
-                        "returncode": None, "timeout": True}
-
-        meta = {"agent": self.name, "wall_time_s": round(time.time() - t0, 2),
-                "returncode": result.returncode}
-        if result.returncode != 0:
-            meta["stderr"] = result.stderr[:500]
-
-        parser = TELEMETRY.get(self.cfg.get("telemetry", "none"), _tel_none)
-        raw_text = parser(result.stdout, meta)
-        return raw_text, meta
-
-
-def load_agent(name, agents_cfg):
-    """Instantiate ONLY the selected agent (lazy -- don't import unused plugins
-    or trip over a binary that isn't installed for an agent you're not running)."""
-    if name not in agents_cfg:
-        raise SystemExit(f"Unknown agent '{name}'. Known: {', '.join(agents_cfg)}.")
-    cfg = agents_cfg[name]
-    kind = cfg.get("type", "shell")
-    if kind == "shell":
-        return ShellAgent(name, cfg)
-    if kind == "plugin":
-        mod = importlib.import_module(cfg["module"])
-        klass = getattr(mod, cfg["class"])
-        return klass(name, cfg)
-    raise SystemExit(f"agent {name}: unknown type '{kind}'.")
-
-
-def load_agents_file(path):
-    import yaml  # imported here so a missing pyyaml only bites if you run this
-    with open(path) as f:
-        return yaml.safe_load(f)
 
 
 # === shared: prompt, git, repo setup ========================================
