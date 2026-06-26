@@ -105,7 +105,7 @@ not in the runner's output.
 ```bash
 # 1. Run (tool-isolated by default for closed-context QA)
 python harness/run_hotpot_agent.py \
-    --agent-cmd "claude -p" \
+    --agent "claude" \
     --input hotpot_dev_distractor_v1.json \
     --output data/claude/hotpot_predictions.json \
     --metrics data/claude/hotpot_metrics.jsonl \
@@ -121,10 +121,10 @@ python eval/hotpot_evaluate_v1.py data/claude/hotpot_predictions.json hotpot_dev
 ```bash
 # 1. Run
 python harness/run_freshqa_agent.py \
-    --agent-cmd "claude -p --output-format json" \
+    --agent "claude" \
     --input freshqa.csv \
     --output data/claude/freshqa_responses.jsonl \
-    --limit 50 --prompt-via arg --resume
+    --limit 50
 #   --allowed-tools "..." controls which tools the agent may use (web search for FreshQA)
 
 # 2. Grade with an LLM judge
