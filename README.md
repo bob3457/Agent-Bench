@@ -136,6 +136,8 @@ python eval/eval_freshqa.py \
 harbor run --dataset terminal-bench@2.0 \
    --agent claude-code \
    --n-concurrent 1 --n-tasks 1 --ae “CLAUDE_CODE_OAUTH_TOKEN=$CLAUDE_CODE_OAUTH_TOKEN”
+OR
+harbor run --dataset terminal-bench@2.0    --agent codex    --model gpt-5.5    --ak reasoning_effort=medium    --n-concurrent 1 --n-tasks 25    --ae "OPENAI_API_KEY=$OPENAI_API_KEY"
 # 2. Automatically graded, results can be found using
 harbor view jobs
 ```
