@@ -142,3 +142,74 @@ harbor run --dataset terminal-bench@2.0    --agent codex    --model gpt-5.5    -
 harbor view jobs
 ```
 ---
+## Accessing Agent information
+
+### Claude
+The following information is stored under data/claude (one example below):
+```
+"5a8b57f25542995d1e6f1371": {
+    "agent": "claude",
+    "wall_time_s": 5.58,
+    "returncode": 0,
+    "total_cost_usd": 0.058498,
+    "input_tokens": 2,
+    "output_tokens": 215,
+    "cache_read_input_tokens": 16730,
+    "cache_creation_input_tokens": 8017,
+    "num_turns": 1,
+    "duration_ms": 4839,
+    "duration_api_ms": 5882,
+    "ttft_ms": 4056,
+    "session_id": "78c503ac-6b69-44ee-9fea-5ac3b1b376dc",
+    "codex_session_file": null
+  }
+```
+
+### Openhands
+The data is also in the data folder but under openhands instead. One example set of data is displayed below:
+```
+"5a8b57f25542995d1e6f1371": {
+    "agent": "openhands",
+    "wall_time_s": 1.02,
+    "returncode": 0,
+    "input_tokens": 8051,
+    "output_tokens": 98,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0,
+    "reasoning_tokens": 65,
+    "usage": {
+      "input_tokens": 8051,
+      "output_tokens": 98,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "reasoning_tokens": 65
+    },
+    "total_cost_usd": 0.043195,
+    "usage_breakdown": {
+      "agent": 0.043195,
+      "condenser": 0.0
+    },
+    "num_turns": 1,
+    "llm_calls": 1,
+    "latency_total_s": 1.006,
+    "latency_mean_s": 1.006,
+    "latency_max_s": 1.006,
+    "cost_max_call_usd": 0.043195
+  },
+```
+
+### Codex
+Codex statistics are stored under a seperate codex folder and a script needs to be run to create a csv of the filtered data \
+In order to run, run the following code in the Agent-Bench directory \
+The path to the data can be found under data/codex/ in the json file correlating to that run \
+The following information is parsed by the script: 
+```
+session_id, cli_version, turn_id, model, effort, started_at,
+completed_at, duration_ms, time_to_first_token_ms, input_tokens, 
+cached_input_tokens, output_tokens, reasoning_output_tokens, total_tokens, 
+model_context_window, n_api_calls, n_tool_calls, wall_clock_s,
+cache_hit_rate, context_fill, output_tokens_per_s, mean_api_gap_s
+```
+
+```
+python parse_codex_metrics.py /path/to/data --csv /home/czhai/Agent-Bench/data/codex/changeName.csv
