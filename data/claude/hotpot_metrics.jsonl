@@ -1,0 +1,18 @@
+{
+  "5a8b57f25542995d1e6f1371": {
+    "agent": "claude",
+    "wall_time_s": 5.58,
+    "returncode": 0,
+    "total_cost_usd": 0.058498,
+    "input_tokens": 2,
+    "output_tokens": 215,
+    "cache_read_input_tokens": 16730,
+    "cache_creation_input_tokens": 8017,
+    "num_turns": 1,
+    "duration_ms": 4839,
+    "duration_api_ms": 5882,
+    "ttft_ms": 4056,
+    "session_id": "78c503ac-6b69-44ee-9fea-5ac3b1b376dc",
+    "codex_session_file": null
+  }
+}

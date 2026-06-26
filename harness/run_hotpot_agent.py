@@ -12,8 +12,13 @@ goes to a SEPARATE metrics file so predictions.json stays exactly what the score
 reads.
 
     python run_hotpot_agent.py --agent claude-closedbook \
-        --input hotpot_dev_distractor_v1.json \
-        --output predictions.json --metrics metrics.json --limit 100
+        --input hotpot_dev_distractor_v1.json --limit 100
+
+Output paths default to data/<agent-family>/ (family = agent name up to the
+first '-', so claude-closedbook -> data/claude/):
+    predictions -> data/<family>/hotpot_predictions.json
+    metrics     -> data/<family>/hotpot_metrics.json
+Override either with --output / --metrics.
 
 Then score:
     python hotpot_evaluate_v1.py predictions.json hotpot_dev_distractor_v1.json
@@ -63,6 +68,18 @@ except ImportError:  # tqdm optional
 
 SENTINEL = "FINAL ANSWER:"
 SP_SENTINEL = "SUPPORTING FACTS:"
+
+# Root under which every harness writes its per-agent output. Keeping data
+# together by agent family is what the reward-vs-cost join keys off of.
+DATA_ROOT = "data"
+
+
+def default_paths(agent_name):
+    """(predictions, metrics) under data/<family>/, family = name up to '-'."""
+    fam = agent_name.split("-", 1)[0]
+    d = os.path.join(DATA_ROOT, fam)
+    return (os.path.join(d, "hotpot_predictions.json"),
+            os.path.join(d, "hotpot_metrics.json"))
 
 
 def build_prompt(item):
@@ -197,9 +214,11 @@ def main():
     ap.add_argument("--agents-file", default=str(AGENTS_FILE),
                     help=f"Path to the agent registry (default: {AGENTS_FILE}).")
     ap.add_argument("--input", help="hotpot_dev_distractor_v1.json")
-    ap.add_argument("--output", default="predictions.json")
+    ap.add_argument("--output", default=None,
+                    help="predictions JSON (default: data/<agent>/hotpot_predictions.json)")
     ap.add_argument("--metrics", default=None,
-                    help="per-question telemetry file (default: <output>.metrics.json)")
+                    help="per-question telemetry file "
+                         "(default: data/<agent>/hotpot_metrics.json)")
     ap.add_argument("--limit", type=int, default=None, help="cap number of questions")
     ap.add_argument("--model", default=None, help="optional model override (via the agent's model_flag)")
     ap.add_argument("--timeout", type=int, default=None,
@@ -218,13 +237,19 @@ def main():
     if not args.input:
         ap.error("--input is required (unless using --list-agents)")
 
+    # Auto-route output/metrics into data/<agent-family>/ unless overridden.
+    def_out, def_metrics = default_paths(args.agent)
+    if not args.output:
+        args.output = def_out
+    metrics_path = args.metrics or def_metrics
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    os.makedirs(os.path.dirname(metrics_path), exist_ok=True)
+
     if args.timeout:
         agent_core.AGENT_TIMEOUT_S = args.timeout
 
     agent = load_agent(args.agent, agents_cfg)
     agent.check()
-
-    metrics_path = args.metrics or (args.output + ".metrics.json")
 
     with open(args.input) as f:
         data = json.load(f)
@@ -242,7 +267,8 @@ def main():
         print(f"Resuming: {len(answers)} predictions already on disk.")
 
     scratch = tempfile.mkdtemp(prefix="hotpot_")
-    print(f"Agent: {args.agent} | questions: {len(data)} | cwd: {scratch}")
+    print(f"Agent: {args.agent} | questions: {len(data)} | cwd: {scratch} | "
+          f"output: {args.output}")
 
     try:
         for item in tqdm(data, desc="hotpot"):

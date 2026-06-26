@@ -10,10 +10,13 @@ answer + telemetry. Adding an agent is a YAML edit, not a code change.
 
     # open-book (web tools allowed) — see the agents.yaml row note below
     python run_freshqa_agent.py --agent claude-search \
-        --input freshqa.csv --output responses.jsonl --limit 50
+        --input freshqa.csv --limit 50
 
-    python run_freshqa_agent.py --agent codex \
-        --input freshqa.csv --output responses.jsonl
+    python run_freshqa_agent.py --agent codex --input freshqa.csv
+
+Output paths default to data/<agent-family>/freshqa_responses.jsonl, where the
+family is the agent name up to the first '-' (so claude-search and
+claude-closedbook both land in data/claude/). Override with --output.
 
 Then grade with: python eval_freshqa.py --responses responses.jsonl --mode both
 
@@ -49,6 +52,7 @@ import argparse
 import csv
 import datetime
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -65,6 +69,16 @@ try:
 except ImportError:  # tqdm optional
     def tqdm(x, **k):
         return x
+
+# Root under which every harness writes its per-agent output. Keeping data
+# together by agent family is what the reward-vs-cost join keys off of.
+DATA_ROOT = "data"
+
+
+def default_output(agent_name):
+    """data/<family>/freshqa_responses.jsonl, family = name up to first '-'."""
+    fam = agent_name.split("-", 1)[0]
+    return os.path.join(DATA_ROOT, fam, "freshqa_responses.jsonl")
 
 
 def find_col(fieldnames, *needles):
@@ -183,7 +197,9 @@ def main():
     ap.add_argument("--agents-file", default=str(AGENTS_FILE),
                     help=f"Path to the agent registry (default: {AGENTS_FILE}).")
     ap.add_argument("--input", help="FreshQA CSV exported from the Google Sheet")
-    ap.add_argument("--output", help="responses JSONL to write")
+    ap.add_argument("--output", default=None,
+                    help="responses JSONL to write "
+                         "(default: data/<agent>/freshqa_responses.jsonl)")
     ap.add_argument("--limit", type=int, default=50)
     ap.add_argument("--model", default=None, help="optional model override (via the agent's model_flag)")
     ap.add_argument("--timeout", type=int, default=None,
@@ -199,8 +215,13 @@ def main():
             print(f"  {name:14} ({cfg.get('type', 'shell')})")
         return
 
-    if not args.input or not args.output:
-        ap.error("--input and --output are required (unless using --list-agents)")
+    if not args.input:
+        ap.error("--input is required (unless using --list-agents)")
+
+    # Auto-route output into data/<agent-family>/ unless explicitly overridden.
+    if not args.output:
+        args.output = default_output(args.agent)
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
 
     if args.timeout:
         agent_core.AGENT_TIMEOUT_S = args.timeout  # shell agents read this at call time
@@ -217,7 +238,8 @@ def main():
     # runs in *some* cwd. An empty temp dir means a closed-book agent has nothing
     # local to read, and no agent can dirty your tree.
     scratch = tempfile.mkdtemp(prefix="freshqa_")
-    print(f"Agent: {args.agent} | questions: {min(len(rows), args.limit)} | cwd: {scratch}")
+    print(f"Agent: {args.agent} | questions: {min(len(rows), args.limit)} | "
+          f"cwd: {scratch} | output: {args.output}")
 
     try:
         with open(args.output, mode, encoding="utf-8") as out:
