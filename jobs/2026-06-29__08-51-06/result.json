@@ -1,0 +1,40 @@
+{
+    "id": "2eacf41a-d263-4d6a-9849-61536dc1bb1e",
+    "started_at": "2026-06-29T08:51:07.417255",
+    "updated_at": "2026-06-29T12:52:20.389919Z",
+    "finished_at": null,
+    "n_total_trials": 3,
+    "stats": {
+        "n_completed_trials": 2,
+        "n_errored_trials": 2,
+        "n_running_trials": 0,
+        "n_pending_trials": 1,
+        "n_cancelled_trials": 1,
+        "n_retries": 0,
+        "evals": {
+            "openhands__claude-sonnet-4-6__terminal-bench": {
+                "n_trials": 0,
+                "n_errors": 2,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "pass_at_k": {},
+                "reward_stats": {},
+                "exception_stats": {
+                    "RuntimeError": [
+                        "gpt2-codegolf__K9zCoaa"
+                    ],
+                    "CancelledError": [
+                        "llm-inference-batching-scheduler__ZR6Met7"
+                    ]
+                }
+            }
+        },
+        "n_input_tokens": null,
+        "n_cache_tokens": null,
+        "n_output_tokens": null,
+        "cost_usd": null
+    }
+}

@@ -1,0 +1,6 @@
+Acquiring lock for image conversion: alexgshaw/llm-inference-batching-scheduler:20251031
+Lock acquired for: alexgshaw/llm-inference-batching-scheduler:20251031
+Converting Docker image to Singularity: alexgshaw/llm-inference-batching-scheduler:20251031
+Trial llm-inference-batching-scheduler__ZR6Met7 cancelled
+Collecting main service artifacts
+Singularity image preserved at None for reuse

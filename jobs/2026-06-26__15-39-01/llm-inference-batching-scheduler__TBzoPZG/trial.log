@@ -1,0 +1,4 @@
+Running command: apt-get update && apt-get install -y curl git build-essential tmux
+Trial llm-inference-batching-scheduler__TBzoPZG cancelled
+Collecting main service artifacts
+Cleanup interrupted for llm-inference-batching-scheduler__TBzoPZG, but agent environment stop is shielded and will complete

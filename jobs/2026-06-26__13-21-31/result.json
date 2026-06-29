@@ -1,23 +1,23 @@
 {
     "id": "bc6c761c-f080-47de-a107-7a6d22ca0504",
     "started_at": "2026-06-26T13:21:31.804986",
-    "updated_at": "2026-06-26T18:16:45.728225Z",
-    "finished_at": null,
+    "updated_at": "2026-06-26T15:32:14.361452",
+    "finished_at": "2026-06-26T15:32:14.361452",
     "n_total_trials": 25,
     "stats": {
-        "n_completed_trials": 13,
-        "n_errored_trials": 0,
-        "n_running_trials": 1,
-        "n_pending_trials": 11,
+        "n_completed_trials": 25,
+        "n_errored_trials": 1,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
         "n_cancelled_trials": 0,
         "n_retries": 0,
         "evals": {
             "codex__gpt-5.5__terminal-bench": {
-                "n_trials": 13,
-                "n_errors": 0,
+                "n_trials": 24,
+                "n_errors": 1,
                 "metrics": [
                     {
-                        "mean": 1.0
+                        "mean": 0.84
                     }
                 ],
                 "pass_at_k": {},
@@ -36,16 +36,33 @@
                             "largest-eigenval__hN54P53",
                             "password-recovery__jNC5fyv",
                             "portfolio-optimization__Pz5cCDS",
-                            "path-tracing-reverse__zkZZ8uE"
+                            "path-tracing-reverse__zkZZ8uE",
+                            "regex-chess__TPqQxHx",
+                            "modernize-scientific-stack__JELjJ49",
+                            "path-tracing__wEjquuZ",
+                            "prove-plus-comm__MyyMcYD",
+                            "feal-linear-cryptanalysis__eNwsSMX",
+                            "distribution-search__aJUYLjY",
+                            "custom-memory-heap-crash__BF2pRgF",
+                            "adaptive-rejection-sampler__vhwnh73"
+                        ],
+                        "0.0": [
+                            "torch-tensor-parallelism__xBubZXQ",
+                            "mteb-retrieve__kaQnpyS",
+                            "pypi-server__3jdpCUZ"
                         ]
                     }
                 },
-                "exception_stats": {}
+                "exception_stats": {
+                    "VerifierTimeoutError": [
+                        "caffe-cifar-10__Wdsdnze"
+                    ]
+                }
             }
         },
-        "n_input_tokens": 6458373,
-        "n_cache_tokens": 5970304,
-        "n_output_tokens": 104440,
-        "cost_usd": 8.558696999999999
+        "n_input_tokens": 13986223,
+        "n_cache_tokens": 13053440,
+        "n_output_tokens": 173563,
+        "cost_usd": 16.397524999999998
     }
 }

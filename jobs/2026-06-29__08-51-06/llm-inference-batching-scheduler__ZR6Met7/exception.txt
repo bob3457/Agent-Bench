@@ -1,0 +1,32 @@
+Traceback (most recent call last):
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py", line 337, in run
+    await self._prepare()
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py", line 364, in _prepare
+    await self._setup_agent_environment()
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py", line 1031, in _setup_agent_environment
+    await self._start_agent_environment()
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py", line 1037, in _start_agent_environment
+    await asyncio.wait_for(
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/tasks.py", line 520, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/environments/singularity/singularity.py", line 658, in start
+    self._sif_path = await self._convert_docker_to_sif(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/environments/singularity/singularity.py", line 263, in _convert_docker_to_sif
+    stdout, stderr = await process.communicate()
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/subprocess.py", line 201, in communicate
+    stdin, stdout, stderr = await tasks.gather(stdin, stdout, stderr)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/subprocess.py", line 181, in _read_stream
+    output = await stream.read()
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/streams.py", line 706, in read
+    block = await self.read(self._limit)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/streams.py", line 713, in read
+    await self._wait_for_data('read')
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/streams.py", line 545, in _wait_for_data
+    await self._waiter
+asyncio.exceptions.CancelledError

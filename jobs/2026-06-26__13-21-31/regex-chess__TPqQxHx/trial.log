@@ -43,3 +43,14 @@ The length of re.json must be under 100,000 [regex, replacement]-pairs long, and
 
 You can look at the provided check.py to verify if your solution is correct. You will be tested on other positions as well.
 ' 2>&1 </dev/null | tee /logs/agent/codex.txt
+Command outputs captured
+Running command: mkdir -p /logs/agent
+if [ -d "$CODEX_HOME/sessions" ]; then
+  rm -rf /logs/agent/sessions
+  cp -R "$CODEX_HOME/sessions" /logs/agent/sessions
+fi
+Command outputs captured
+Running command: rm -rf /tmp/codex-secrets "$CODEX_HOME"
+Command outputs captured
+Wrote Codex trajectory to jobs/2026-06-26__13-21-31/regex-chess__TPqQxHx/agent/trajectory.json
+Collecting main service artifacts

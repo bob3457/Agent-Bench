@@ -1,0 +1,118 @@
+{
+    "id": "298418aa-1eed-47e9-a99f-3c2f2d322eea",
+    "task_name": "merge-diff-arc-agi-task",
+    "trial_name": "merge-diff-arc-agi-task__Xou9Fh3",
+    "trial_uri": "file:///home/czhai/Agent-Bench/jobs/2026-06-29__10-25-44/merge-diff-arc-agi-task__Xou9Fh3",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "merge-diff-arc-agi-task"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "1e69376aa87a540b46c4dea3ba4f8507ed18aeeeef6f8786dab68eff71b0b58d",
+    "config": {
+        "task": {
+            "path": "merge-diff-arc-agi-task",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "merge-diff-arc-agi-task__Xou9Fh3",
+        "trials_dir": "jobs/2026-06-29__10-25-44",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "openhands-sdk",
+            "import_path": null,
+            "model_name": "gpt-5.5",
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {
+                "reasoning_effort": "medium",
+                "version": "1.27.0"
+            },
+            "env": {
+                "LLM_API_KEY": "${LLM_API_KEY}"
+            },
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "env": {},
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "env": {},
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "ebc29a5b-61de-4e1f-a9d3-345a9c50fa54"
+    },
+    "agent_info": {
+        "name": "openhands-sdk",
+        "version": "1.27.0",
+        "model_info": {
+            "name": "gpt-5.5",
+            "provider": null
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 591704,
+        "n_cache_tokens": 521216,
+        "n_output_tokens": 9021,
+        "cost_usd": 0.8836779999999997,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 1.0
+        }
+    },
+    "exception_info": null,
+    "started_at": "2026-06-29T14:57:24.919788Z",
+    "finished_at": "2026-06-29T15:01:37.618666Z",
+    "environment_setup": {
+        "started_at": "2026-06-29T14:57:24.922185Z",
+        "finished_at": "2026-06-29T14:57:26.421391Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-06-29T14:57:26.421444Z",
+        "finished_at": "2026-06-29T14:58:18.383004Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-06-29T14:58:18.383073Z",
+        "finished_at": "2026-06-29T15:01:18.213144Z"
+    },
+    "verifier": {
+        "started_at": "2026-06-29T15:01:18.661665Z",
+        "finished_at": "2026-06-29T15:01:25.693122Z"
+    },
+    "step_results": null
+}

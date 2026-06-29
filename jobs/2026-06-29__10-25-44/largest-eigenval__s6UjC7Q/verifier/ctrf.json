@@ -1,0 +1,58 @@
+{
+    "results": {
+        "tool": {
+            "name": "pytest",
+            "version": "8.4.1"
+        },
+        "summary": {
+            "tests": 3,
+            "passed": 2,
+            "failed": 1,
+            "skipped": 0,
+            "pending": 0,
+            "other": 0,
+            "start": 1782747267.0546794,
+            "stop": 1782747267.4412727
+        },
+        "tests": [
+            {
+                "name": "test_outputs.py::test_eigen_pair",
+                "status": "passed",
+                "duration": 0.0008213940018322319,
+                "start": 1782747267.2665913,
+                "stop": 1782747267.2676554,
+                "retries": 8,
+                "file_path": "test_outputs.py",
+                "tags": [
+                    "parametrize::size::[2, 3, 4, 5, 6, 7, 8, 9, 10]"
+                ]
+            },
+            {
+                "name": "test_outputs.py::test_dominance_eigenvalue",
+                "status": "passed",
+                "duration": 0.000301101004879456,
+                "start": 1782747267.2733355,
+                "stop": 1782747267.2737112,
+                "retries": 8,
+                "file_path": "test_outputs.py",
+                "tags": [
+                    "parametrize::size::[2, 3, 4, 5, 6, 7, 8, 9, 10]"
+                ]
+            },
+            {
+                "name": "test_outputs.py::test_speedup",
+                "status": "failed",
+                "duration": 0.025674368000181857,
+                "start": 1782747267.2778482,
+                "stop": 1782747267.3037796,
+                "retries": 8,
+                "file_path": "test_outputs.py",
+                "tags": [
+                    "parametrize::size::[2, 3, 4, 5, 6, 7, 8, 9, 10]"
+                ],
+                "trace": "size = 4\n\n    @pytest.mark.parametrize(\"size\", MAT_SIZES)\n    def test_speedup(size):\n        \"\"\"Make sure new implementation is faster than reference.\"\"\"\n        _np_random_seed(0)\n        matrices = [\n            _np_random_normal(size=(size, size)).astype(np.float64) for _ in range(N)\n        ]\n    \n        with ProcessPoolExecutor(max_workers=1) as executor:\n            ref_future = executor.submit(\n                _time_function_isolated,\n                ref_solution,\n                matrices,\n            )\n            ref_dts = ref_future.result(timeout=30)\n            ref_dt = np.median(ref_dts).item() if ref_dts else float(\"inf\")\n            print(f\"Median time for {size}x{size} (ref): {ref_dt:.6f} seconds\")\n    \n            candidate_future = executor.submit(\n                _time_function_isolated,\n                find_dominant_eigenvalue_and_eigenvector,\n                matrices,\n            )\n            dts = candidate_future.result(timeout=30)\n            dt = np.median(dts).item() if dts else float(\"inf\")\n            print(f\"Median time for {size}x{size}: {dt:.6f} seconds\")\n    \n>       assert dt < ref_dt, f\"{dt:.6f} seconds/call > {ref_dt:.6f} seconds/call\"\nE       AssertionError: 0.000015 seconds/call > 0.000011 seconds/call\nE       assert 1.5488498320337385e-05 < 1.0594001651043072e-05\n\n/tests/test_outputs.py:111: AssertionError",
+                "message": "The test failed in the call phase due to an assertion error"
+            }
+        ]
+    }
+}
