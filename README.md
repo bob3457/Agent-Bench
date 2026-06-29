@@ -138,8 +138,17 @@ harbor run --dataset terminal-bench@2.0 \
    --n-concurrent 1 --n-tasks 1 --ae “CLAUDE_CODE_OAUTH_TOKEN=$CLAUDE_CODE_OAUTH_TOKEN”
 OR
 harbor run --dataset terminal-bench@2.0    --agent codex    --model gpt-5.5    --ak reasoning_effort=medium    --n-concurrent 1 --n-tasks 25    --ae "OPENAI_API_KEY=$OPENAI_API_KEY"
+OR
+harbor run -d terminal-bench@2.0 -a openhands-sdk   -m gpt-5.5   --ak reasoning_effort=medium   --ak version=1.27.0
+ --ae "LLM_API_KEY=$OPENAI_API_KEY"   -e docker -l 25 -n 1 --env-file ./.env
 # 2. Automatically graded, results can be found using
 harbor view jobs
+```
+
+### Notes
+```
+for HotpotQA, freshQA and terminal bench, change --agent to the one you want \
+You can find the list of agents by 
 ```
 ---
 ## Accessing Agent information
