@@ -1,0 +1,117 @@
+{
+    "id": "5510b382-70c0-45eb-91e4-4baf82b68782",
+    "task_name": "llm-inference-batching-scheduler",
+    "trial_name": "llm-inference-batching-scheduler__9Tmomxn",
+    "trial_uri": "file:///home/czhai/Agent-Bench/jobs/2026-06-29__13-08-29/llm-inference-batching-scheduler__9Tmomxn",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "llm-inference-batching-scheduler"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "3a08e63e0643ea5914eedeecb08cb93a1f0a10b9dc7d19d1f570004af84531c8",
+    "config": {
+        "task": {
+            "path": "llm-inference-batching-scheduler",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "llm-inference-batching-scheduler__9Tmomxn",
+        "trials_dir": "jobs/2026-06-29__13-08-29",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "codex",
+            "import_path": null,
+            "model_name": "gpt-5.5",
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {
+                "reasoning_effort": "high"
+            },
+            "env": {
+                "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+            },
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "env": {},
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "env": {},
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "bc894a19-de72-49d1-b61b-bf33393944c1"
+    },
+    "agent_info": {
+        "name": "codex",
+        "version": "0.142.4",
+        "model_info": {
+            "name": "gpt-5.5",
+            "provider": null
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 348529,
+        "n_cache_tokens": 300416,
+        "n_output_tokens": 17775,
+        "cost_usd": 0.924023,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 1.0
+        }
+    },
+    "exception_info": null,
+    "started_at": "2026-06-29T17:18:51.234535Z",
+    "finished_at": "2026-06-29T17:24:13.728409Z",
+    "environment_setup": {
+        "started_at": "2026-06-29T17:18:51.235834Z",
+        "finished_at": "2026-06-29T17:18:52.696629Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-06-29T17:18:52.696659Z",
+        "finished_at": "2026-06-29T17:19:09.169122Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-06-29T17:19:09.169204Z",
+        "finished_at": "2026-06-29T17:23:57.433890Z"
+    },
+    "verifier": {
+        "started_at": "2026-06-29T17:23:57.940070Z",
+        "finished_at": "2026-06-29T17:24:02.391009Z"
+    },
+    "step_results": null
+}

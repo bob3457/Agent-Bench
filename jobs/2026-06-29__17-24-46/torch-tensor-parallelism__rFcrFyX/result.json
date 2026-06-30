@@ -1,0 +1,117 @@
+{
+    "id": "a167742c-5067-4425-a19c-a81abd0220e9",
+    "task_name": "torch-tensor-parallelism",
+    "trial_name": "torch-tensor-parallelism__rFcrFyX",
+    "trial_uri": "file:///home/czhai/Agent-Bench/jobs/2026-06-29__17-24-46/torch-tensor-parallelism__rFcrFyX",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "torch-tensor-parallelism"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "2637b586b22a779d1a4f01508f5f2caeea21d0b126b53d938e06ae8e717b8d19",
+    "config": {
+        "task": {
+            "path": "torch-tensor-parallelism",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "torch-tensor-parallelism__rFcrFyX",
+        "trials_dir": "jobs/2026-06-29__17-24-46",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "codex",
+            "import_path": null,
+            "model_name": "gpt-5.5",
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {
+                "reasoning_effort": "low"
+            },
+            "env": {
+                "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+            },
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "env": {},
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "env": {},
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "9b71ed6b-09fc-4dd5-98bc-6a8faa0c58cc"
+    },
+    "agent_info": {
+        "name": "codex",
+        "version": "0.142.4",
+        "model_info": {
+            "name": "gpt-5.5",
+            "provider": null
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 104035,
+        "n_cache_tokens": 93312,
+        "n_output_tokens": 3410,
+        "cost_usd": 0.202571,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 0.0
+        }
+    },
+    "exception_info": null,
+    "started_at": "2026-06-29T21:58:03.744616Z",
+    "finished_at": "2026-06-29T22:01:56.623044Z",
+    "environment_setup": {
+        "started_at": "2026-06-29T21:58:03.748215Z",
+        "finished_at": "2026-06-29T21:58:05.377948Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-06-29T21:58:05.378003Z",
+        "finished_at": "2026-06-29T21:58:24.986342Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-06-29T21:58:24.986463Z",
+        "finished_at": "2026-06-29T21:59:17.323359Z"
+    },
+    "verifier": {
+        "started_at": "2026-06-29T21:59:17.732247Z",
+        "finished_at": "2026-06-29T22:01:44.715330Z"
+    },
+    "step_results": null
+}

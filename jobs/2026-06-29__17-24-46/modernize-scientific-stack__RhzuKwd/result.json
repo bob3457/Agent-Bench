@@ -1,0 +1,117 @@
+{
+    "id": "5f50c194-2e88-4615-b94a-854c95077996",
+    "task_name": "modernize-scientific-stack",
+    "trial_name": "modernize-scientific-stack__RhzuKwd",
+    "trial_uri": "file:///home/czhai/Agent-Bench/jobs/2026-06-29__17-24-46/modernize-scientific-stack__RhzuKwd",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "modernize-scientific-stack"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "7adc1cfbf5f90a260af478606d0286ccc9ca975fed4b14aee0c8c1d86cb7185e",
+    "config": {
+        "task": {
+            "path": "modernize-scientific-stack",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "modernize-scientific-stack__RhzuKwd",
+        "trials_dir": "jobs/2026-06-29__17-24-46",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "codex",
+            "import_path": null,
+            "model_name": "gpt-5.5",
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {
+                "reasoning_effort": "low"
+            },
+            "env": {
+                "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+            },
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "env": {},
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "env": {},
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "9b71ed6b-09fc-4dd5-98bc-6a8faa0c58cc"
+    },
+    "agent_info": {
+        "name": "codex",
+        "version": "0.142.4",
+        "model_info": {
+            "name": "gpt-5.5",
+            "provider": null
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 56002,
+        "n_cache_tokens": 50176,
+        "n_output_tokens": 1028,
+        "cost_usd": 0.085058,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 1.0
+        }
+    },
+    "exception_info": null,
+    "started_at": "2026-06-29T21:57:10.082458Z",
+    "finished_at": "2026-06-29T21:58:03.737113Z",
+    "environment_setup": {
+        "started_at": "2026-06-29T21:57:10.085869Z",
+        "finished_at": "2026-06-29T21:57:11.569032Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-06-29T21:57:11.569052Z",
+        "finished_at": "2026-06-29T21:57:27.972908Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-06-29T21:57:27.972980Z",
+        "finished_at": "2026-06-29T21:57:43.174045Z"
+    },
+    "verifier": {
+        "started_at": "2026-06-29T21:57:43.690529Z",
+        "finished_at": "2026-06-29T21:57:51.993862Z"
+    },
+    "step_results": null
+}

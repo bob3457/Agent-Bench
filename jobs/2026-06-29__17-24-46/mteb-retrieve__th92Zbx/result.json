@@ -1,0 +1,117 @@
+{
+    "id": "ed172118-24ef-4c45-b043-f0de019f64b5",
+    "task_name": "mteb-retrieve",
+    "trial_name": "mteb-retrieve__th92Zbx",
+    "trial_uri": "file:///home/czhai/Agent-Bench/jobs/2026-06-29__17-24-46/mteb-retrieve__th92Zbx",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "mteb-retrieve"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "c9b88a67c599defd76f11c87dc596dbfd16e2e3ea1e40d1abec4033db888473f",
+    "config": {
+        "task": {
+            "path": "mteb-retrieve",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "mteb-retrieve__th92Zbx",
+        "trials_dir": "jobs/2026-06-29__17-24-46",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "codex",
+            "import_path": null,
+            "model_name": "gpt-5.5",
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {
+                "reasoning_effort": "low"
+            },
+            "env": {
+                "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+            },
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "env": {},
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "env": {},
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "9b71ed6b-09fc-4dd5-98bc-6a8faa0c58cc"
+    },
+    "agent_info": {
+        "name": "codex",
+        "version": "0.142.4",
+        "model_info": {
+            "name": "gpt-5.5",
+            "provider": null
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 65002,
+        "n_cache_tokens": 60288,
+        "n_output_tokens": 859,
+        "cost_usd": 0.079484,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 0.0
+        }
+    },
+    "exception_info": null,
+    "started_at": "2026-06-29T22:20:27.335686Z",
+    "finished_at": "2026-06-29T22:23:14.115772Z",
+    "environment_setup": {
+        "started_at": "2026-06-29T22:20:27.346803Z",
+        "finished_at": "2026-06-29T22:20:28.872263Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-06-29T22:20:28.872283Z",
+        "finished_at": "2026-06-29T22:20:44.734629Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-06-29T22:20:44.734700Z",
+        "finished_at": "2026-06-29T22:21:26.939959Z"
+    },
+    "verifier": {
+        "started_at": "2026-06-29T22:21:27.430292Z",
+        "finished_at": "2026-06-29T22:23:01.536160Z"
+    },
+    "step_results": null
+}

@@ -1,0 +1,65 @@
+{
+    "id": "9b71ed6b-09fc-4dd5-98bc-6a8faa0c58cc",
+    "started_at": "2026-06-29T17:24:47.843476",
+    "updated_at": "2026-06-29T18:28:27.389561",
+    "finished_at": "2026-06-29T18:28:27.389561",
+    "n_total_trials": 25,
+    "stats": {
+        "n_completed_trials": 25,
+        "n_errored_trials": 0,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "codex__gpt-5.5__terminal-bench": {
+                "n_trials": 25,
+                "n_errors": 0,
+                "metrics": [
+                    {
+                        "mean": 0.72
+                    }
+                ],
+                "pass_at_k": {},
+                "reward_stats": {
+                    "reward": {
+                        "0.0": [
+                            "gpt2-codegolf__jRyvric",
+                            "path-tracing-reverse__RKQJShq",
+                            "regex-chess__A98yUUB",
+                            "torch-tensor-parallelism__rFcrFyX",
+                            "path-tracing__93B8JYX",
+                            "mteb-retrieve__th92Zbx",
+                            "pypi-server__xqxSdXg"
+                        ],
+                        "1.0": [
+                            "llm-inference-batching-scheduler__qNTGQdh",
+                            "break-filter-js-from-html__bv9KEVi",
+                            "reshard-c4-data__4Z7VicB",
+                            "write-compressor__enxioWw",
+                            "merge-diff-arc-agi-task__4siRRaw",
+                            "winning-avg-corewars__ipySHQh",
+                            "log-summary-date-ranges__PZYPbn9",
+                            "pytorch-model-cli__KmXrkko",
+                            "largest-eigenval__NDUEecT",
+                            "password-recovery__t2fkJk5",
+                            "portfolio-optimization__kHALpyd",
+                            "modernize-scientific-stack__RhzuKwd",
+                            "prove-plus-comm__qUZxgmy",
+                            "feal-linear-cryptanalysis__ZnKfdEN",
+                            "caffe-cifar-10__B8KfeHU",
+                            "distribution-search__buQcTeA",
+                            "custom-memory-heap-crash__qhcrFAe",
+                            "adaptive-rejection-sampler__SEzAWzS"
+                        ]
+                    }
+                },
+                "exception_stats": {}
+            }
+        },
+        "n_input_tokens": 8404384,
+        "n_cache_tokens": 7598208,
+        "n_output_tokens": 98755,
+        "cost_usd": 10.792634
+    }
+}

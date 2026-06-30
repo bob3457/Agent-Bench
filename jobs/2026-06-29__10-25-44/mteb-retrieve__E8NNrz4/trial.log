@@ -1,0 +1,20 @@
+Running command: mkdir -p /opt && if ! python3 -c "import ensurepip" 2>/dev/null; then  apt-get update -qq && apt-get install -y python3-venv; fi
+Command outputs captured
+Running command: mkdir -p /opt/openhands-sdk-venv && chown root:root /opt/openhands-sdk-venv
+Command outputs captured
+Running command: set -euo pipefail; python3 -m venv /opt/openhands-sdk-venv && source /opt/openhands-sdk-venv/bin/activate && export PIP_DEFAULT_TIMEOUT=120 && pip install --upgrade pip || true && pip install openhands-sdk==1.27.0 openhands-tools==1.27.0 fastapi
+Command failed
+Trial mteb-retrieve__E8NNrz4 failed: Command failed (exit 1): set -euo pipefail; python3 -m venv /opt/openhands-sdk-venv && source /opt/openhands-sdk-venv/bin/activate && export PIP_DEFAULT_TIMEOUT=120 && pip install --upgrade pip || true && pip install openhands-sdk==1.27.0 openhands-tools==1.27.0 fastapi
+stdout: Requirement already satisfied: pip in /opt/openhands-sdk-venv/lib/python3.10/site-packages (23.0.1)
+Collecting pip
+  Downloading pip-26.1.2-py3-none-any.whl (1.8 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 11.7 MB/s eta 0:00:00
+Installing collected packages: pip
+  Attempting uninstall: pip
+    Found existing installation: pip 23.0.1
+    Uninstalling pip-23.0.1:
+      Successfully uninstalled pip-23.0.1
+Successfully installed pip-26.1.2
+ERROR: Ignored the following versions that require a different python version: 1.0.0 Requires-Python >=3.12; 1.0.0a1 Requires-Python >=3.12; 1.0.0a2 Requires-Python >=3.12; 1.0.0a3 Requires-Python >=3.12; 1.0.0a4 Requires-Python >=3.12; 1.0.0a5 Requires-Python >=3.12; 1.0.0a6 Requires-Python >=3.12; 1.1.0 Requires-Python >=3.12; 1.10.0 Requires-Python >=3.12; 1.11.0 Requires-Python >=3.12; 1.11.1 Requires-Python >=3.12; 1.11.2 Requires-Python >=3.12; 1.11.3 Requires-Python >=3.12; 1.11.4 Requires-Python >=3.12; 1.11.5 Requires-Python >=3 ... [truncated]
+stderr: None
+Collecting main service artifacts

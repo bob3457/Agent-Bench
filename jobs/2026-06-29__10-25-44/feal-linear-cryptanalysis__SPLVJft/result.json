@@ -1,0 +1,118 @@
+{
+    "id": "eda6f62f-ccb1-4789-abda-309c2a388113",
+    "task_name": "feal-linear-cryptanalysis",
+    "trial_name": "feal-linear-cryptanalysis__SPLVJft",
+    "trial_uri": "file:///home/czhai/Agent-Bench/jobs/2026-06-29__10-25-44/feal-linear-cryptanalysis__SPLVJft",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "feal-linear-cryptanalysis"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "3ee298ac4e31a90a460afa5fc10d34fdca7c1e591ccda5fc2c5faee2963991f2",
+    "config": {
+        "task": {
+            "path": "feal-linear-cryptanalysis",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "feal-linear-cryptanalysis__SPLVJft",
+        "trials_dir": "jobs/2026-06-29__10-25-44",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "openhands-sdk",
+            "import_path": null,
+            "model_name": "gpt-5.5",
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {
+                "reasoning_effort": "medium",
+                "version": "1.27.0"
+            },
+            "env": {
+                "LLM_API_KEY": "${LLM_API_KEY}"
+            },
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "env": {},
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "env": {},
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "ebc29a5b-61de-4e1f-a9d3-345a9c50fa54"
+    },
+    "agent_info": {
+        "name": "openhands-sdk",
+        "version": "1.27.0",
+        "model_info": {
+            "name": "gpt-5.5",
+            "provider": null
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 288176,
+        "n_cache_tokens": 237056,
+        "n_output_tokens": 9296,
+        "cost_usd": 0.653008,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 1.0
+        }
+    },
+    "exception_info": null,
+    "started_at": "2026-06-29T16:18:38.081796Z",
+    "finished_at": "2026-06-29T16:25:46.587260Z",
+    "environment_setup": {
+        "started_at": "2026-06-29T16:18:38.086889Z",
+        "finished_at": "2026-06-29T16:18:39.865384Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-06-29T16:18:39.865406Z",
+        "finished_at": "2026-06-29T16:20:25.390667Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-06-29T16:20:25.390771Z",
+        "finished_at": "2026-06-29T16:25:29.301143Z"
+    },
+    "verifier": {
+        "started_at": "2026-06-29T16:25:29.731036Z",
+        "finished_at": "2026-06-29T16:25:35.127650Z"
+    },
+    "step_results": null
+}

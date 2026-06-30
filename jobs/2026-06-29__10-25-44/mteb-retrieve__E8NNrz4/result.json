@@ -1,0 +1,106 @@
+{
+    "id": "313f73f4-f3e3-4bef-9b51-ab9ca4a535bf",
+    "task_name": "mteb-retrieve",
+    "trial_name": "mteb-retrieve__E8NNrz4",
+    "trial_uri": "file:///home/czhai/Agent-Bench/jobs/2026-06-29__10-25-44/mteb-retrieve__E8NNrz4",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "mteb-retrieve"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "c9b88a67c599defd76f11c87dc596dbfd16e2e3ea1e40d1abec4033db888473f",
+    "config": {
+        "task": {
+            "path": "mteb-retrieve",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "mteb-retrieve__E8NNrz4",
+        "trials_dir": "jobs/2026-06-29__10-25-44",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "openhands-sdk",
+            "import_path": null,
+            "model_name": "gpt-5.5",
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {
+                "reasoning_effort": "medium",
+                "version": "1.27.0"
+            },
+            "env": {
+                "LLM_API_KEY": "${LLM_API_KEY}"
+            },
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "env": {},
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "env": {},
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "ebc29a5b-61de-4e1f-a9d3-345a9c50fa54"
+    },
+    "agent_info": {
+        "name": "openhands-sdk",
+        "version": "1.27.0",
+        "model_info": {
+            "name": "gpt-5.5",
+            "provider": null
+        }
+    },
+    "agent_result": null,
+    "verifier_result": null,
+    "exception_info": {
+        "exception_type": "NonZeroAgentExitCodeError",
+        "exception_message": "Command failed (exit 1): set -euo pipefail; python3 -m venv /opt/openhands-sdk-venv && source /opt/openhands-sdk-venv/bin/activate && export PIP_DEFAULT_TIMEOUT=120 && pip install --upgrade pip || true && pip install openhands-sdk==1.27.0 openhands-tools==1.27.0 fastapi\nstdout: Requirement already satisfied: pip in /opt/openhands-sdk-venv/lib/python3.10/site-packages (23.0.1)\nCollecting pip\n  Downloading pip-26.1.2-py3-none-any.whl (1.8 MB)\n     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 11.7 MB/s eta 0:00:00\nInstalling collected packages: pip\n  Attempting uninstall: pip\n    Found existing installation: pip 23.0.1\n    Uninstalling pip-23.0.1:\n      Successfully uninstalled pip-23.0.1\nSuccessfully installed pip-26.1.2\nERROR: Ignored the following versions that require a different python version: 1.0.0 Requires-Python >=3.12; 1.0.0a1 Requires-Python >=3.12; 1.0.0a2 Requires-Python >=3.12; 1.0.0a3 Requires-Python >=3.12; 1.0.0a4 Requires-Python >=3.12; 1.0.0a5 Requires-Python >=3.12; 1.0.0a6 Requires-Python >=3.12; 1.1.0 Requires-Python >=3.12; 1.10.0 Requires-Python >=3.12; 1.11.0 Requires-Python >=3.12; 1.11.1 Requires-Python >=3.12; 1.11.2 Requires-Python >=3.12; 1.11.3 Requires-Python >=3.12; 1.11.4 Requires-Python >=3.12; 1.11.5 Requires-Python >=3 ... [truncated]\nstderr: None",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py\", line 337, in run\n    await self._prepare()\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py\", line 368, in _prepare\n    await self._setup_agent()\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py\", line 1062, in _setup_agent\n    await asyncio.wait_for(\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/tasks.py\", line 520, in wait_for\n    return await fut\n           ^^^^^^^^^\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/agents/installed/base.py\", line 439, in setup\n    await self.install(environment)\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/agents/installed/openhands_sdk.py\", line 123, in install\n    await self.exec_as_agent(\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/agents/installed/base.py\", line 412, in exec_as_agent\n    return await self._exec(\n           ^^^^^^^^^^^^^^^^^\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/agents/installed/base.py\", line 379, in _exec\n    raise self._classify_exec_error(command, result)\nharbor.agents.installed.base.NonZeroAgentExitCodeError: Command failed (exit 1): set -euo pipefail; python3 -m venv /opt/openhands-sdk-venv && source /opt/openhands-sdk-venv/bin/activate && export PIP_DEFAULT_TIMEOUT=120 && pip install --upgrade pip || true && pip install openhands-sdk==1.27.0 openhands-tools==1.27.0 fastapi\nstdout: Requirement already satisfied: pip in /opt/openhands-sdk-venv/lib/python3.10/site-packages (23.0.1)\nCollecting pip\n  Downloading pip-26.1.2-py3-none-any.whl (1.8 MB)\n     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 11.7 MB/s eta 0:00:00\nInstalling collected packages: pip\n  Attempting uninstall: pip\n    Found existing installation: pip 23.0.1\n    Uninstalling pip-23.0.1:\n      Successfully uninstalled pip-23.0.1\nSuccessfully installed pip-26.1.2\nERROR: Ignored the following versions that require a different python version: 1.0.0 Requires-Python >=3.12; 1.0.0a1 Requires-Python >=3.12; 1.0.0a2 Requires-Python >=3.12; 1.0.0a3 Requires-Python >=3.12; 1.0.0a4 Requires-Python >=3.12; 1.0.0a5 Requires-Python >=3.12; 1.0.0a6 Requires-Python >=3.12; 1.1.0 Requires-Python >=3.12; 1.10.0 Requires-Python >=3.12; 1.11.0 Requires-Python >=3.12; 1.11.1 Requires-Python >=3.12; 1.11.2 Requires-Python >=3.12; 1.11.3 Requires-Python >=3.12; 1.11.4 Requires-Python >=3.12; 1.11.5 Requires-Python >=3 ... [truncated]\nstderr: None\n",
+        "occurred_at": "2026-06-29T12:49:09.530122"
+    },
+    "started_at": "2026-06-29T16:49:02.726984Z",
+    "finished_at": "2026-06-29T16:49:21.166363Z",
+    "environment_setup": {
+        "started_at": "2026-06-29T16:49:02.732051Z",
+        "finished_at": "2026-06-29T16:49:04.238971Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-06-29T16:49:04.239365Z",
+        "finished_at": "2026-06-29T16:49:09.529667Z"
+    },
+    "agent_execution": null,
+    "verifier": null,
+    "step_results": null
+}

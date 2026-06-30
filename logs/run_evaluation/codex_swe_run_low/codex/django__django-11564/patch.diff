@@ -1,0 +1,72 @@
+diff --git a/django/core/files/storage.py b/django/core/files/storage.py
+index 4c27fce605..90d82dbc08 100644
+--- a/django/core/files/storage.py
++++ b/django/core/files/storage.py
+@@ -7,6 +7,7 @@ from django.core.exceptions import SuspiciousFileOperation
+ from django.core.files import File, locks
+ from django.core.files.move import file_move_safe
+ from django.core.signals import setting_changed
++from django.urls.base import add_script_prefix
+ from django.utils import timezone
+ from django.utils._os import safe_join
+ from django.utils.crypto import get_random_string
+@@ -332,7 +333,7 @@ class FileSystemStorage(Storage):
+         url = filepath_to_uri(name)
+         if url is not None:
+             url = url.lstrip('/')
+-        return urljoin(self.base_url, url)
++        return urljoin(add_script_prefix(self.base_url), url)
+ 
+     def _datetime_from_timestamp(self, ts):
+         """
+diff --git a/django/templatetags/static.py b/django/templatetags/static.py
+index 39712aaba0..2e487fc6c8 100644
+--- a/django/templatetags/static.py
++++ b/django/templatetags/static.py
+@@ -2,6 +2,7 @@ from urllib.parse import quote, urljoin
+ 
+ from django import template
+ from django.apps import apps
++from django.urls.base import add_script_prefix
+ from django.utils.encoding import iri_to_uri
+ from django.utils.html import conditional_escape
+ 
+@@ -43,7 +44,7 @@ class PrefixNode(template.Node):
+         except ImportError:
+             prefix = ''
+         else:
+-            prefix = iri_to_uri(getattr(settings, name, ''))
++            prefix = add_script_prefix(iri_to_uri(getattr(settings, name, '')))
+         return prefix
+ 
+     def render(self, context):
+diff --git a/django/urls/base.py b/django/urls/base.py
+index dd9b2e4c22..9a81460096 100644
+--- a/django/urls/base.py
++++ b/django/urls/base.py
+@@ -124,6 +124,25 @@ def clear_script_prefix():
+         pass
+ 
+ 
++def add_script_prefix(url):
++    """
++    Add the currently active script prefix to absolute local URLs.
++    """
++    script_prefix = get_script_prefix()
++    if script_prefix == '/':
++        return url
++    bits = urlsplit(url)
++    if bits.scheme or bits.netloc or not bits.path.startswith('/'):
++        return url
++    script_prefix = script_prefix.rstrip('/')
++    if bits.path == script_prefix or bits.path.startswith(script_prefix + '/'):
++        return url
++    return urlunsplit((
++        bits.scheme, bits.netloc, script_prefix + bits.path,
++        bits.query, bits.fragment,
++    ))
++
++
+ def set_urlconf(urlconf_name):
+     """
+     Set the URLconf for the current thread (overriding the default one in

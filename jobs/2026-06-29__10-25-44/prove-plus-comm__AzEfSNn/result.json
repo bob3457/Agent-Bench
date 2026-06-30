@@ -1,0 +1,118 @@
+{
+    "id": "782eb6b6-94b4-40cb-9256-88382a9d0c34",
+    "task_name": "prove-plus-comm",
+    "trial_name": "prove-plus-comm__AzEfSNn",
+    "trial_uri": "file:///home/czhai/Agent-Bench/jobs/2026-06-29__10-25-44/prove-plus-comm__AzEfSNn",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "prove-plus-comm"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "c2e6faf1396913cf529854f75a27939b6f05ac811f1415150312aa6d22248a1c",
+    "config": {
+        "task": {
+            "path": "prove-plus-comm",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "prove-plus-comm__AzEfSNn",
+        "trials_dir": "jobs/2026-06-29__10-25-44",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "openhands-sdk",
+            "import_path": null,
+            "model_name": "gpt-5.5",
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {
+                "reasoning_effort": "medium",
+                "version": "1.27.0"
+            },
+            "env": {
+                "LLM_API_KEY": "${LLM_API_KEY}"
+            },
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "env": {},
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "env": {},
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "ebc29a5b-61de-4e1f-a9d3-345a9c50fa54"
+    },
+    "agent_info": {
+        "name": "openhands-sdk",
+        "version": "1.27.0",
+        "model_info": {
+            "name": "gpt-5.5",
+            "provider": null
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 37262,
+        "n_cache_tokens": 28160,
+        "n_output_tokens": 1157,
+        "cost_usd": 0.09430000000000002,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 1.0
+        }
+    },
+    "exception_info": null,
+    "started_at": "2026-06-29T16:16:48.581595Z",
+    "finished_at": "2026-06-29T16:18:38.063350Z",
+    "environment_setup": {
+        "started_at": "2026-06-29T16:16:48.585849Z",
+        "finished_at": "2026-06-29T16:16:50.081148Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-06-29T16:16:50.081170Z",
+        "finished_at": "2026-06-29T16:17:42.260963Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-06-29T16:17:42.261038Z",
+        "finished_at": "2026-06-29T16:18:12.173345Z"
+    },
+    "verifier": {
+        "started_at": "2026-06-29T16:18:12.729896Z",
+        "finished_at": "2026-06-29T16:18:25.726304Z"
+    },
+    "step_results": null
+}

@@ -28,7 +28,7 @@ claude:
 codex:
   type: shell
   command: ["codex", "exec", "--sandbox", "workspace-write",
-            "-c", "model_reasoning_effort=medium",
+            "-c", "model_reasoning_effort=low",
             "-m", "gpt-5.5"]
   prompt_via: arg
   model_flag: "-m"

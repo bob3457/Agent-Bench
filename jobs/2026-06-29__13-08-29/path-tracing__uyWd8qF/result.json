@@ -1,0 +1,117 @@
+{
+    "id": "2fd5e6e2-5b49-4d20-9adc-df02f0ede890",
+    "task_name": "path-tracing",
+    "trial_name": "path-tracing__uyWd8qF",
+    "trial_uri": "file:///home/czhai/Agent-Bench/jobs/2026-06-29__13-08-29/path-tracing__uyWd8qF",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "path-tracing"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "0ec335461e9b3b43ab8ba2d74f162bafba5e9e41b7efa3b4deb70dccdc21f334",
+    "config": {
+        "task": {
+            "path": "path-tracing",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "path-tracing__uyWd8qF",
+        "trials_dir": "jobs/2026-06-29__13-08-29",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "codex",
+            "import_path": null,
+            "model_name": "gpt-5.5",
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {
+                "reasoning_effort": "high"
+            },
+            "env": {
+                "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+            },
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "env": {},
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "env": {},
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "bc894a19-de72-49d1-b61b-bf33393944c1"
+    },
+    "agent_info": {
+        "name": "codex",
+        "version": "0.142.4",
+        "model_info": {
+            "name": "gpt-5.5",
+            "provider": null
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 444529,
+        "n_cache_tokens": 369024,
+        "n_output_tokens": 6414,
+        "cost_usd": 0.754457,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 1.0
+        }
+    },
+    "exception_info": null,
+    "started_at": "2026-06-29T18:26:15.201036Z",
+    "finished_at": "2026-06-29T18:29:06.185516Z",
+    "environment_setup": {
+        "started_at": "2026-06-29T18:26:15.202115Z",
+        "finished_at": "2026-06-29T18:26:16.872825Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-06-29T18:26:16.872850Z",
+        "finished_at": "2026-06-29T18:26:32.984399Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-06-29T18:26:32.984536Z",
+        "finished_at": "2026-06-29T18:28:40.171898Z"
+    },
+    "verifier": {
+        "started_at": "2026-06-29T18:28:40.588385Z",
+        "finished_at": "2026-06-29T18:28:54.761338Z"
+    },
+    "step_results": null
+}

@@ -1,23 +1,23 @@
 {
     "id": "ebc29a5b-61de-4e1f-a9d3-345a9c50fa54",
     "started_at": "2026-06-29T10:25:45.550591",
-    "updated_at": "2026-06-29T15:43:19.938238Z",
-    "finished_at": null,
+    "updated_at": "2026-06-29T13:02:31.307636",
+    "finished_at": "2026-06-29T13:02:31.307636",
     "n_total_trials": 25,
     "stats": {
-        "n_completed_trials": 12,
-        "n_errored_trials": 0,
-        "n_running_trials": 1,
-        "n_pending_trials": 12,
+        "n_completed_trials": 25,
+        "n_errored_trials": 2,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
         "n_cancelled_trials": 0,
         "n_retries": 0,
         "evals": {
             "openhands-sdk__gpt-5.5__terminal-bench": {
-                "n_trials": 12,
-                "n_errors": 0,
+                "n_trials": 24,
+                "n_errors": 2,
                 "metrics": [
                     {
-                        "mean": 0.8333333333333334
+                        "mean": 0.8
                     }
                 ],
                 "pass_at_k": {},
@@ -25,7 +25,9 @@
                     "reward": {
                         "0.0": [
                             "gpt2-codegolf__DC4uuAJ",
-                            "largest-eigenval__s6UjC7Q"
+                            "largest-eigenval__s6UjC7Q",
+                            "torch-tensor-parallelism__7UtLjyQ",
+                            "caffe-cifar-10__c6uMTjo"
                         ],
                         "1.0": [
                             "llm-inference-batching-scheduler__ZZr3qoq",
@@ -37,16 +39,33 @@
                             "log-summary-date-ranges__twebMVK",
                             "pytorch-model-cli__tYGjkDk",
                             "password-recovery__B2KLWhF",
-                            "portfolio-optimization__gUgsTkm"
+                            "portfolio-optimization__gUgsTkm",
+                            "path-tracing-reverse__iecrmwK",
+                            "regex-chess__oRHp2Aj",
+                            "modernize-scientific-stack__jUWoRe7",
+                            "path-tracing__7p6Vkxd",
+                            "prove-plus-comm__AzEfSNn",
+                            "feal-linear-cryptanalysis__SPLVJft",
+                            "distribution-search__ABe8rfp",
+                            "pypi-server__zNxB2fZ",
+                            "custom-memory-heap-crash__DXtT8Gv",
+                            "adaptive-rejection-sampler__4RcyHqF"
                         ]
                     }
                 },
-                "exception_stats": {}
+                "exception_stats": {
+                    "AgentTimeoutError": [
+                        "caffe-cifar-10__c6uMTjo"
+                    ],
+                    "NonZeroAgentExitCodeError": [
+                        "mteb-retrieve__E8NNrz4"
+                    ]
+                }
             }
         },
-        "n_input_tokens": 6657574,
-        "n_cache_tokens": 5965312,
-        "n_output_tokens": 138458,
-        "cost_usd": 10.597706
+        "n_input_tokens": 12134535,
+        "n_cache_tokens": 10823168,
+        "n_output_tokens": 238406,
+        "cost_usd": 19.120599000000002
     }
 }
