@@ -138,8 +138,17 @@ harbor run --dataset terminal-bench@2.0 \
    --n-concurrent 1 --n-tasks 1 --ae “CLAUDE_CODE_OAUTH_TOKEN=$CLAUDE_CODE_OAUTH_TOKEN”
 OR
 harbor run --dataset terminal-bench@2.0    --agent codex    --model gpt-5.5    --ak reasoning_effort=medium    --n-concurrent 1 --n-tasks 25    --ae "OPENAI_API_KEY=$OPENAI_API_KEY"
+OR
+harbor run -d terminal-bench@2.0 -a openhands-sdk   -m gpt-5.5   --ak reasoning_effort=medium   --ak version=1.27.0
+ --ae "LLM_API_KEY=$OPENAI_API_KEY"   -e docker -l 25 -n 1 --env-file ./.env
 # 2. Automatically graded, results can be found using
 harbor view jobs
+```
+
+### Notes
+```
+for HotpotQA, freshQA and terminal bench, change --agent to the one you want \
+You can find the list of agents by 
 ```
 ---
 ## Accessing Agent information
@@ -200,8 +209,10 @@ The data is also in the data folder but under openhands instead. One example set
 
 ### Codex
 Codex statistics are stored under a seperate codex folder and a script needs to be run to create a csv of the filtered data \
-In order to run, run the following code in the Agent-Bench directory \
+In order to run, first create a csv with a good name \
+then, run the following code in the Agent-Bench directory \
 The path to the data can be found under data/codex/ in the json file correlating to that run \
+The name of the csv should be the same as the chosen name \
 The following information is parsed by the script: 
 ```
 session_id, cli_version, turn_id, model, effort, started_at,
@@ -212,4 +223,4 @@ cache_hit_rate, context_fill, output_tokens_per_s, mean_api_gap_s
 ```
 
 ```
-python parse_codex_metrics.py /path/to/data --csv /home/czhai/Agent-Bench/data/codex/changeName.csv
+python data/parse_codex.py /path/to/data --csv /home/czhai/Agent-Bench/data/codex/<changeName>.csv
