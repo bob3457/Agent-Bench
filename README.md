@@ -209,8 +209,10 @@ The data is also in the data folder but under openhands instead. One example set
 
 ### Codex
 Codex statistics are stored under a seperate codex folder and a script needs to be run to create a csv of the filtered data \
-In order to run, run the following code in the Agent-Bench directory \
+In order to run, first create a csv with a good name \
+then, run the following code in the Agent-Bench directory \
 The path to the data can be found under data/codex/ in the json file correlating to that run \
+The name of the csv should be the same as the chosen name \
 The following information is parsed by the script: 
 ```
 session_id, cli_version, turn_id, model, effort, started_at,
@@ -221,4 +223,4 @@ cache_hit_rate, context_fill, output_tokens_per_s, mean_api_gap_s
 ```
 
 ```
-python parse_codex_metrics.py /path/to/data --csv /home/czhai/Agent-Bench/data/codex/changeName.csv
+python data/parse_codex.py /path/to/data --csv /home/czhai/Agent-Bench/data/codex/<changeName>.csv
