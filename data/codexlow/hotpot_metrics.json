@@ -1,0 +1,58 @@
+{
+  "5a8b57f25542995d1e6f1371": {
+    "agent": "codexlow-search",
+    "wall_time_s": 18.94,
+    "returncode": 1,
+    "stderr": "Reading additional input from stdin...\nOpenAI Codex v0.142.2\n--------\nworkdir: /tmp/hotpot_eyo8yq8u\nmodel: gpt-5.5\nprovider: openai\napproval: never\nsandbox: workspace-write [workdir, /tmp, $TMPDIR]\nreasoning effort: low\nreasoning summaries: none\nsession id: 019f1e8b-9650-7ef2-9e39-267a64be6e32\n--------\nuser\nAnswer the multi-hop question using ONLY the context below. Reason across paragraphs as needed. Do not use tools, search the web, or read local files.\n\nEnd your reply with EXACTLY these two l",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T12-16-35-019f1e77-cc05-7523-ad44-af7d564c1e5c.jsonl"
+  },
+  "5a8c7595554299585d9e36b6": {
+    "agent": "codexlow-search",
+    "wall_time_s": 15.33,
+    "returncode": 1,
+    "stderr": "WARNING: failed to clean up stale arg0 temp dirs: Directory not empty (os error 39)\nReading additional input from stdin...\nOpenAI Codex v0.142.2\n--------\nworkdir: /tmp/hotpot_eyo8yq8u\nmodel: gpt-5.5\nprovider: openai\napproval: never\nsandbox: workspace-write [workdir, /tmp, $TMPDIR]\nreasoning effort: low\nreasoning summaries: none\nsession id: 019f1e8b-d241-7b22-8002-fbfdde7756fe\n--------\nuser\nAnswer the multi-hop question using ONLY the context below. Reason across paragraphs as needed. Do not use ",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T12-16-35-019f1e77-cc05-7523-ad44-af7d564c1e5c.jsonl"
+  },
+  "5a85ea095542994775f606a8": {
+    "agent": "codexlow-search",
+    "wall_time_s": 15.59,
+    "returncode": 1,
+    "stderr": "WARNING: failed to clean up stale arg0 temp dirs: Directory not empty (os error 39)\nReading additional input from stdin...\nOpenAI Codex v0.142.2\n--------\nworkdir: /tmp/hotpot_eyo8yq8u\nmodel: gpt-5.5\nprovider: openai\napproval: never\nsandbox: workspace-write [workdir, /tmp, $TMPDIR]\nreasoning effort: low\nreasoning summaries: none\nsession id: 019f1e8c-0eda-7483-85c1-18932e906cfe\n--------\nuser\nAnswer the multi-hop question using ONLY the context below. Reason across paragraphs as needed. Do not use ",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T12-16-35-019f1e77-cc05-7523-ad44-af7d564c1e5c.jsonl"
+  },
+  "5adbf0a255429947ff17385a": {
+    "agent": "codexlow-search",
+    "wall_time_s": 15.51,
+    "returncode": 1,
+    "stderr": "WARNING: failed to clean up stale arg0 temp dirs: Directory not empty (os error 39)\nReading additional input from stdin...\nOpenAI Codex v0.142.2\n--------\nworkdir: /tmp/hotpot_eyo8yq8u\nmodel: gpt-5.5\nprovider: openai\napproval: never\nsandbox: workspace-write [workdir, /tmp, $TMPDIR]\nreasoning effort: low\nreasoning summaries: none\nsession id: 019f1e8c-4b91-7b51-9582-6b31f135c912\n--------\nuser\nAnswer the multi-hop question using ONLY the context below. Reason across paragraphs as needed. Do not use ",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T12-16-35-019f1e77-cc05-7523-ad44-af7d564c1e5c.jsonl"
+  },
+  "5a8e3ea95542995a26add48d": {
+    "agent": "codexlow-search",
+    "wall_time_s": 15.17,
+    "returncode": 1,
+    "stderr": "WARNING: failed to clean up stale arg0 temp dirs: Directory not empty (os error 39)\nReading additional input from stdin...\nOpenAI Codex v0.142.2\n--------\nworkdir: /tmp/hotpot_eyo8yq8u\nmodel: gpt-5.5\nprovider: openai\napproval: never\nsandbox: workspace-write [workdir, /tmp, $TMPDIR]\nreasoning effort: low\nreasoning summaries: none\nsession id: 019f1e8c-8830-7ed1-9ea7-138aa8e0a4f5\n--------\nuser\nAnswer the multi-hop question using ONLY the context below. Reason across paragraphs as needed. Do not use ",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T12-16-35-019f1e77-cc05-7523-ad44-af7d564c1e5c.jsonl"
+  },
+  "5abd94525542992ac4f382d2": {
+    "agent": "codexlow-search",
+    "wall_time_s": 15.21,
+    "returncode": 1,
+    "stderr": "WARNING: failed to clean up stale arg0 temp dirs: Directory not empty (os error 39)\nReading additional input from stdin...\nOpenAI Codex v0.142.2\n--------\nworkdir: /tmp/hotpot_eyo8yq8u\nmodel: gpt-5.5\nprovider: openai\napproval: never\nsandbox: workspace-write [workdir, /tmp, $TMPDIR]\nreasoning effort: low\nreasoning summaries: none\nsession id: 019f1e8c-c403-7640-bf6e-2f178a8aa737\n--------\nuser\nAnswer the multi-hop question using ONLY the context below. Reason across paragraphs as needed. Do not use ",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T12-16-35-019f1e77-cc05-7523-ad44-af7d564c1e5c.jsonl"
+  },
+  "5a85b2d95542997b5ce40028": {
+    "agent": "codexlow-search",
+    "wall_time_s": 16.86,
+    "returncode": 1,
+    "stderr": "WARNING: failed to clean up stale arg0 temp dirs: Directory not empty (os error 39)\nReading additional input from stdin...\nOpenAI Codex v0.142.2\n--------\nworkdir: /tmp/hotpot_eyo8yq8u\nmodel: gpt-5.5\nprovider: openai\napproval: never\nsandbox: workspace-write [workdir, /tmp, $TMPDIR]\nreasoning effort: low\nreasoning summaries: none\nsession id: 019f1e8d-01af-72a1-811a-c248a707a515\n--------\nuser\nAnswer the multi-hop question using ONLY the context below. Reason across paragraphs as needed. Do not use ",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T12-16-35-019f1e77-cc05-7523-ad44-af7d564c1e5c.jsonl"
+  },
+  "5a87ab905542996e4f3088c1": {
+    "agent": "codexlow-search",
+    "wall_time_s": 15.29,
+    "returncode": 1,
+    "stderr": "WARNING: failed to clean up stale arg0 temp dirs: Directory not empty (os error 39)\nReading additional input from stdin...\nOpenAI Codex v0.142.2\n--------\nworkdir: /tmp/hotpot_eyo8yq8u\nmodel: gpt-5.5\nprovider: openai\napproval: never\nsandbox: workspace-write [workdir, /tmp, $TMPDIR]\nreasoning effort: low\nreasoning summaries: none\nsession id: 019f1e8d-4209-7f31-8075-a7c62996edad\n--------\nuser\nAnswer the multi-hop question using ONLY the context below. Reason across paragraphs as needed. Do not use ",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T12-16-35-019f1e77-cc05-7523-ad44-af7d564c1e5c.jsonl"
+  }
+}

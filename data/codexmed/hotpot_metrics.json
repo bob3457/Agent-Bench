@@ -1,0 +1,37 @@
+{
+  "5a8b57f25542995d1e6f1371": {
+    "agent": "codexmed-search",
+    "wall_time_s": 17.88,
+    "returncode": 1,
+    "stderr": "Reading additional input from stdin...\nOpenAI Codex v0.142.2\n--------\nworkdir: /tmp/hotpot_dkn4hakm\nmodel: gpt-5.5\nprovider: openai\napproval: never\nsandbox: workspace-write [workdir, /tmp, $TMPDIR]\nreasoning effort: medium\nreasoning summaries: none\nsession id: 019f1e8b-f4d5-72a1-baa2-e2b6dafe6394\n--------\nuser\nAnswer the multi-hop question using ONLY the context below. Reason across paragraphs as needed. Do not use tools, search the web, or read local files.\n\nEnd your reply with EXACTLY these tw",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T12-16-35-019f1e77-cc05-7523-ad44-af7d564c1e5c.jsonl"
+  },
+  "5a8c7595554299585d9e36b6": {
+    "agent": "codexmed-search",
+    "wall_time_s": 15.22,
+    "returncode": 1,
+    "stderr": "WARNING: failed to clean up stale arg0 temp dirs: Directory not empty (os error 39)\nReading additional input from stdin...\nOpenAI Codex v0.142.2\n--------\nworkdir: /tmp/hotpot_dkn4hakm\nmodel: gpt-5.5\nprovider: openai\napproval: never\nsandbox: workspace-write [workdir, /tmp, $TMPDIR]\nreasoning effort: medium\nreasoning summaries: none\nsession id: 019f1e8c-32ca-7722-842e-477bc3d7489c\n--------\nuser\nAnswer the multi-hop question using ONLY the context below. Reason across paragraphs as needed. Do not u",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T12-16-35-019f1e77-cc05-7523-ad44-af7d564c1e5c.jsonl"
+  },
+  "5a85ea095542994775f606a8": {
+    "agent": "codexmed-search",
+    "wall_time_s": 15.16,
+    "returncode": 1,
+    "stderr": "WARNING: failed to clean up stale arg0 temp dirs: Directory not empty (os error 39)\nReading additional input from stdin...\nOpenAI Codex v0.142.2\n--------\nworkdir: /tmp/hotpot_dkn4hakm\nmodel: gpt-5.5\nprovider: openai\napproval: never\nsandbox: workspace-write [workdir, /tmp, $TMPDIR]\nreasoning effort: medium\nreasoning summaries: none\nsession id: 019f1e8c-6d7d-71f3-993c-7c19b40b5f8e\n--------\nuser\nAnswer the multi-hop question using ONLY the context below. Reason across paragraphs as needed. Do not u",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T12-16-35-019f1e77-cc05-7523-ad44-af7d564c1e5c.jsonl"
+  },
+  "5adbf0a255429947ff17385a": {
+    "agent": "codexmed-search",
+    "wall_time_s": 15.65,
+    "returncode": 1,
+    "stderr": "WARNING: failed to clean up stale arg0 temp dirs: Directory not empty (os error 39)\nReading additional input from stdin...\nOpenAI Codex v0.142.2\n--------\nworkdir: /tmp/hotpot_dkn4hakm\nmodel: gpt-5.5\nprovider: openai\napproval: never\nsandbox: workspace-write [workdir, /tmp, $TMPDIR]\nreasoning effort: medium\nreasoning summaries: none\nsession id: 019f1e8c-a8d7-7420-b215-2f931d5ea532\n--------\nuser\nAnswer the multi-hop question using ONLY the context below. Reason across paragraphs as needed. Do not u",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T12-16-35-019f1e77-cc05-7523-ad44-af7d564c1e5c.jsonl"
+  },
+  "5a8e3ea95542995a26add48d": {
+    "agent": "codexmed-search",
+    "wall_time_s": 15.02,
+    "returncode": 1,
+    "stderr": "WARNING: failed to clean up stale arg0 temp dirs: Directory not empty (os error 39)\nReading additional input from stdin...\nOpenAI Codex v0.142.2\n--------\nworkdir: /tmp/hotpot_dkn4hakm\nmodel: gpt-5.5\nprovider: openai\napproval: never\nsandbox: workspace-write [workdir, /tmp, $TMPDIR]\nreasoning effort: medium\nreasoning summaries: none\nsession id: 019f1e8c-e663-7582-9ecd-05fb20bd84a7\n--------\nuser\nAnswer the multi-hop question using ONLY the context below. Reason across paragraphs as needed. Do not u",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T12-16-35-019f1e77-cc05-7523-ad44-af7d564c1e5c.jsonl"
+  }
+}

@@ -1,0 +1,24 @@
+host=hop046.orc.gmu.edu job=8798350 agent=codexlow-search env=bench
+codex: /home/czhai/.local/bin/codex
+swe_n=25 hotpot_limit=50 freshqa_limit=50 resume=0
+
+========== STAGE: freshqa ==========
++ python /scratch/czhai/Agent-Bench/harness/run_freshqa_agent.py --agent codexlow-search --input /scratch/czhai/Agent-Bench/freshqa.csv --limit 50
+Agent: codexlow-search | questions: 50 | cwd: /scratch/czhai/tmp/freshqa_gh1iv0kt | output: data/codexlow/freshqa_responses.jsonl
+Wrote responses to data/codexlow/freshqa_responses.jsonl
+
+--- run summary ---
+questions:        50  (0 errored)
+total cost (usd): 0.0000   (notional if on a subscription)
+input tokens:     0
+output tokens:    0
+cache read:       0   cache create: 0
+latency (s):      875.6   (mean 17.5/q)
+web tool calls:   0 executed
+  WARNING: this looks closed-book. For FreshQA, use an agent whose
+           agents.yaml row enables web tools (e.g. claude-search).
+[freshqa] OK
+
+========== SUMMARY ==========
+  freshqa=0
+predictions under data/codexlow/  (freshqa under data/codexlow/)

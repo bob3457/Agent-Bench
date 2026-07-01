@@ -99,6 +99,11 @@ def ensure_repo(repo, base_commit):
         dest.parent.mkdir(parents=True, exist_ok=True)
         print(f"  cloning {repo} ...")
         git(["clone", f"https://github.com/{repo}.git", str(dest)], cwd=".")
+    # Fetch all branches + tags so historical base_commits (often not reachable
+    # from a branch tip, which a bare `fetch origin <sha>` can't retrieve) are present.
+    git(["fetch", "--quiet", "--tags", "origin",
+         "+refs/heads/*:refs/remotes/origin/*"], cwd=dest, check=False)
+    # Try a direct SHA fetch too, in case the commit lives only behind a PR ref.
     git(["fetch", "--quiet", "origin", base_commit], cwd=dest, check=False)
     git(["reset", "--hard", "--quiet", base_commit], cwd=dest)
     git(["clean", "-fdx", "--quiet"], cwd=dest)

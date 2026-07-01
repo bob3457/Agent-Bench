@@ -1,0 +1,7 @@
+host=hop068.orc.gmu.edu job=8798250 agent=codexmed-search env=bench
+codex: /home/czhai/.local/bin/codex
+swe_n=25 hotpot_limit=50 freshqa_limit=50 resume=0
+
+========== STAGE: hotpotqa ==========
++ python /scratch/czhai/Agent-Bench/harness/run_hotpot_agent.py --agent codexmed-search --input /scratch/czhai/Agent-Bench/hotpot_dev_distractor_v1.json --limit 50
+Agent: codexmed-search | questions: 50 | cwd: /tmp/hotpot_dkn4hakm | output: data/codexmed/hotpot_predictions.json

@@ -22,6 +22,7 @@ per-benchmark; everything in this file is per-agent and benchmark-neutral.
 import importlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -48,6 +49,11 @@ AGENT_TIMEOUT_S = 600
 # Each takes (stdout, meta) and returns raw_text (the prose/diff/answer the
 # harness will use). They MUTATE meta with whatever agent-specific fields they
 # can pull. Unknown/none just passes stdout through.
+#
+# NOTE: run() always populates meta["_stdout"] and meta["_stderr"] with the
+# FULL, untruncated streams before calling the parser, so a parser can inspect
+# stderr too (codex prints its session id there). These underscore-prefixed
+# keys are scratch for the parser; harnesses should not persist them.
 
 def _tel_claude_json(stdout, meta):
     try:
@@ -64,19 +70,68 @@ def _tel_claude_json(stdout, meta):
         return stdout
 
 
+# codex prints a header line like "session id: 019f1e8f-b7c9-7a80-bee7-...".
+# The uuid is also embedded in the rollout filename:
+#   rollout-2026-07-01T12-16-35-<uuid>.jsonl
+# so matching on the uuid pins the EXACT file this run created, rather than
+# guessing by modification time (which breaks under concurrency or when a prior
+# run's file happens to be newest).
+_SESSION_ID_RE = re.compile(r"session id:\s*([0-9a-fA-F][0-9a-fA-F-]{7,})", re.IGNORECASE)
+
+
+def _codex_sessions_root():
+    """Where codex writes rollout files. Honors CODEX_HOME (which relocates the
+    ENTIRE codex home, sessions/ included); falls back to ~/.codex. This must
+    agree with wherever `codex exec` actually ran, so relocating CODEX_HOME per
+    job keeps the recorded session paths correct."""
+    home = os.environ.get("CODEX_HOME")
+    base = Path(home) if home else Path.home() / ".codex"
+    return base / "sessions"
+
+
 def _tel_codex_session(stdout, meta):
-    # Rich token/latency data isn't reliably on stdout for codex exec; it lands
-    # in rollout files under ~/.codex/sessions/. Record the newest one's path
-    # so aggregate_telemetry.py can parse it later.
+    # Rich token/latency data isn't reliably on stdout for `codex exec`; it
+    # lands in rollout JSONL under <CODEX_HOME>/sessions/<Y>/<M>/<D>/. Record
+    # THIS run's file so aggregate_telemetry.py can parse it later.
+    #
+    # Strategy: (1) pull the session id codex printed (stdout or stderr) and
+    # resolve the rollout file whose name contains that id; (2) if that fails,
+    # fall back to the newest *.jsonl under the (CODEX_HOME-aware) sessions root.
+    root = _codex_sessions_root()
+
+    combined = (meta.get("_stdout") or stdout or "") + "\n" + (meta.get("_stderr") or "")
+    m = _SESSION_ID_RE.search(combined)
+    session_id = m.group(1) if m else None
+    if session_id:
+        meta["codex_session_id"] = session_id
+
+    resolved = None
     try:
-        sessions = sorted(
-            Path.home().joinpath(".codex", "sessions").rglob("*.json*"),
-            key=lambda p: p.stat().st_mtime,
-        )
-        if sessions:
-            meta["codex_session_file"] = str(sessions[-1])
+        if session_id:
+            # Match the id anywhere in the filename. rglob is safe if the tree
+            # is missing (yields nothing). Prefer the newest if >1 somehow match.
+            hits = sorted(
+                root.rglob(f"*{session_id}*.json*"),
+                key=lambda p: p.stat().st_mtime,
+            )
+            if hits:
+                resolved = hits[-1]
+
+        if resolved is None:
+            # Fallback: newest session file under the CODEX_HOME-aware root.
+            # Less reliable (can grab a neighbor's file), so flag it.
+            sessions = sorted(
+                root.rglob("*.json*"),
+                key=lambda p: p.stat().st_mtime,
+            )
+            if sessions:
+                resolved = sessions[-1]
+                meta["codex_session_fallback"] = True
     except OSError:
         pass
+
+    if resolved is not None:
+        meta["codex_session_file"] = str(resolved)
     return stdout
 
 
@@ -157,10 +212,20 @@ class ShellAgent(Agent):
         meta = {"agent": self.name, "wall_time_s": round(time.time() - t0, 2),
                 "returncode": result.returncode}
         if result.returncode != 0:
-            meta["stderr"] = result.stderr[:500]
+            meta["stderr"] = (result.stderr or "")[:500]
+
+        # Expose FULL streams to the telemetry parser (codex prints its session
+        # id on stderr, and stderr is otherwise only kept truncated on failure).
+        # These are scratch fields; drop them after parsing so harnesses don't
+        # serialize the whole transcript into their output records.
+        meta["_stdout"] = result.stdout or ""
+        meta["_stderr"] = result.stderr or ""
 
         parser = TELEMETRY.get(self.cfg.get("telemetry", "none"), _tel_none)
         raw_text = parser(result.stdout, meta)
+
+        meta.pop("_stdout", None)
+        meta.pop("_stderr", None)
         return raw_text, meta
 
 

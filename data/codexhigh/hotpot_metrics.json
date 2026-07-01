@@ -1,0 +1,352 @@
+{
+  "5a8b57f25542995d1e6f1371": {
+    "agent": "codexhigh",
+    "wall_time_s": 7.12,
+    "returncode": 0,
+    "codex_session_id": "019f1ed0-5421-7e11-82a4-2865e6cb03c7",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-53-17-019f1ed0-5421-7e11-82a4-2865e6cb03c7.jsonl"
+  },
+  "5a8c7595554299585d9e36b6": {
+    "agent": "codexhigh",
+    "wall_time_s": 8.42,
+    "returncode": 0,
+    "codex_session_id": "019f1ed0-669b-7060-87cc-862062098592",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-53-22-019f1ed0-669b-7060-87cc-862062098592.jsonl"
+  },
+  "5a85ea095542994775f606a8": {
+    "agent": "codexhigh",
+    "wall_time_s": 6.63,
+    "returncode": 0,
+    "codex_session_id": "019f1ed0-87c3-7151-a69e-c996689d548c",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-53-30-019f1ed0-87c3-7151-a69e-c996689d548c.jsonl"
+  },
+  "5adbf0a255429947ff17385a": {
+    "agent": "codexhigh",
+    "wall_time_s": 4.03,
+    "returncode": 0,
+    "codex_session_id": "019f1ed0-a18c-7102-b2fc-9c506106779e",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-53-37-019f1ed0-a18c-7102-b2fc-9c506106779e.jsonl"
+  },
+  "5a8e3ea95542995a26add48d": {
+    "agent": "codexhigh",
+    "wall_time_s": 6.72,
+    "returncode": 0,
+    "codex_session_id": "019f1ed0-b193-7c10-bf5f-5dcb7684346f",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-53-41-019f1ed0-b193-7c10-bf5f-5dcb7684346f.jsonl"
+  },
+  "5abd94525542992ac4f382d2": {
+    "agent": "codexhigh",
+    "wall_time_s": 5.22,
+    "returncode": 0,
+    "codex_session_id": "019f1ed0-cc67-7050-9e4b-76f7f16a7ae5",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-53-48-019f1ed0-cc67-7050-9e4b-76f7f16a7ae5.jsonl"
+  },
+  "5a85b2d95542997b5ce40028": {
+    "agent": "codexhigh",
+    "wall_time_s": 3.62,
+    "returncode": 0,
+    "codex_session_id": "019f1ed0-e105-7be1-8f23-7728a323c015",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-53-53-019f1ed0-e105-7be1-8f23-7728a323c015.jsonl"
+  },
+  "5a87ab905542996e4f3088c1": {
+    "agent": "codexhigh",
+    "wall_time_s": 4.23,
+    "returncode": 0,
+    "codex_session_id": "019f1ed0-eedb-75c3-abfe-cdd09f887756",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-53-56-019f1ed0-eedb-75c3-abfe-cdd09f887756.jsonl"
+  },
+  "5a7bbb64554299042af8f7cc": {
+    "agent": "codexhigh",
+    "wall_time_s": 4.01,
+    "returncode": 0,
+    "codex_session_id": "019f1ed1-00e5-7951-80ce-df87adfc729e",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-54-01-019f1ed1-00e5-7951-80ce-df87adfc729e.jsonl"
+  },
+  "5a8db19d5542994ba4e3dd00": {
+    "agent": "codexhigh",
+    "wall_time_s": 3.47,
+    "returncode": 0,
+    "codex_session_id": "019f1ed1-0ff4-7993-866f-4f87d26780b8",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-54-05-019f1ed1-0ff4-7993-866f-4f87d26780b8.jsonl"
+  },
+  "5a7166395542994082a3e814": {
+    "agent": "codexhigh",
+    "wall_time_s": 8.71,
+    "returncode": 0,
+    "codex_session_id": "019f1ed1-1d54-74d0-bbd2-1c684d499fa2",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-54-08-019f1ed1-1d54-74d0-bbd2-1c684d499fa2.jsonl"
+  },
+  "5a877e5d5542993e715abf7d": {
+    "agent": "codexhigh",
+    "wall_time_s": 6.3,
+    "returncode": 0,
+    "codex_session_id": "019f1ed1-3fe2-79e3-9d0b-6ec32faf5277",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-54-17-019f1ed1-3fe2-79e3-9d0b-6ec32faf5277.jsonl"
+  },
+  "5ab3b0bf5542992ade7c6e39": {
+    "agent": "codexhigh",
+    "wall_time_s": 7.66,
+    "returncode": 0,
+    "codex_session_id": "019f1ed1-57ff-7aa0-9e71-1336efd21a19",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-54-23-019f1ed1-57ff-7aa0-9e71-1336efd21a19.jsonl"
+  },
+  "5ab56e32554299637185c594": {
+    "agent": "codexhigh",
+    "wall_time_s": 9.1,
+    "returncode": 0,
+    "codex_session_id": "019f1ed1-7604-7420-99d8-8d729505cc4f",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-54-31-019f1ed1-7604-7420-99d8-8d729505cc4f.jsonl"
+  },
+  "5ab6d09255429954757d337d": {
+    "agent": "codexhigh",
+    "wall_time_s": 5.88,
+    "returncode": 0,
+    "codex_session_id": "019f1ed1-99e6-7ff0-846a-a59e7cd40294",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-54-40-019f1ed1-99e6-7ff0-846a-a59e7cd40294.jsonl"
+  },
+  "5a75e05c55429976ec32bc5f": {
+    "agent": "codexhigh",
+    "wall_time_s": 5.59,
+    "returncode": 0,
+    "codex_session_id": "019f1ed1-b0e7-7e02-9a83-c074b35f9375",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-54-46-019f1ed1-b0e7-7e02-9a83-c074b35f9375.jsonl"
+  },
+  "5ab3e45655429976abd1bcd4": {
+    "agent": "codexhigh",
+    "wall_time_s": 4.16,
+    "returncode": 0,
+    "codex_session_id": "019f1ed1-c6cf-7d43-a66c-0b83cdc55959",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-54-52-019f1ed1-c6cf-7d43-a66c-0b83cdc55959.jsonl"
+  },
+  "5ab29c24554299449642c932": {
+    "agent": "codexhigh",
+    "wall_time_s": 3.93,
+    "returncode": 0,
+    "codex_session_id": "019f1ed1-d70a-7cb1-8860-a7bc0ce27978",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-54-56-019f1ed1-d70a-7cb1-8860-a7bc0ce27978.jsonl"
+  },
+  "5ae0d4c9554299603e418468": {
+    "agent": "codexhigh",
+    "wall_time_s": 4.29,
+    "returncode": 0,
+    "codex_session_id": "019f1ed1-e673-7d22-a579-c9ab5cabbb14",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-55-00-019f1ed1-e673-7d22-a579-c9ab5cabbb14.jsonl"
+  },
+  "5a8133725542995ce29dcbdb": {
+    "agent": "codexhigh",
+    "wall_time_s": 7.87,
+    "returncode": 0,
+    "codex_session_id": "019f1ed1-f77b-7ac3-8dcf-5f6105d78216",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-55-04-019f1ed1-f77b-7ac3-8dcf-5f6105d78216.jsonl"
+  },
+  "5ae7a8175542993210983ed8": {
+    "agent": "codexhigh",
+    "wall_time_s": 9.22,
+    "returncode": 0,
+    "codex_session_id": "019f1ed2-17d7-7933-a59c-911b135e4c03",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-55-12-019f1ed2-17d7-7933-a59c-911b135e4c03.jsonl"
+  },
+  "5ae6050f55429929b0807a5e": {
+    "agent": "codexhigh",
+    "wall_time_s": 9.44,
+    "returncode": 0,
+    "codex_session_id": "019f1ed2-3acb-7240-a28e-9a38aba34ab8",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-55-21-019f1ed2-3acb-7240-a28e-9a38aba34ab8.jsonl"
+  },
+  "5adddccd5542997dc7907069": {
+    "agent": "codexhigh",
+    "wall_time_s": 4.53,
+    "returncode": 0,
+    "codex_session_id": "019f1ed2-6027-7a63-87d4-1febc5b37511",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-55-31-019f1ed2-6027-7a63-87d4-1febc5b37511.jsonl"
+  },
+  "5ae2070a5542994d89d5b313": {
+    "agent": "codexhigh",
+    "wall_time_s": 8.95,
+    "returncode": 0,
+    "codex_session_id": "019f1ed2-7189-7733-ab7a-b725a1f5a718",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-55-35-019f1ed2-7189-7733-ab7a-b725a1f5a718.jsonl"
+  },
+  "5ae22b8d554299234fd0440f": {
+    "agent": "codexhigh",
+    "wall_time_s": 4.71,
+    "returncode": 0,
+    "codex_session_id": "019f1ed2-94a5-7262-a2e8-557629f1a05d",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-55-44-019f1ed2-94a5-7262-a2e8-557629f1a05d.jsonl"
+  },
+  "5a722b8655429971e9dc9329": {
+    "agent": "codexhigh",
+    "wall_time_s": 5.06,
+    "returncode": 0,
+    "codex_session_id": "019f1ed2-a723-7fb3-9a22-b622c050ca2b",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-55-49-019f1ed2-a723-7fb3-9a22-b622c050ca2b.jsonl"
+  },
+  "5adf37a95542995ec70e8f97": {
+    "agent": "codexhigh",
+    "wall_time_s": 6.89,
+    "returncode": 0,
+    "codex_session_id": "019f1ed2-bafc-79f1-9cf0-cd605de54325",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-55-54-019f1ed2-bafc-79f1-9cf0-cd605de54325.jsonl"
+  },
+  "5abd259d55429924427fcf1a": {
+    "agent": "codexhigh",
+    "wall_time_s": 3.87,
+    "returncode": 0,
+    "codex_session_id": "019f1ed2-d5ce-7c61-9b13-c86eb6e794df",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-56-01-019f1ed2-d5ce-7c61-9b13-c86eb6e794df.jsonl"
+  },
+  "5a828c8355429966c78a6a50": {
+    "agent": "codexhigh",
+    "wall_time_s": 5.57,
+    "returncode": 0,
+    "codex_session_id": "019f1ed2-e552-7c43-8cf1-5d6d717d6c85",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-56-05-019f1ed2-e552-7c43-8cf1-5d6d717d6c85.jsonl"
+  },
+  "5a8a3e745542996c9b8d5e70": {
+    "agent": "codexhigh",
+    "wall_time_s": 5.37,
+    "returncode": 0,
+    "codex_session_id": "019f1ed2-fb26-75e3-a526-88b89b49b553",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-56-11-019f1ed2-fb26-75e3-a526-88b89b49b553.jsonl"
+  },
+  "5ac23ff0554299636651994d": {
+    "agent": "codexhigh",
+    "wall_time_s": 7.28,
+    "returncode": 0,
+    "codex_session_id": "019f1ed3-1083-7fd0-9f0a-da786685f386",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-56-16-019f1ed3-1083-7fd0-9f0a-da786685f386.jsonl"
+  },
+  "5ae4a3265542995ad6573de5": {
+    "agent": "codexhigh",
+    "wall_time_s": 5.51,
+    "returncode": 0,
+    "codex_session_id": "019f1ed3-2d64-70a3-a728-489651790b7b",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-56-24-019f1ed3-2d64-70a3-a728-489651790b7b.jsonl"
+  },
+  "5ae0361155429925eb1afc2c": {
+    "agent": "codexhigh",
+    "wall_time_s": 4.66,
+    "returncode": 0,
+    "codex_session_id": "019f1ed3-4381-73d0-9a6e-da686d1381d8",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-56-29-019f1ed3-4381-73d0-9a6e-da686d1381d8.jsonl"
+  },
+  "5abc0a5d5542993f40c73c64": {
+    "agent": "codexhigh",
+    "wall_time_s": 3.27,
+    "returncode": 0,
+    "codex_session_id": "019f1ed3-5526-7760-b1c4-540eacdcaba7",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-56-34-019f1ed3-5526-7760-b1c4-540eacdcaba7.jsonl"
+  },
+  "5a7cc50e554299452d57ba3e": {
+    "agent": "codexhigh",
+    "wall_time_s": 6.37,
+    "returncode": 0,
+    "codex_session_id": "019f1ed3-626d-7ea1-a158-93acac76fdea",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-56-37-019f1ed3-626d-7ea1-a158-93acac76fdea.jsonl"
+  },
+  "5abf63f15542997ec76fd3ea": {
+    "agent": "codexhigh",
+    "wall_time_s": 8.92,
+    "returncode": 0,
+    "codex_session_id": "019f1ed3-7b56-70c2-a81c-aaa00c605ad6",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-56-43-019f1ed3-7b56-70c2-a81c-aaa00c605ad6.jsonl"
+  },
+  "5a8ef2a75542995a26add583": {
+    "agent": "codexhigh",
+    "wall_time_s": 3.61,
+    "returncode": 0,
+    "codex_session_id": "019f1ed3-9e2a-7f70-abdd-fb85c379efdc",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-56-52-019f1ed3-9e2a-7f70-abdd-fb85c379efdc.jsonl"
+  },
+  "5a80721b554299485f5985ef": {
+    "agent": "codexhigh",
+    "wall_time_s": 5.99,
+    "returncode": 0,
+    "codex_session_id": "019f1ed3-acf2-76a3-89ff-82b2a7231322",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-56-56-019f1ed3-acf2-76a3-89ff-82b2a7231322.jsonl"
+  },
+  "5ab51dae5542991779162d82": {
+    "agent": "codexhigh",
+    "wall_time_s": 3.24,
+    "returncode": 0,
+    "codex_session_id": "019f1ed3-c3ef-74d2-ba43-8bc3c509e8a6",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-57-02-019f1ed3-c3ef-74d2-ba43-8bc3c509e8a6.jsonl"
+  },
+  "5a7571135542992d0ec05f98": {
+    "agent": "codexhigh",
+    "wall_time_s": 3.68,
+    "returncode": 0,
+    "codex_session_id": "019f1ed3-d1a1-7911-8115-b8bafbbdb60b",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-57-06-019f1ed3-d1a1-7911-8115-b8bafbbdb60b.jsonl"
+  },
+  "5a7a0e1e5542990783324e1a": {
+    "agent": "codexhigh",
+    "wall_time_s": 7.51,
+    "returncode": 0,
+    "codex_session_id": "019f1ed3-dff8-7c80-8fa3-d0ed8382ecbf",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-57-09-019f1ed3-dff8-7c80-8fa3-d0ed8382ecbf.jsonl"
+  },
+  "5a74106b55429979e288289e": {
+    "agent": "codexhigh",
+    "wall_time_s": 4.3,
+    "returncode": 0,
+    "codex_session_id": "019f1ed3-fc8b-7141-8aca-c8c3ef089ec2",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-57-17-019f1ed3-fc8b-7141-8aca-c8c3ef089ec2.jsonl"
+  },
+  "5a79311755429970f5fffe67": {
+    "agent": "codexhigh",
+    "wall_time_s": 4.52,
+    "returncode": 0,
+    "codex_session_id": "019f1ed4-0e07-7043-811f-b4a6d0a726e3",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-57-21-019f1ed4-0e07-7043-811f-b4a6d0a726e3.jsonl"
+  },
+  "5ab2d3df554299194fa9352c": {
+    "agent": "codexhigh",
+    "wall_time_s": 5.96,
+    "returncode": 0,
+    "codex_session_id": "019f1ed4-2000-7c53-badc-12ba625d3839",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-57-26-019f1ed4-2000-7c53-badc-12ba625d3839.jsonl"
+  },
+  "5a760ab65542994ccc918697": {
+    "agent": "codexhigh",
+    "wall_time_s": 6.39,
+    "returncode": 0,
+    "codex_session_id": "019f1ed4-36bf-71c2-a60c-d7ebea37ee96",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-57-31-019f1ed4-36bf-71c2-a60c-d7ebea37ee96.jsonl"
+  },
+  "5a7d54165542995f4f402256": {
+    "agent": "codexhigh",
+    "wall_time_s": 6.5,
+    "returncode": 0,
+    "codex_session_id": "019f1ed4-4fc6-7932-80b6-12cc5a120cce",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-57-38-019f1ed4-4fc6-7932-80b6-12cc5a120cce.jsonl"
+  },
+  "5ab859a955429934fafe6d7b": {
+    "agent": "codexhigh",
+    "wall_time_s": 4.54,
+    "returncode": 0,
+    "codex_session_id": "019f1ed4-69aa-7153-a564-06320faee8bd",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-57-45-019f1ed4-69aa-7153-a564-06320faee8bd.jsonl"
+  },
+  "5add61d65542995b365fab21": {
+    "agent": "codexhigh",
+    "wall_time_s": 7.86,
+    "returncode": 0,
+    "codex_session_id": "019f1ed4-7b29-78a3-a645-488e737fa871",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-57-49-019f1ed4-7b29-78a3-a645-488e737fa871.jsonl"
+  },
+  "5a8e068b5542995085b37384": {
+    "agent": "codexhigh",
+    "wall_time_s": 4.88,
+    "returncode": 0,
+    "codex_session_id": "019f1ed4-9a31-7061-a14a-0be54a458bb2",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-57-57-019f1ed4-9a31-7061-a14a-0be54a458bb2.jsonl"
+  },
+  "5abbf698554299114383a0b5": {
+    "agent": "codexhigh",
+    "wall_time_s": 10.47,
+    "returncode": 0,
+    "codex_session_id": "019f1ed4-ada5-7392-90bc-7bc5620a477f",
+    "codex_session_file": "/home/czhai/.codex/sessions/2026/07/01/rollout-2026-07-01T13-58-02-019f1ed4-ada5-7392-90bc-7bc5620a477f.jsonl"
+  }
+}

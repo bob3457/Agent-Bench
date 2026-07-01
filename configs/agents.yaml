@@ -25,10 +25,73 @@ claude:
   required_env: []          # OAuth (CLAUDE_CODE_OAUTH_TOKEN) or ANTHROPIC_API_KEY already in env
   telemetry: claude_json
 
-codex:
+codexlow:
   type: shell
-  command: ["codex", "exec", "--sandbox", "workspace-write",
+  command: ["codex", "exec", "--skip-git-repo-check",
+            "--sandbox", "workspace-write",
             "-c", "model_reasoning_effort=low",
+            "-m", "gpt-5.5"]
+  prompt_via: arg
+  model_flag: "-m"
+  required_env: ["OPENAI_API_KEY"]
+  telemetry: codex_session
+
+codexmed:
+  type: shell
+  command: ["codex", "exec", "--skip-git-repo-check",
+            "--sandbox", "workspace-write",
+            "-c", "model_reasoning_effort=medium",
+            "-m", "gpt-5.5"]
+  prompt_via: arg
+  model_flag: "-m"
+  required_env: ["OPENAI_API_KEY"]
+  telemetry: codex_session
+
+codexhigh:
+  type: shell
+  command: ["codex", "exec", "--skip-git-repo-check",
+            "--sandbox", "workspace-write",
+            "-c", "model_reasoning_effort=high",
+            "-m", "gpt-5.5"]
+  prompt_via: arg
+  model_flag: "-m"
+  required_env: ["OPENAI_API_KEY"]
+  telemetry: codex_session
+
+# The -search rows run on Hopper compute nodes, which have no bubblewrap on PATH.
+# codex's `--sandbox workspace-write` requires bwrap to build the sandbox, so it
+# aborts before answering. These are throwaway-cwd QA runs (no repo, no secrets),
+# so bypassing the sandbox is safe here.
+codexlow-search:
+  type: shell
+  command: ["codex", "exec", "--skip-git-repo-check",
+            "--dangerously-bypass-approvals-and-sandbox",
+            "-c", "model_reasoning_effort=low",
+            "-c", "tools.web_search=true",
+            "-m", "gpt-5.5"]
+  prompt_via: arg
+  model_flag: "-m"
+  required_env: ["OPENAI_API_KEY"]
+  telemetry: codex_session
+
+codexmed-search:
+  type: shell
+  command: ["codex", "exec", "--skip-git-repo-check",
+            "--dangerously-bypass-approvals-and-sandbox",
+            "-c", "model_reasoning_effort=medium",
+            "-c", "tools.web_search=true",
+            "-m", "gpt-5.5"]
+  prompt_via: arg
+  model_flag: "-m"
+  required_env: ["OPENAI_API_KEY"]
+  telemetry: codex_session
+
+codexhigh-search:
+  type: shell
+  command: ["codex", "exec", "--skip-git-repo-check",
+            "--dangerously-bypass-approvals-and-sandbox",
+            "-c", "model_reasoning_effort=high",
+            "-c", "tools.web_search=true",
             "-m", "gpt-5.5"]
   prompt_via: arg
   model_flag: "-m"

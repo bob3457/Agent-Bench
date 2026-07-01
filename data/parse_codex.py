@@ -342,13 +342,19 @@ def print_report(session: SessionMetrics) -> None:
         print(f"  {k:<24} {_fmt(v)}")
 
 
-def collect_rollout_files(path: str | Path) -> list[Path]:
+def collect_rollout_files(path: str | Path, limit: int | None = None) -> list[Path]:
     """A single .jsonl path -> [that file]; a directory -> every .jsonl under it
     (recursively), sorted. Codex stores rollouts in dated subfolders, so the
-    recursive walk lets you point at any level (a day, a month, or the root)."""
+    recursive walk lets you point at any level (a day, a month, or the root).
+
+    limit slices the sorted list: a positive N keeps the first N files, a
+    negative N keeps the last N. None (default) keeps everything."""
     p = Path(path)
     if p.is_dir():
-        return sorted(p.rglob("*.jsonl"))
+        files = sorted(p.rglob("*.jsonl"))
+        if limit is not None and limit != 0:
+            files = files[:limit] if limit > 0 else files[limit:]
+        return files
     return [p]
 
 
@@ -373,10 +379,14 @@ def write_turn_csv(sessions: list[SessionMetrics], path: str | Path) -> None:
 def main(argv: list[str]) -> int:
     if not argv:
         print("usage: parse_codex_metrics.py <rollout.jsonl | dir/> "
-              "[--json] [--csv out.csv]", file=sys.stderr)
+              "[--limit N] [--json] [--csv out.csv]", file=sys.stderr)
         return 2
 
-    files = collect_rollout_files(argv[0])
+    limit = None
+    if "--limit" in argv:
+        limit = int(argv[argv.index("--limit") + 1])
+
+    files = collect_rollout_files(argv[0], limit)
     if not files:
         print(f"no .jsonl rollouts found under {argv[0]}", file=sys.stderr)
         return 1

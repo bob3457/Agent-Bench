@@ -1,0 +1,26 @@
+host=hop068.orc.gmu.edu job=8798457 agent=codexhigh env=bench
+codex: /home/czhai/.local/bin/codex
+swe_n=25 hotpot_limit=50 freshqa_limit=50 resume=0
+
+========== STAGE: hotpotqa ==========
++ python /scratch/czhai/Agent-Bench/harness/run_hotpot_agent.py --agent codexhigh --input /scratch/czhai/Agent-Bench/hotpot_dev_distractor_v1.json --limit 50
+Agent: codexhigh | questions: 50 | cwd: /scratch/czhai/tmp/hotpot_ryf4yvze | output: data/codexhigh/hotpot_predictions.json
+
+Wrote 50 predictions to data/codexhigh/hotpot_predictions.json
+Wrote per-question telemetry to data/codexhigh/hotpot_metrics.json
+
+--- run summary ---
+questions:        50  (0 errored)
+total cost (usd): 0.0000   (notional if on a subscription)
+input tokens:     0
+output tokens:    0
+cache read:       0   cache create: 0
+wall time (s):    296.0   (mean 5.9/q)
+
+Score with:
+  python hotpot_evaluate_v1.py data/codexhigh/hotpot_predictions.json /scratch/czhai/Agent-Bench/hotpot_dev_distractor_v1.json
+[hotpotqa] OK
+
+========== SUMMARY ==========
+  hotpotqa=0
+predictions under data/codexhigh/  (freshqa under data/codexhigh/)

@@ -1,0 +1,7 @@
+host=hop068.orc.gmu.edu job=8798252 agent=codexlow-search env=bench
+codex: /home/czhai/.local/bin/codex
+swe_n=25 hotpot_limit=50 freshqa_limit=50 resume=0
+
+========== STAGE: freshqa ==========
++ python /scratch/czhai/Agent-Bench/harness/run_freshqa_agent.py --agent codexlow-search --input /scratch/czhai/Agent-Bench/freshqa.csv --limit 50
+Agent: codexlow-search | questions: 50 | cwd: /tmp/freshqa_ag2_ciub | output: data/codexlow/freshqa_responses.jsonl

@@ -1,0 +1,2 @@
+WARNING: 'module load git/2.39.1-vd' failed -- relying on PATH
+ERROR: git not on PATH
