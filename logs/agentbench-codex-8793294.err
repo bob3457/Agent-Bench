@@ -1,6 +1,0 @@
-Lmod has detected the following error: These module(s) or extension(s) exist
-but cannot be loaded as requested: "git/2.39.1-vd"
-   Try: "module spider git/2.39.1-vd" to see how to load the module(s).
-
-
-

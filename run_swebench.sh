@@ -48,6 +48,8 @@ set -u
 [ -n "${GIT_BINDIR:-}" ] && export PATH="$GIT_BINDIR:$PATH"
 
 command -v codex >/dev/null 2>&1 || { echo "ERROR: codex not on PATH"; exit 1; }
+command -v bwrap >/dev/null 2>&1 || { echo "ERROR: bwrap not on PATH"; exit 1; }
+bwrap --ro-bind / / true || { echo "ERROR: bwrap present but userns blocked"; exit 1; }
 command -v git   >/dev/null 2>&1 || { echo "ERROR: git not on PATH";   exit 1; }
 
 # SWE-bench fetches princeton-nlp/SWE-bench_Lite (HF) and clones from github.com.

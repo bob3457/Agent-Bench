@@ -1,1 +1,0 @@
-/var/spool/slurmd/job8798016/slurm_script: line 58: OPENAI_API_KEY: OPENAI_API_KEY not set -- run: export OPENAI_API_KEY=... before sbatch

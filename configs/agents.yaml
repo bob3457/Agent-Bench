@@ -65,7 +65,6 @@ codexhigh:
 codexlow-search:
   type: shell
   command: ["codex", "exec", "--skip-git-repo-check",
-            "--dangerously-bypass-approvals-and-sandbox",
             "-c", "model_reasoning_effort=low",
             "-c", "tools.web_search=true",
             "-m", "gpt-5.5"]
@@ -77,7 +76,6 @@ codexlow-search:
 codexmed-search:
   type: shell
   command: ["codex", "exec", "--skip-git-repo-check",
-            "--dangerously-bypass-approvals-and-sandbox",
             "-c", "model_reasoning_effort=medium",
             "-c", "tools.web_search=true",
             "-m", "gpt-5.5"]
@@ -89,7 +87,6 @@ codexmed-search:
 codexhigh-search:
   type: shell
   command: ["codex", "exec", "--skip-git-repo-check",
-            "--dangerously-bypass-approvals-and-sandbox",
             "-c", "model_reasoning_effort=high",
             "-c", "tools.web_search=true",
             "-m", "gpt-5.5"]
