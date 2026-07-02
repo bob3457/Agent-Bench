@@ -9,9 +9,6 @@
   `singularity` symlink, which Harbor's singularity backend uses. Rootless
   `--fakeroot` works via root-mapped user namespaces — no `/etc/subuid` entry
   needed.
-- **Home quota is tight.** Clone the repo and keep all caches on scratch or in a project folder:
-- **Compute nodes have internet** (GitHub, HuggingFace, API endpoints), so
-  agents and dataset pulls work from inside jobs.
 - **`git` comes from a module** (`git/2.27.1`, ungated). Batch scripts must
   source `/etc/profile.d/lmod.sh` before `module load` — login init doesn't
   run in batch shells. The provided SLURM scripts handle this.
@@ -34,13 +31,12 @@ conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/ma
 conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 ```
 
-### 3. Clone the repo (to scratch on Hopper)
+### 3. Clone the repo
 
 ```bash
-cd /scratch/$USER
+cd /scratch/$USER # Or to whatever other folder you want it
 git clone https://github.com/bob3457/Agent-Bench.git
 cd Agent-Bench
-mkdir -p logs   # SLURM won't create --output dirs
 ```
 
 ### 4. Create and activate the environment
@@ -83,7 +79,7 @@ export LLM_API_KEY=...
 export LLM_MODEL=<provider/model, e.g. anthropic/claude-sonnet-4-6>
 ```
 
-> **Codex CLI auth caveat:** the Codex CLI build we use (v0.142.2)
+> **Codex CLI auth caveat:** the Codex CLI build used
 > authenticates from `auth.json` inside `CODEX_HOME` (default `~/.codex`) —
 > **not** from `OPENAI_API_KEY`. Leave `CODEX_HOME` unset and log in once on
 > the cluster so `~/.codex/auth.json` exists. `OPENAI_API_KEY` is still
@@ -110,8 +106,8 @@ allocation.
 ### A. Batch (sbatch) — for validated full runs
 
 ```bash
-cd /scratch/czhai/Agent-Bench
-export OPENAI_API_KEY=sk-...           # picked up via #SBATCH --export=ALL
+cd Agent-Bench
+export OPENAI_API_KEY=...
 sbatch run_swe.sh           # or any of the scripts below
 squeue -u $USER                        # watch it
 tail -f logs/agentbench-*-<jobid>.out
@@ -124,9 +120,9 @@ tail -f logs/agentbench-*-<jobid>.out
 salloc --partition=normal --nodes=1 --ntasks=1 --cpus-per-task=4 --mem=16G --time=04:00:00
 srun --pty bash        # land on the compute node (check with `hostname`)
 
-cd /scratch/czhai/Agent-Bench
+cd Agent-Bench
 export OPENAI_API_KEY=sk-...           # set once, run many times
-N_TASKS=1 bash run_terminalbench_harbor.sh 2>&1 | tee logs/tbench-pilot-$(date +%s).log
+N_TASKS=1 bash run_swebench.sh
 ```
 
 ### Per-benchmark SLURM scripts
@@ -136,13 +132,71 @@ N_TASKS=1 bash run_terminalbench_harbor.sh 2>&1 | tee logs/tbench-pilot-$(date +
 | `run_swebench.sh` | SWE-bench Lite (generation) | `SWE_N` (default 25) |
 | `run_hotpot.sh` | HotpotQA | `HOTPOT_LIMIT` (50), `RESUME=1` |
 | `run_fresh.sh` | FreshQA | `FRESHQA_LIMIT` (50), `FRESHQA_AGENT=codex-search`, `RESUME=1` |
-| `run_terminalbench.sh` | Terminal-Bench 2.0 via Harbor | `AGENT`, `EFFORT`, `N_TASKS`, `N_CONCURRENT` |
 
 Common knobs across all scripts: `AGENT`, `REPO_DIR`, `CONDA_ENV`. Pilot
 before a full run, e.g. `SWE_N=3 sbatch run_swebench_codex.sh`.
 
 ---
+### Terminal-Bench 2.0 via Harbor
 
+Hopper's rootless setup breaks Harbor's in-container installs, so two one-time
+steps are required before any run. Details + failure table: `RUNBOOK.md`.
+
+**1. Patch Harbor** (re-run after every `pip install --upgrade harbor` — upgrades revert it):
+
+```bash
+bash ~/bin/patch_harbor_hopper.sh
+```
+
+**2. Pre-bake the task images** (runtime package installs fail on Hopper; baking installs everything ahead of time):
+
+```bash
+module load hosts/hopper apptainer/1.4.1
+git clone --depth 1 https://github.com/laude-institute/terminal-bench-2.git /scratch/$USER/tb2
+
+# all tasks (resumable):
+bash prebake_harbor_sifs.sh --from-tasks /scratch/$USER/tb2
+
+# or a subset, e.g. first 40 (the list also drives the runs):
+ls -d /scratch/$USER/tb2/*/ | xargs -n1 basename | sort | grep -v '^gpt2-codegolf$' | head -40 > tasks_first40.txt
+while read -r t; do grep -h '^docker_image' "/scratch/$USER/tb2/$t/task.toml"; done < tasks_first40.txt \
+    | sed 's/.*= *"\(.*\)"/\1/' > images_first40.txt
+bash prebake_harbor_sifs.sh $(cat images_first40.txt)
+```
+
+Tasks flagged **UNBAKEABLE** (e.g. `gpt2-codegolf`) can't run on this backend —
+drop them from the list and add to `EXCLUDE_TASKS` on every submission.
+
+**3. Run** (credentials: `OPENAI_API_KEY` for codex/openhands, `CLAUDE_CODE_OAUTH_TOKEN` for claude-code — exported env only, never on the command line):
+
+```bash
+# pilot (inside an salloc, see section B):
+EXTRA_ARGS="-i llm-inference-batching-scheduler" N_TASKS=1 N_CONCURRENT=1 AGENT=claude-code \
+    bash run_terminalbench.sh 2>&1 | tee logs/tbench-pilot-$(date +%s).log
+
+# campaign — pin the task set (task order is unstable without -i) and keep it
+# identical across all agents/efforts:
+INC=$(sed 's/^/-i /' tasks_first40.txt | tr '\n' ' ')
+for eff in low medium high; do
+    EXTRA_ARGS="$INC" AGENT=codex EFFORT=$eff N_TASKS=40 N_CONCURRENT=4 \
+        sbatch --time=08:00:00 --cpus-per-task=8 --mem=32G run_terminalbench.sh
+done
+EXTRA_ARGS="$INC" AGENT=claude-code N_TASKS=40 N_CONCURRENT=4 \
+    sbatch --time=08:00:00 --cpus-per-task=8 --mem=32G run_terminalbench.sh
+```
+
+**Reading results:** success = `errored=0` in the script's trials line (`harbor
+run` itself exits 0 even when trials fail; the script post-checks
+`result.json`). Reward `0.000` with zero errors = agent ran but didn't solve
+the task — a result, not a failure. Outputs land in
+`data/harbor_jobs/<run_id>/`; codex rollouts in each trial's
+`agent/sessions/.../rollout-*.jsonl` (feed to `data/parse_codex.py`). To debug
+a failed trial:
+
+```bash
+J=$(ls -dt data/harbor_jobs/tbench_* | head -1)
+grep -E '\[server\]|\[harbor\]|FATAL' $(find "$J" -name trial.log | head -1) | tail -30
+```
 ## Running evaluations
 WIP
 ### Notes
