@@ -1,0 +1,35 @@
+Using cached Singularity image: /scratch/czhai/.harbor_sif_cache/alexgshaw_llm-inference-batching-scheduler_20251031.sif
+Starting Singularity container with server on port 46377 (attempt 1/3)
+[server] INFO:    User not listed in /etc/subuid, trying root-mapped namespace
+[server] INFO:    fakeroot command not found, using only root-mapped namespace
+[server] INFO:    squashfuse not found, will not be able to mount SIF or other squashfs files
+[server] INFO:    gocryptfs not found, will not be able to use gocryptfs
+[server] INFO:    Converting SIF file to temporary sandbox...
+[server] [harbor] /usr/bin/python3 not found, installing...
+[server] [harbor] FATAL: cannot install /usr/bin/python3
+[server] INFO:    Cleaning up image...
+Server failed to start on port 46377, will retry with new port
+Starting Singularity container with server on port 44717 (attempt 2/3)
+[server] INFO:    User not listed in /etc/subuid, trying root-mapped namespace
+[server] INFO:    fakeroot command not found, using only root-mapped namespace
+[server] INFO:    squashfuse not found, will not be able to mount SIF or other squashfs files
+[server] INFO:    gocryptfs not found, will not be able to use gocryptfs
+[server] INFO:    Converting SIF file to temporary sandbox...
+[server] [harbor] /usr/bin/python3 not found, installing...
+[server] [harbor] FATAL: cannot install /usr/bin/python3
+[server] INFO:    Cleaning up image...
+Server failed to start on port 44717, will retry with new port
+Starting Singularity container with server on port 43019 (attempt 3/3)
+[server] INFO:    User not listed in /etc/subuid, trying root-mapped namespace
+[server] INFO:    fakeroot command not found, using only root-mapped namespace
+[server] INFO:    squashfuse not found, will not be able to mount SIF or other squashfs files
+[server] INFO:    gocryptfs not found, will not be able to use gocryptfs
+[server] INFO:    Converting SIF file to temporary sandbox...
+[server] [harbor] /usr/bin/python3 not found, installing...
+[server] [harbor] FATAL: cannot install /usr/bin/python3
+[server] INFO:    Cleaning up image...
+Server failed to start on port 43019, will retry with new port
+Trial llm-inference-batching-scheduler__9xFkdru failed: Server process died on port 43019. Check trial.log for server output.
+Collecting main service artifacts
+Singularity image preserved at /scratch/czhai/.harbor_sif_cache/alexgshaw_llm-inference-batching-scheduler_20251031.sif for reuse
+Not retrying trial because the maximum number of retries has been reached

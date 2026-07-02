@@ -1,0 +1,77 @@
+{
+    "schema_version": 1,
+    "created_at": "2026-07-02T15:53:51.867339Z",
+    "harbor": {
+        "version": "0.16.1",
+        "is_editable": false
+    },
+    "invocation": [
+        "/home/czhai/miniconda3/envs/bench/bin/harbor",
+        "run",
+        "--dataset",
+        "terminal-bench@2.0",
+        "-i",
+        "openssl-selfsigned-cert",
+        "--agent",
+        "codex",
+        "--n-concurrent",
+        "1",
+        "--n-tasks",
+        "1",
+        "--env=singularity"
+    ],
+    "n_concurrent_trials": 1,
+    "retry": {
+        "max_retries": 0,
+        "exclude_exceptions": [
+            "RewardFileNotFoundError",
+            "VerifierTimeoutError",
+            "ApiUsageLimitError",
+            "VerifierOutputParseError",
+            "RewardFileEmptyError",
+            "AgentTimeoutError"
+        ],
+        "wait_multiplier": 1.0,
+        "min_wait_sec": 1.0,
+        "max_wait_sec": 60.0
+    },
+    "trials": [
+        {
+            "task": {
+                "name": "openssl-selfsigned-cert",
+                "type": "git",
+                "digest": "sha256:09761e5f8ac644dc846693b01bc4c433d337ac1dcf457ae2b84933751350daf5",
+                "source": "terminal-bench",
+                "path": "openssl-selfsigned-cert",
+                "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+                "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent": {
+                "name": "codex",
+                "skills": [],
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "env": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "singularity",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "env": {},
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "env": {},
+                "disable": false
+            }
+        }
+    ]
+}

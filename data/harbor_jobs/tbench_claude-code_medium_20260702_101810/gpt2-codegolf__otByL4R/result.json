@@ -1,0 +1,105 @@
+{
+    "id": "d42c3a14-c8d7-4a75-83be-30d39643f5d4",
+    "task_name": "gpt2-codegolf",
+    "trial_name": "gpt2-codegolf__otByL4R",
+    "trial_uri": "file:///scratch/czhai/Agent-Bench/data/harbor_jobs/tbench_claude-code_medium_20260702_101810/gpt2-codegolf__otByL4R",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "gpt2-codegolf"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "c3dfea370953fe9b6cb53d368f1f242af2833cf1af623849bdaee8fe026b1cf1",
+    "config": {
+        "task": {
+            "path": "gpt2-codegolf",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "gpt2-codegolf__otByL4R",
+        "trials_dir": "/scratch/czhai/Agent-Bench/data/harbor_jobs/tbench_claude-code_medium_20260702_101810",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "claude-code",
+            "import_path": null,
+            "model_name": null,
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "extra_allowed_hosts": [],
+            "include_logs": [
+                "**/*"
+            ],
+            "kwargs": {},
+            "env": {
+                "CLAUDE_CODE_OAUTH_TOKEN": "${CLAUDE_CODE_OAUTH_TOKEN}"
+            },
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "singularity",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "env": {},
+            "kwargs": {
+                "singularity_image_cache_dir": "/scratch/czhai/.harbor_sif_cache"
+            },
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "include_logs": [
+                "**/*"
+            ],
+            "env": {},
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "0c656eab-4328-4ff6-86b0-4dc33521048a"
+    },
+    "agent_info": {
+        "name": "claude-code",
+        "version": "unknown",
+        "model_info": null
+    },
+    "agent_result": null,
+    "verifier_result": null,
+    "exception_info": {
+        "exception_type": "RuntimeError",
+        "exception_message": "Server process died on port 45295. Check trial.log for server output.",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py\", line 337, in run\n    await self._prepare()\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py\", line 364, in _prepare\n    await self._setup_agent_environment()\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py\", line 1031, in _setup_agent_environment\n    await self._start_agent_environment()\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py\", line 1037, in _start_agent_environment\n    await asyncio.wait_for(\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/tasks.py\", line 520, in wait_for\n    return await fut\n           ^^^^^^^^^\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/environments/singularity/singularity.py\", line 662, in start\n    await self._start_server()\n  File \"/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/environments/singularity/singularity.py\", line 474, in _start_server\n    raise last_error or RuntimeError(\nRuntimeError: Server process died on port 45295. Check trial.log for server output.\n",
+        "occurred_at": "2026-07-02T10:20:43.365689"
+    },
+    "started_at": "2026-07-02T14:18:17.926489Z",
+    "finished_at": "2026-07-02T14:20:43.389861Z",
+    "environment_setup": {
+        "started_at": "2026-07-02T14:18:17.974545Z",
+        "finished_at": "2026-07-02T14:20:43.360360Z"
+    },
+    "agent_setup": null,
+    "agent_execution": null,
+    "verifier": null,
+    "step_results": null
+}

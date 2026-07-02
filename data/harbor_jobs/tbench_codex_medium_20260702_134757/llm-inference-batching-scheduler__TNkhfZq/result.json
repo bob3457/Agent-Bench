@@ -1,0 +1,120 @@
+{
+    "id": "fce52adc-35b6-482a-918c-7a6a8eb94a0f",
+    "task_name": "llm-inference-batching-scheduler",
+    "trial_name": "llm-inference-batching-scheduler__TNkhfZq",
+    "trial_uri": "file:///scratch/czhai/Agent-Bench/data/harbor_jobs/tbench_codex_medium_20260702_134757/llm-inference-batching-scheduler__TNkhfZq",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "llm-inference-batching-scheduler"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "3a08e63e0643ea5914eedeecb08cb93a1f0a10b9dc7d19d1f570004af84531c8",
+    "config": {
+        "task": {
+            "path": "llm-inference-batching-scheduler",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "llm-inference-batching-scheduler__TNkhfZq",
+        "trials_dir": "/scratch/czhai/Agent-Bench/data/harbor_jobs/tbench_codex_medium_20260702_134757",
+        "install_only": false,
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "codex",
+            "import_path": null,
+            "model_name": "gpt-5.5",
+            "n_concurrent": null,
+            "concurrency_group": null,
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {
+                "reasoning_effort": "medium"
+            },
+            "env": {},
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "singularity",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "env": {},
+            "kwargs": {
+                "singularity_image_cache_dir": "/scratch/czhai/.harbor_sif_cache"
+            },
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "env": {},
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "c358b193-bf52-40f2-a32f-7f20fc6b5f9a"
+    },
+    "agent_info": {
+        "name": "codex",
+        "version": "0.142.5",
+        "model_info": {
+            "name": "gpt-5.5",
+            "provider": null
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 160692,
+        "n_cache_tokens": 118400,
+        "n_output_tokens": 6462,
+        "cost_usd": 0.46452000000000004,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 0.0
+        }
+    },
+    "exception_info": null,
+    "started_at": "2026-07-02T17:48:10.804811Z",
+    "finished_at": "2026-07-02T17:50:48.415015Z",
+    "environment_setup": {
+        "started_at": "2026-07-02T17:48:10.976165Z",
+        "finished_at": "2026-07-02T17:48:49.125132Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-07-02T17:48:49.125223Z",
+        "finished_at": "2026-07-02T17:48:59.000633Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-07-02T17:48:59.000734Z",
+        "finished_at": "2026-07-02T17:50:32.456013Z"
+    },
+    "verifier": {
+        "started_at": "2026-07-02T17:50:40.868592Z",
+        "finished_at": "2026-07-02T17:50:43.344434Z"
+    },
+    "step_results": null
+}

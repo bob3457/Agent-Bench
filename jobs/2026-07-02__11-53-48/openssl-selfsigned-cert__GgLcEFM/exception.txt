@@ -1,0 +1,22 @@
+Traceback (most recent call last):
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py", line 342, in run
+    await self._prepare()
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py", line 375, in _prepare
+    await self._setup_agent()
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py", line 1109, in _setup_agent
+    await asyncio.wait_for(
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/tasks.py", line 520, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/agents/installed/base.py", line 448, in setup
+    await self.install(environment)
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/agents/installed/codex.py", line 113, in install
+    await self.exec_as_root(
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/agents/installed/base.py", line 405, in exec_as_root
+    return await self._exec(
+           ^^^^^^^^^^^^^^^^^
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/agents/installed/base.py", line 385, in _exec
+    raise self._classify_exec_error(command, result)
+harbor.agents.installed.base.NonZeroAgentExitCodeError: Command failed (exit 1): if ldd --version 2>&1 | grep -qi musl || [ -f /etc/alpine-release ]; then  apk add --no-cache curl bash nodejs npm ripgrep; elif command -v apt-get &>/dev/null; then  apt-get update && apt-get install -y curl ripgrep; elif command -v yum &>/dev/null; then  yum install -y curl ripgrep; else  echo "Warning: No known package manager found, assuming curl is available" >&2; fi
+stdout: su: cannot set groups: Operation not permitted
+stderr: None

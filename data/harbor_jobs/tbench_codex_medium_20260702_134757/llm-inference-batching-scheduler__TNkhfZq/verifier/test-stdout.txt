@@ -1,0 +1,17 @@
+Hit:1 https://deb.debian.org/debian bookworm InRelease
+Hit:2 https://deb.debian.org/debian bookworm-updates InRelease
+Hit:3 https://deb.debian.org/debian-security bookworm-security InRelease
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+curl is already the newest version (7.88.1-10+deb12u14).
+0 upgraded, 0 newly installed, 0 to remove and 29 not upgraded.
+downloading uv 0.9.5 x86_64-unknown-linux-gnu
+no checksums to verify
+tar: uvx: Cannot change ownership to uid 1001, gid 117: Invalid argument
+tar: uv: Cannot change ownership to uid 1001, gid 117: Invalid argument
+tar: Exiting with failure status due to previous errors
+[31mERROR(B[m: command failed: tar xf /tmp/tmp.MUbcEINbAv/input.tar.gz --strip-components 1 -C /tmp/tmp.MUbcEINbAv
+/tests/test.sh: line 12: /root/.local/bin/env: No such file or directory
+/tests/test.sh: line 21: uvx: command not found

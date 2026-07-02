@@ -1,0 +1,59 @@
+
+Lmod is automatically replacing "gnu9/9.3.0" with "gnu10/10.3.0-ya".
+
+
+Inactive Modules:
+  1) hwloc/2.1.0     2) libfabric     3) ucx
+
+The following have been reloaded with a version change:
+  1) openmpi4/4.0.4 => openmpi4/4.1.2-4a
+
+host=hop062.orc.gmu.edu job=8805600
+agent=codex model=gpt-5.5 effort=medium env=singularity
+dataset=terminal-bench@2.0 n_tasks=1 n_concurrent=1
+exclude=[gpt2-codegolf] extra_args=[-i llm-inference-batching-scheduler]
+run_id=tbench_codex_medium_20260702_134757 jobs_dir=/scratch/czhai/Agent-Bench/data/harbor_jobs
+harbor: /home/czhai/miniconda3/envs/bench/bin/harbor (0.16.1)
+git: /opt/sw/spack/apps/linux-rhel8-x86_64_v2/gcc-10.3.0/git-2.39.1-vd/bin/git (git version 2.39.1)
+singularity: /opt/sw/other/apps/apptainer/1.4.1/bin/singularity (apptainer version 1.4.1)
+caches: APPTAINER_CACHEDIR=/scratch/czhai/.apptainer_cache TMPDIR=/scratch/czhai/tmp SIF=/scratch/czhai/.harbor_sif_cache
+
+========== STAGE: terminal-bench ==========
+  1/1 Mean: 0.000 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 0:02:37 0:00:00
+terminal-bench • codex • gpt-5.5
+┏━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━┓
+┃ Trials ┃ Exceptions ┃  Mean ┃
+┡━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━┩
+│      1 │          0 │ 0.000 │
+└────────┴────────────┴───────┘
+
+┏━━━━━━━━┳━━━━━━━┓
+┃ Reward ┃ Count ┃
+┡━━━━━━━━╇━━━━━━━┩
+│ 0.0    │     1 │
+└────────┴───────┘
+
+Job Info
+Total runtime: 2m 37s
+Results written to /scratch/czhai/Agent-Bench/data/harbor_jobs/tbench_codex_medium_20260702_134757/result.json
+Inspect results by running `harbor view /scratch/czhai/Agent-Bench/data/harbor_jobs`
+Share results by running `harbor upload /scratch/czhai/Agent-Bench/data/harbor_jobs/tbench_codex_medium_20260702_134757`
+
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7efdd49091c0>
+Traceback (most recent call last):
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/unix_events.py", line 568, in close
+    self._close(None)
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+trials: total=1 completed=1 errored=0 (see /scratch/czhai/Agent-Bench/data/harbor_jobs/tbench_codex_medium_20260702_134757/result.json)
+[terminal-bench] OK
+results + logs under /scratch/czhai/Agent-Bench/data/harbor_jobs/tbench_codex_medium_20260702_134757/
