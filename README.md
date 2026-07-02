@@ -2,6 +2,20 @@
 
 ## Setup
 
+### 0. Hopper notes
+
+- **No Docker, no root.** All container workloads run via rootless Apptainer
+  (`module load hosts/hopper apptainer/1.4.1`). The module ships a
+  `singularity` symlink, which Harbor's singularity backend uses. Rootless
+  `--fakeroot` works via root-mapped user namespaces — no `/etc/subuid` entry
+  needed.
+- **Home quota is tight.** Clone the repo and keep all caches on scratch or in a project folder:
+- **Compute nodes have internet** (GitHub, HuggingFace, API endpoints), so
+  agents and dataset pulls work from inside jobs.
+- **`git` comes from a module** (`git/2.27.1`, ungated). Batch scripts must
+  source `/etc/profile.d/lmod.sh` before `module load` — login init doesn't
+  run in batch shells. The provided SLURM scripts handle this.
+
 ### 1. Install Miniconda, then restart your terminal
 
 ```bash
@@ -20,11 +34,13 @@ conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/ma
 conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 ```
 
-### 3. Clone the repo
+### 3. Clone the repo (to scratch on Hopper)
 
 ```bash
+cd /scratch/$USER
 git clone https://github.com/bob3457/Agent-Bench.git
 cd Agent-Bench
+mkdir -p logs   # SLURM won't create --output dirs
 ```
 
 ### 4. Create and activate the environment
@@ -37,7 +53,10 @@ conda activate bench
 ### 5. Install the agents you plan to use
 
 ```bash
-npm install -g @anthropic-ai/claude-code   # Claude Code (requires Node.js)
+# Claude Code -- npm 11 blocks lifecycle scripts by default; the package name
+# must appear in BOTH the whitelist and install-target positions:
+npm install -g --allow-scripts=@anthropic-ai/claude-code @anthropic-ai/claude-code
+
 npm install -g @openai/codex               # Codex CLI (requires Node.js)
 pip install openhands-ai                    # OpenHands (into the activated env)
 ```
@@ -56,7 +75,7 @@ These are session-scoped: re-export them each time you open a terminal (or put t
 export CLAUDE_CODE_OAUTH_TOKEN=...
 export CLAUDE_FORCE_OAUTH=1
 
-# Codex
+# Codex (used by Harbor's codex agent and passed through by the SLURM scripts)
 export OPENAI_API_KEY=...
 
 # OpenHands (LiteLLM provider key + model)
@@ -64,97 +83,85 @@ export LLM_API_KEY=...
 export LLM_MODEL=<provider/model, e.g. anthropic/claude-sonnet-4-6>
 ```
 
+> **Codex CLI auth caveat:** the Codex CLI build we use (v0.142.2)
+> authenticates from `auth.json` inside `CODEX_HOME` (default `~/.codex`) —
+> **not** from `OPENAI_API_KEY`. Leave `CODEX_HOME` unset and log in once on
+> the cluster so `~/.codex/auth.json` exists. `OPENAI_API_KEY` is still
+> required for Harbor's containerized codex agent and for OpenHands.
+
 Confirm an agent is registered and reachable before a full run:
 
 ```bash
-python run_swebench_agent.py --list-agents
+python harness/run_swebench_agent.py --list-agents
 ```
+
+> Run harnesses **by file path** (`python harness/run_*.py`), not `python -m`;
+> module-mode puts the repo root on `sys.path` and breaks the flat
+> `import agent_core`.
+
+---
+
+## Running on Hopper
+
+Two modes. Both use the same scripts — the `#SBATCH` lines are comments to
+bash, so every script runs under `sbatch` *or* plain `bash` inside an
+allocation.
+
+### A. Batch (sbatch) — for validated full runs
+
+```bash
+cd /scratch/czhai/Agent-Bench
+export OPENAI_API_KEY=sk-...           # picked up via #SBATCH --export=ALL
+sbatch run_swe.sh           # or any of the scripts below
+squeue -u $USER                        # watch it
+tail -f logs/agentbench-*-<jobid>.out
+```
+
+### B. Interactive (salloc) — for pilots and flag iteration
+
+```bash
+# from a login node
+salloc --partition=normal --nodes=1 --ntasks=1 --cpus-per-task=4 --mem=16G --time=04:00:00
+srun --pty bash        # land on the compute node (check with `hostname`)
+
+cd /scratch/czhai/Agent-Bench
+export OPENAI_API_KEY=sk-...           # set once, run many times
+N_TASKS=1 bash run_terminalbench_harbor.sh 2>&1 | tee logs/tbench-pilot-$(date +%s).log
+```
+
+### Per-benchmark SLURM scripts
+
+| Script | Benchmark | Key knobs (env-overridable) |
+|---|---|---|
+| `run_swebench.sh` | SWE-bench Lite (generation) | `SWE_N` (default 25) |
+| `run_hotpot.sh` | HotpotQA | `HOTPOT_LIMIT` (50), `RESUME=1` |
+| `run_fresh.sh` | FreshQA | `FRESHQA_LIMIT` (50), `FRESHQA_AGENT=codex-search`, `RESUME=1` |
+| `run_terminalbench.sh` | Terminal-Bench 2.0 via Harbor | `AGENT`, `EFFORT`, `N_TASKS`, `N_CONCURRENT` |
+
+Common knobs across all scripts: `AGENT`, `REPO_DIR`, `CONDA_ENV`. Pilot
+before a full run, e.g. `SWE_N=3 sbatch run_swebench_codex.sh`.
 
 ---
 
 ## Running evaluations
-
-All commands run from the repo root. Each benchmark is **run, then graded** as two steps.
-Use a distinct `--run_id` / output path per run so you never overwrite prior results.
-
-### SWE-bench
-
-```bash
-# 1. Run the agent over N instances -> data/<agent>/predictions.jsonl + metrics.jsonl
-python harness/run_swebench_agent.py --agent claude --n 25            # add --model to override
-
-# 2a. Grade locally (Docker)
-python eval/swebench_eval.py \
-    --predictions_path data/claude/predictions.jsonl \
-    --dataset_name SWE-bench/SWE-bench --split test \
-    --run_id claude_code_run_v2 \
-    --max_workers 2 --report_dir .
-
-# 2b. Grade on a SLURM/Apptainer cluster (e.g. Hopper, no Docker)
-python eval/swebench_singularity_eval.py \
-    --predictions data/claude/predictions.jsonl \
-    --dataset SWE-bench/SWE-bench --split test \
-    --sif-dir ./sifs --overlay-size 4096 --timeout 1800
-```
-
-The grader writes a report keyed by `run_id`; the resolved/unresolved verdicts live there,
-not in the runner's output.
-
-### HotpotQA
-
-```bash
-# 1. Run (tool-isolated by default for closed-context QA)
-python harness/run_hotpot_agent.py \
-    --agent claude-closedbook \ #specifically blocks searching
-    --input hotpot_dev_distractor_v1.json \
-    --limit 50 --resume     
-
-# 2. Grade against the gold file
-python eval/hotpot_evaluate_v1.py data/claude/hotpot_predictions.json hotpot_dev_distractor_v1.json
-# optional third arg caps the number of cases scored
-```
-
-### FreshQA
-
-```bash
-# 1. Run
-python harness/run_freshqa_agent.py \
-    --agent claude-search \ #allows searching
-    --input freshqa.csv \
-    --limit 50
-
-# 2. Grade with an LLM judge
-python eval/eval_freshqa.py \
-    --responses data/claude/freshqa_responses.jsonl \
-    --mode both \
-    --judge-cmd "claude -p" \
-    --graded-out data/claude/freshqa_graded.jsonl
-```
-### Terminal Bench 2.0
-```bash
-# 1. Run
-harbor run --dataset terminal-bench@2.0 \
-   --agent claude-code \
-   --n-concurrent 1 --n-tasks 1 --ae “CLAUDE_CODE_OAUTH_TOKEN=$CLAUDE_CODE_OAUTH_TOKEN”
-OR
-harbor run --dataset terminal-bench@2.0    --agent codex    --model gpt-5.5    --ak reasoning_effort=medium    --n-concurrent 1 --n-tasks 25    --ae "OPENAI_API_KEY=$OPENAI_API_KEY"
-OR
-harbor run -d terminal-bench@2.0 -a openhands-sdk   -m gpt-5.5   --ak reasoning_effort=medium   --ak version=1.27.0
- --ae "LLM_API_KEY=$OPENAI_API_KEY"   -e docker -l 25 -n 1 --env-file ./.env
-# 2. Automatically graded, results can be found using
-harbor view jobs
-```
-
+WIP
 ### Notes
+
 ```
-for HotpotQA, freshQA and terminal bench, change --agent to the one you want \
-You can find the list of agents by 
+for HotpotQA, FreshQA and Terminal-Bench, change --agent to the one you want.
+Agents are defined in configs/agents.yaml; list them with:
+    python harness/run_swebench_agent.py --list-agents
+On Hopper, all Codex agent rows need --skip-git-repo-check in agents.yaml.
 ```
+
 ---
+
 ## Accessing Agent information
 
 ### Claude
+
 The following information is stored under data/claude (one example below):
+
 ```
 "5a8b57f25542995d1e6f1371": {
     "agent": "claude",
@@ -175,7 +182,9 @@ The following information is stored under data/claude (one example below):
 ```
 
 ### Openhands
+
 The data is also in the data folder but under openhands instead. One example set of data is displayed below:
+
 ```
 "5a8b57f25542995d1e6f1371": {
     "agent": "openhands",
@@ -207,20 +216,38 @@ The data is also in the data folder but under openhands instead. One example set
   },
 ```
 
+> OpenHands runs two LLMs (agent + condenser). `get_combined_metrics()` zeroes
+> aggregate token usage — the per-instance numbers above come from
+> `get_metrics_for_usage("agent")`.
+
 ### Codex
-Codex statistics are stored under a seperate codex folder and a script needs to be run to create a csv of the filtered data \
-In order to run, first create a csv with a good name \
-then, run the following code in the Agent-Bench directory \
-The path to the data can be found under data/codex/ in the json file correlating to that run \
-The name of the csv should be the same as the chosen name \
-The following information is parsed by the script: 
+
+Codex statistics are stored under a separate codex folder and a script needs to be run to create a csv of the filtered data.
+
+- Rollout files live under the default `CODEX_HOME` (`~/.codex`) sessions
+  root; the harness resolves the exact file by regex-parsing `session id:`
+  from stderr (mtime fallback is flagged with `codex_session_fallback`).
+- After a run, rollout files are reorganized by session subfolder
+  (`low_fresh`, `med_fresh`, `high_fresh`, `high_hotpot`, ...).
+- CSV naming convention: `<benchmark>_<level>.csv` (e.g. `hotpot_low.csv`,
+  `fresh_high.csv`).
+- Telemetry caveat: `total_token_usage` is a **cumulative running sum** — only
+  the last record is the true total; `last_token_usage` is the per-call delta.
+  Context-fill uses per-call peak input tokens.
+
+Run in the Agent-Bench directory:
+
+```bash
+python data/parse_codex.py /path/to/session/subfolder \
+    --csv /home/czhai/Agent-Bench/data/codex/<benchmark>_<level>.csv
+```
+
+The following information is parsed by the script:
+
 ```
 session_id, cli_version, turn_id, model, effort, started_at,
-completed_at, duration_ms, time_to_first_token_ms, input_tokens, 
-cached_input_tokens, output_tokens, reasoning_output_tokens, total_tokens, 
+completed_at, duration_ms, time_to_first_token_ms, input_tokens,
+cached_input_tokens, output_tokens, reasoning_output_tokens, total_tokens,
 model_context_window, n_api_calls, n_tool_calls, wall_clock_s,
 cache_hit_rate, context_fill, output_tokens_per_s, mean_api_gap_s
 ```
-
-```
-python data/parse_codex.py /path/to/data --csv /home/czhai/Agent-Bench/data/codex/<changeName>.csv
