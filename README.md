@@ -49,6 +49,10 @@ conda activate bench
 ### 5. Install the agents you plan to use
 
 ```bash
+# Node needs to be manually installed as conda has a few dependency conflicts
+wget https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.xz
+tar xf node-v22.14.0-linux-x64.tar.xz
+export PATH=/path/to/project/node-v22.14.0-linux-x64/bin:$PATH
 # Claude Code -- npm 11 blocks lifecycle scripts by default; the package name
 # must appear in BOTH the whitelist and install-target positions:
 npm install -g --allow-scripts=@anthropic-ai/claude-code @anthropic-ai/claude-code
