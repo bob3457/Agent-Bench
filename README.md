@@ -17,8 +17,8 @@
 
 ```bash
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-bash Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/miniconda3
-$HOME/miniconda3/bin/conda init bash
+bash Miniconda3-latest-Linux-x86_64.sh -b -p /path/to/project/miniconda3
+/path/to/project/miniconda3/bin/conda init bash
 # restart the shell, or:  source ~/.bashrc
 ```
 
@@ -42,7 +42,7 @@ cd Agent-Bench
 ### 4. Create and activate the environment
 
 ```bash
-conda env create -f envs/bench.yml     # builds and names the env ("bench") from the file
+conda env create -f environment.yml     # builds and names the env ("bench") from the file
 conda activate bench
 ```
 
