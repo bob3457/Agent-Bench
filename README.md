@@ -148,7 +148,7 @@ steps are required before any run
 **1. Patch Harbor** (re-run after every `pip install --upgrade harbor` — upgrades revert it):
 
 ```bash
-bash ~/bin/patch_harbor_hopper.sh
+bash /projects/kzhou6/czhai/patch_harbor_hopper.sh
 ```
 
 **2. Pre-bake the task images** (runtime package installs fail on Hopper; baking installs everything ahead of time):
