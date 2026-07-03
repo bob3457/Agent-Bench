@@ -125,7 +125,7 @@ salloc --partition=normal --nodes=1 --ntasks=1 --cpus-per-task=4 --mem=16G --tim
 
 cd Agent-Bench
 export OPENAI_API_KEY=sk-...           # set once, run many times
-N_TASKS=1 bash run_swebench.sh
+SWE_N=1 bash run_swebench.sh
 ```
 
 ### Per-benchmark SLURM scripts
