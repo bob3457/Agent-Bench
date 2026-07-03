@@ -143,7 +143,7 @@ before a full run, e.g. `SWE_N=3 sbatch run_swebench_codex.sh`.
 ### Terminal-Bench 2.0 via Harbor
 
 Hopper's rootless setup breaks Harbor's in-container installs, so two one-time
-steps are required before any run. Details + failure table: `RUNBOOK.md`.
+steps are required before any run
 
 **1. Patch Harbor** (re-run after every `pip install --upgrade harbor` — upgrades revert it):
 
