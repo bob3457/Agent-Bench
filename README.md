@@ -122,7 +122,6 @@ tail -f logs/agentbench-*-<jobid>.out
 ```bash
 # from a login node
 salloc --partition=normal --nodes=1 --ntasks=1 --cpus-per-task=4 --mem=16G --time=04:00:00
-srun --pty bash        # land on the compute node (check with `hostname`)
 
 cd Agent-Bench
 export OPENAI_API_KEY=sk-...           # set once, run many times
