@@ -58,17 +58,17 @@ after a real run, probe the Metrics object's response_latencies / costs shapes
 and adjust the accessors.
 """
 
-import os
-import time
 import logging
+import os
 import threading
+import time
 
 # Quiet the SDK before anything imports it.
 os.environ.setdefault("OPENHANDS_SUPPRESS_BANNER", "1")
 logging.getLogger("openhands").setLevel(logging.ERROR)
 
 # Import the base class from the harness module. Adjust if you rename the file.
-from run_swebench_agent import Agent, AGENT_TIMEOUT_S
+from run_swebench_agent import AGENT_TIMEOUT_S, Agent
 
 # Cap the agent's step budget as a secondary bound alongside the wall-clock
 # timeout. A single SWE-bench fix rarely needs hundreds of turns.
@@ -76,7 +76,6 @@ MAX_ITERATIONS = 200
 
 
 class OpenHandsAgent(Agent):
-
     def check(self):
         # V1 splits the framework across three packages; all must be importable.
         try:
@@ -117,10 +116,7 @@ class OpenHandsAgent(Agent):
 
         def on_event(event):
             if isinstance(event, MessageEvent) and event.source == "agent":
-                parts = [
-                    c.text for c in event.llm_message.content
-                    if isinstance(c, TextContent)
-                ]
+                parts = [c.text for c in event.llm_message.content if isinstance(c, TextContent)]
                 if parts:
                     agent_texts.append("".join(parts))
 
@@ -195,9 +191,7 @@ class OpenHandsAgent(Agent):
             meta["usage"] = dict(tok)
 
             meta["total_cost_usd"] = round(sum(m.accumulated_cost for m in mets), 6)
-            meta["usage_breakdown"] = {
-                k: round(m.accumulated_cost, 6) for k, m in zip(keys, mets)
-            }
+            meta["usage_breakdown"] = {k: round(m.accumulated_cost, 6) for k, m in zip(keys, mets)}
 
             # --- extra telemetry: per-call latency, turn count, cost spread ---
             # AGENT usage only (not condenser): turns/latency describe the
@@ -214,10 +208,10 @@ class OpenHandsAgent(Agent):
                 # response_latencies: list of per-call latency records
                 lats = getattr(agent_m, "response_latencies", None) or []
                 vals = []
-                for l in lats:
-                    v = getattr(l, "latency", None)
+                for lat in lats:
+                    v = getattr(lat, "latency", None)
                     if v is None:
-                        v = getattr(l, "latency_s", None)
+                        v = getattr(lat, "latency_s", None)
                     if isinstance(v, (int, float)):
                         vals.append(v)
                 if vals:

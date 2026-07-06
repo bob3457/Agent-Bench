@@ -1,0 +1,10 @@
+host=hop066.orc.gmu.edu job=8821413 fam=codexlow env=bench resume=0
+
+========== STAGE: hotpot ==========
++ python /scratch/czhai/Agent-Bench/eval/hotpot_evaluate_v1.py /scratch/czhai/Agent-Bench/data/codexlow/hotpot_predictions.json /scratch/czhai/Agent-Bench/hotpot_dev_distractor_v1.json
+answered 1 / 7405 questions
+{'em': 1.0, 'f1': 1.0, 'prec': 1.0, 'recall': 1.0, 'sp_em': 1.0, 'sp_f1': 1.0, 'sp_prec': 1.0, 'sp_recall': 1.0, 'joint_em': 1.0, 'joint_f1': 1.0, 'joint_prec': 1.0, 'joint_recall': 1.0}
+
+========== SUMMARY ==========
+  hotpot=0 (OK)
+hotpot metrics -> /scratch/czhai/Agent-Bench/data/codexlow/hotpot_metrics.txt

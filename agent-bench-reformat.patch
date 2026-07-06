@@ -1,0 +1,2901 @@
+diff --git a/.pre-commit-config.yaml b/.pre-commit-config.yaml
+new file mode 100644
+index 0000000..6624634
+--- /dev/null
++++ b/.pre-commit-config.yaml
+@@ -0,0 +1,19 @@
++# Install: pip install pre-commit && pre-commit install
++# Run on everything once: pre-commit run --all-files
++repos:
++  - repo: https://github.com/astral-sh/ruff-pre-commit
++    rev: v0.8.4
++    hooks:
++      - id: ruff
++        args: [--fix]
++      - id: ruff-format
++
++  - repo: https://github.com/scop/pre-commit-shfmt
++    rev: v3.10.0-2
++    hooks:
++      - id: shfmt
++        args: [-w, -i, "2", -ci]
++
++# jobs/, logs/, .hf_cache/ are excluded for ruff via pyproject.toml;
++# exclude them globally here too so shfmt never walks run artifacts.
++exclude: ^(jobs/|logs/|\.hf_cache/|data/results/)
+diff --git a/agent_plugins/openhands_agent.py b/agent_plugins/openhands_agent.py
+index e138773..825d248 100644
+--- a/agent_plugins/openhands_agent.py
++++ b/agent_plugins/openhands_agent.py
+@@ -58,17 +58,17 @@ after a real run, probe the Metrics object's response_latencies / costs shapes
+ and adjust the accessors.
+ """
+ 
+-import os
+-import time
+ import logging
++import os
+ import threading
++import time
+ 
+ # Quiet the SDK before anything imports it.
+ os.environ.setdefault("OPENHANDS_SUPPRESS_BANNER", "1")
+ logging.getLogger("openhands").setLevel(logging.ERROR)
+ 
+ # Import the base class from the harness module. Adjust if you rename the file.
+-from run_swebench_agent import Agent, AGENT_TIMEOUT_S
++from run_swebench_agent import AGENT_TIMEOUT_S, Agent  # noqa: E402
+ 
+ # Cap the agent's step budget as a secondary bound alongside the wall-clock
+ # timeout. A single SWE-bench fix rarely needs hundreds of turns.
+@@ -76,7 +76,6 @@ MAX_ITERATIONS = 200
+ 
+ 
+ class OpenHandsAgent(Agent):
+-
+     def check(self):
+         # V1 splits the framework across three packages; all must be importable.
+         try:
+@@ -117,10 +116,7 @@ class OpenHandsAgent(Agent):
+ 
+         def on_event(event):
+             if isinstance(event, MessageEvent) and event.source == "agent":
+-                parts = [
+-                    c.text for c in event.llm_message.content
+-                    if isinstance(c, TextContent)
+-                ]
++                parts = [c.text for c in event.llm_message.content if isinstance(c, TextContent)]
+                 if parts:
+                     agent_texts.append("".join(parts))
+ 
+@@ -195,9 +191,7 @@ class OpenHandsAgent(Agent):
+             meta["usage"] = dict(tok)
+ 
+             meta["total_cost_usd"] = round(sum(m.accumulated_cost for m in mets), 6)
+-            meta["usage_breakdown"] = {
+-                k: round(m.accumulated_cost, 6) for k, m in zip(keys, mets)
+-            }
++            meta["usage_breakdown"] = {k: round(m.accumulated_cost, 6) for k, m in zip(keys, mets)}
+ 
+             # --- extra telemetry: per-call latency, turn count, cost spread ---
+             # AGENT usage only (not condenser): turns/latency describe the
+@@ -214,10 +208,10 @@ class OpenHandsAgent(Agent):
+                 # response_latencies: list of per-call latency records
+                 lats = getattr(agent_m, "response_latencies", None) or []
+                 vals = []
+-                for l in lats:
+-                    v = getattr(l, "latency", None)
++                for lat in lats:
++                    v = getattr(lat, "latency", None)
+                     if v is None:
+-                        v = getattr(l, "latency_s", None)
++                        v = getattr(lat, "latency_s", None)
+                     if isinstance(v, (int, float)):
+                         vals.append(v)
+                 if vals:
+@@ -236,4 +230,4 @@ class OpenHandsAgent(Agent):
+             meta.setdefault("telemetry_error", str(exc)[:200])
+ 
+         output = agent_texts[-1] if agent_texts else ""
+-        return output, meta
+\ No newline at end of file
++        return output, meta
+diff --git a/data/parse_codex.py b/data/parse_codex.py
+index bb91034..46246b6 100644
+--- a/data/parse_codex.py
++++ b/data/parse_codex.py
+@@ -31,15 +31,15 @@ from __future__ import annotations
+ import csv
+ import json
+ import sys
+-from dataclasses import dataclass, field, asdict
+-from datetime import datetime, timezone
++from dataclasses import asdict, dataclass, field
++from datetime import datetime
+ from pathlib import Path
+ 
+-
+ # ----------------------------------------------------------------------------- #
+ # helpers
+ # ----------------------------------------------------------------------------- #
+ 
++
+ def _parse_ts(iso: str) -> float | None:
+     """ISO-8601 (with trailing Z) -> unix seconds (float). None on failure."""
+     if not iso:
+@@ -58,12 +58,14 @@ def _safe_div(a: float, b: float) -> float | None:
+ # data model
+ # ----------------------------------------------------------------------------- #
+ 
++
+ @dataclass
+ class ApiCall:
+     """One model round-trip, anchored on a token_count event."""
++
+     index: int
+-    wall_ts: float | None                 # event wall-clock (unix s, from line timestamp)
+-    delta_since_prev_s: float | None      # wall gap from previous logged event
++    wall_ts: float | None  # event wall-clock (unix s, from line timestamp)
++    delta_since_prev_s: float | None  # wall gap from previous logged event
+     input_tokens: int = 0
+     cached_input_tokens: int = 0
+     output_tokens: int = 0
+@@ -82,9 +84,9 @@ class TurnMetrics:
+     effort: str | None = None
+ 
+     # authoritative timing reported by Codex
+-    started_at: float | None = None           # unix s
+-    completed_at: float | None = None          # unix s
+-    duration_ms: int | None = None             # turn wall time per task_complete
++    started_at: float | None = None  # unix s
++    completed_at: float | None = None  # unix s
++    duration_ms: int | None = None  # turn wall time per task_complete
+     time_to_first_token_ms: int | None = None
+ 
+     # token usage (cumulative for the turn, taken from the final total_token_usage)
+@@ -134,8 +136,7 @@ class TurnMetrics:
+ 
+     @property
+     def mean_api_gap_s(self) -> float | None:
+-        gaps = [c.delta_since_prev_s for c in self.api_calls
+-                if c.delta_since_prev_s is not None]
++        gaps = [c.delta_since_prev_s for c in self.api_calls if c.delta_since_prev_s is not None]
+         return _safe_div(sum(gaps), len(gaps)) if gaps else None
+ 
+     def summary(self) -> dict:
+@@ -176,8 +177,9 @@ class SessionMetrics:
+             "total_duration_ms": sum(t.duration_ms or 0 for t in self.turns),
+         }
+         agg["cache_hit_rate"] = _safe_div(agg["cached_input_tokens"], agg["input_tokens"])
+-        ttfts = [t.time_to_first_token_ms for t in self.turns
+-                 if t.time_to_first_token_ms is not None]
++        ttfts = [
++            t.time_to_first_token_ms for t in self.turns if t.time_to_first_token_ms is not None
++        ]
+         agg["mean_ttft_ms"] = _safe_div(sum(ttfts), len(ttfts)) if ttfts else None
+         return agg
+ 
+@@ -186,6 +188,7 @@ class SessionMetrics:
+ # parsing
+ # ----------------------------------------------------------------------------- #
+ 
++
+ def parse_codex_session(path: str | Path) -> SessionMetrics:
+     session = SessionMetrics()
+     turns: dict[str, TurnMetrics] = {}
+@@ -254,8 +257,9 @@ def parse_codex_session(path: str | Path) -> SessionMetrics:
+                     call = ApiCall(
+                         index=t.n_api_calls,
+                         wall_ts=line_ts,
+-                        delta_since_prev_s=(line_ts - prev_line_ts
+-                                            if line_ts and prev_line_ts else None),
++                        delta_since_prev_s=(
++                            line_ts - prev_line_ts if line_ts and prev_line_ts else None
++                        ),
+                         input_tokens=last.get("input_tokens", 0),
+                         cached_input_tokens=last.get("cached_input_tokens", 0),
+                         output_tokens=last.get("output_tokens", 0),
+@@ -268,11 +272,13 @@ def parse_codex_session(path: str | Path) -> SessionMetrics:
+                     # cumulative figures: last total_token_usage seen wins
+                     if total:
+                         t.input_tokens = total.get("input_tokens", t.input_tokens)
+-                        t.cached_input_tokens = total.get("cached_input_tokens",
+-                                                           t.cached_input_tokens)
++                        t.cached_input_tokens = total.get(
++                            "cached_input_tokens", t.cached_input_tokens
++                        )
+                         t.output_tokens = total.get("output_tokens", t.output_tokens)
+                         t.reasoning_output_tokens = total.get(
+-                            "reasoning_output_tokens", t.reasoning_output_tokens)
++                            "reasoning_output_tokens", t.reasoning_output_tokens
++                        )
+                         t.total_tokens = total.get("total_tokens", t.total_tokens)
+                     if info.get("model_context_window"):
+                         t.model_context_window = info["model_context_window"]
+@@ -287,10 +293,15 @@ def parse_codex_session(path: str | Path) -> SessionMetrics:
+ 
+             elif rtype == "response_item":
+                 ptype = payload.get("type")
+-                if ptype in ("function_call", "custom_tool_call",
+-                             "local_shell_call", "mcp_tool_call"):
+-                    tid = (payload.get("internal_chat_message_metadata_passthrough", {})
+-                           or {}).get("turn_id") or current_turn_id
++                if ptype in (
++                    "function_call",
++                    "custom_tool_call",
++                    "local_shell_call",
++                    "mcp_tool_call",
++                ):
++                    tid = (payload.get("internal_chat_message_metadata_passthrough", {}) or {}).get(
++                        "turn_id"
++                    ) or current_turn_id
+                     if tid:
+                         get_turn(tid).n_tool_calls += 1
+ 
+@@ -305,6 +316,7 @@ def parse_codex_session(path: str | Path) -> SessionMetrics:
+ # output helpers + CLI
+ # ----------------------------------------------------------------------------- #
+ 
++
+ def _fmt(v, nd=2):
+     if v is None:
+         return "-"
+@@ -321,21 +333,29 @@ def print_report(session: SessionMetrics) -> None:
+     print()
+     for t in session.turns:
+         print(f"turn {t.turn_id}  [{t.model or '?'} / effort={t.effort or '?'}]")
+-        print(f"  timing   wall={_fmt(t.wall_clock_s)}s  "
+-              f"duration={_fmt(t.duration_ms)}ms  ttft={_fmt(t.time_to_first_token_ms)}ms")
+-        print(f"  tokens   total={t.total_tokens}  in={t.input_tokens}  "
+-              f"cached={t.cached_input_tokens}  out={t.output_tokens}  "
+-              f"reasoning={t.reasoning_output_tokens}")
+-        print(f"  derived  cache_hit={_fmt(t.cache_hit_rate)}  "
+-              f"ctx_fill={_fmt(t.context_fill)}  "
+-              f"out_tok/s={_fmt(t.output_tokens_per_s)}  "
+-              f"api_calls={t.n_api_calls}  tool_calls={t.n_tool_calls}  "
+-              f"mean_api_gap={_fmt(t.mean_api_gap_s)}s")
++        print(
++            f"  timing   wall={_fmt(t.wall_clock_s)}s  "
++            f"duration={_fmt(t.duration_ms)}ms  ttft={_fmt(t.time_to_first_token_ms)}ms"
++        )
++        print(
++            f"  tokens   total={t.total_tokens}  in={t.input_tokens}  "
++            f"cached={t.cached_input_tokens}  out={t.output_tokens}  "
++            f"reasoning={t.reasoning_output_tokens}"
++        )
++        print(
++            f"  derived  cache_hit={_fmt(t.cache_hit_rate)}  "
++            f"ctx_fill={_fmt(t.context_fill)}  "
++            f"out_tok/s={_fmt(t.output_tokens_per_s)}  "
++            f"api_calls={t.n_api_calls}  tool_calls={t.n_tool_calls}  "
++            f"mean_api_gap={_fmt(t.mean_api_gap_s)}s"
++        )
+         for c in t.api_calls:
+-            print(f"    call#{c.index:<2} +{_fmt(c.delta_since_prev_s)}s  "
+-                  f"in={c.input_tokens} cached={c.cached_input_tokens} "
+-                  f"out={c.output_tokens} reasoning={c.reasoning_output_tokens} "
+-                  f"(hit={_fmt(c.cache_hit_rate)})")
++            print(
++                f"    call#{c.index:<2} +{_fmt(c.delta_since_prev_s)}s  "
++                f"in={c.input_tokens} cached={c.cached_input_tokens} "
++                f"out={c.output_tokens} reasoning={c.reasoning_output_tokens} "
++                f"(hit={_fmt(c.cache_hit_rate)})"
++            )
+         print()
+     print("SESSION TOTALS:")
+     for k, v in session.totals().items():
+@@ -378,8 +398,11 @@ def write_turn_csv(sessions: list[SessionMetrics], path: str | Path) -> None:
+ 
+ def main(argv: list[str]) -> int:
+     if not argv:
+-        print("usage: parse_codex_metrics.py <rollout.jsonl | dir/> "
+-              "[--limit N] [--json] [--csv out.csv]", file=sys.stderr)
++        print(
++            "usage: parse_codex_metrics.py <rollout.jsonl | dir/> "
++            "[--limit N] [--json] [--csv out.csv]",
++            file=sys.stderr,
++        )
+         return 2
+ 
+     limit = None
+@@ -401,12 +424,15 @@ def main(argv: list[str]) -> int:
+             print(f"skipped {f}: {type(exc).__name__}: {exc}", file=sys.stderr)
+ 
+     if "--json" in argv:
+-        out = [{
+-            "source_file": str(f),
+-            "session": {k: v for k, v in asdict(s).items() if k != "turns"},
+-            "turns": [t.summary() for t in s.turns],
+-            "totals": s.totals(),
+-        } for f, s in zip(parsed_files, sessions)]
++        out = [
++            {
++                "source_file": str(f),
++                "session": {k: v for k, v in asdict(s).items() if k != "turns"},
++                "turns": [t.summary() for t in s.turns],
++                "totals": s.totals(),
++            }
++            for f, s in zip(parsed_files, sessions)
++        ]
+         # stay a single object when only one file was parsed
+         print(json.dumps(out[0] if len(out) == 1 else out, indent=2))
+     else:
+@@ -421,10 +447,12 @@ def main(argv: list[str]) -> int:
+         csv_path = argv[argv.index("--csv") + 1]
+         write_turn_csv(sessions, csv_path)
+         n_turns = sum(len(s.turns) for s in sessions)
+-        print(f"\nwrote {n_turns} turn rows from {len(sessions)} session(s) "
+-              f"-> {csv_path}", file=sys.stderr)
++        print(
++            f"\nwrote {n_turns} turn rows from {len(sessions)} session(s) -> {csv_path}",
++            file=sys.stderr,
++        )
+     return 0
+ 
+ 
+ if __name__ == "__main__":
+-    raise SystemExit(main(sys.argv[1:]))
+\ No newline at end of file
++    raise SystemExit(main(sys.argv[1:]))
+diff --git a/eval/eval_freshqa.py b/eval/eval_freshqa.py
+index 9e361bc..3e62d2c 100644
+--- a/eval/eval_freshqa.py
++++ b/eval/eval_freshqa.py
+@@ -33,9 +33,11 @@ import sys
+ try:
+     from tqdm import tqdm
+ except ImportError:
++
+     def tqdm(x, **k):
+         return x
+ 
++
+ RELAXED_PREFIX = (
+     "Please evaluate the response to a question under relaxed evaluation, where"
+     " hallucinations, outdated information, and ill-formed answers are allowed,"
+@@ -144,12 +146,12 @@ def report(graded, modes):
+         rc = sum(1 for x in items if x.get("relaxed"))
+         sc = sum(1 for x in items if x.get("strict"))
+         if "relaxed" in modes:
+-            out += f"{rc/m:>11.1%}" if m else f"{'-':>12}"
++            out += f"{rc / m:>11.1%}" if m else f"{'-':>12}"
+         if "strict" in modes:
+-            out += f"{sc/m:>11.1%}" if m else f"{'-':>12}"
++            out += f"{sc / m:>11.1%}" if m else f"{'-':>12}"
+         if {"relaxed", "strict"} <= set(modes):
+             hall = sum(1 for x in items if x.get("relaxed") and not x.get("strict"))
+-            out += f"{hall/m:>11.1%}" if m else f"{'-':>12}"
++            out += f"{hall / m:>11.1%}" if m else f"{'-':>12}"
+         print(out)
+ 
+     for c in sorted(cats):
+@@ -159,17 +161,22 @@ def report(graded, modes):
+     if {"relaxed", "strict"} <= set(modes):
+         rc = sum(1 for g in graded if g.get("relaxed"))
+         hall = sum(1 for g in graded if g.get("relaxed") and not g.get("strict"))
+-        print(f"\nHallucination rate = {hall}/{n} = {hall/n:.1%} of all responses"
+-              + (f"  ({hall}/{rc} = {hall/rc:.1%} of relaxed-correct ones)" if rc else ""))
++        print(
++            f"\nHallucination rate = {hall}/{n} = {hall / n:.1%} of all responses"
++            + (f"  ({hall}/{rc} = {hall / rc:.1%} of relaxed-correct ones)" if rc else "")
++        )
+ 
+ 
+ def main():
+     ap = argparse.ArgumentParser()
+     ap.add_argument("--responses", required=True)
+     ap.add_argument("--mode", choices=["relaxed", "strict", "both"], default="both")
+-    ap.add_argument("--judge-cmd", default="claude -p",
+-                    help='judge invocation; question appended as final arg. '
+-                         'For the official judge use an OpenAI gpt-4 wrapper.')
++    ap.add_argument(
++        "--judge-cmd",
++        default="claude -p",
++        help="judge invocation; question appended as final arg. "
++        "For the official judge use an OpenAI gpt-4 wrapper.",
++    )
+     ap.add_argument("--graded-out", default=None, help="optional JSONL of per-item verdicts")
+     args = ap.parse_args()
+ 
+diff --git a/eval/hotpot_evaluate_v1.py b/eval/hotpot_evaluate_v1.py
+index 9632c31..c1b32c7 100644
+--- a/eval/hotpot_evaluate_v1.py
++++ b/eval/hotpot_evaluate_v1.py
+@@ -1,21 +1,22 @@
+-import sys
+-import ujson as json
+ import re
+ import string
++import sys
+ from collections import Counter
+-import pickle
++
++import ujson as json
++
+ 
+ def normalize_answer(s):
+ 
+     def remove_articles(text):
+-        return re.sub(r'\b(a|an|the)\b', ' ', text)
++        return re.sub(r"\b(a|an|the)\b", " ", text)
+ 
+     def white_space_fix(text):
+-        return ' '.join(text.split())
++        return " ".join(text.split())
+ 
+     def remove_punc(text):
+         exclude = set(string.punctuation)
+-        return ''.join(ch for ch in text if ch not in exclude)
++        return "".join(ch for ch in text if ch not in exclude)
+ 
+     def lower(text):
+         return text.lower()
+@@ -29,9 +30,15 @@ def f1_score(prediction, ground_truth):
+ 
+     ZERO_METRIC = (0, 0, 0)
+ 
+-    if normalized_prediction in ['yes', 'no', 'noanswer'] and normalized_prediction != normalized_ground_truth:
++    if (
++        normalized_prediction in ["yes", "no", "noanswer"]
++        and normalized_prediction != normalized_ground_truth
++    ):
+         return ZERO_METRIC
+-    if normalized_ground_truth in ['yes', 'no', 'noanswer'] and normalized_prediction != normalized_ground_truth:
++    if (
++        normalized_ground_truth in ["yes", "no", "noanswer"]
++        and normalized_prediction != normalized_ground_truth
++    ):
+         return ZERO_METRIC
+ 
+     prediction_tokens = normalized_prediction.split()
+@@ -47,17 +54,19 @@ def f1_score(prediction, ground_truth):
+ 
+ 
+ def exact_match_score(prediction, ground_truth):
+-    return (normalize_answer(prediction) == normalize_answer(ground_truth))
++    return normalize_answer(prediction) == normalize_answer(ground_truth)
++
+ 
+ def update_answer(metrics, prediction, gold):
+     em = exact_match_score(prediction, gold)
+     f1, prec, recall = f1_score(prediction, gold)
+-    metrics['em'] += float(em)
+-    metrics['f1'] += f1
+-    metrics['prec'] += prec
+-    metrics['recall'] += recall
++    metrics["em"] += float(em)
++    metrics["f1"] += f1
++    metrics["prec"] += prec
++    metrics["recall"] += recall
+     return em, prec, recall
+ 
++
+ def update_sp(metrics, prediction, gold):
+     cur_sp_pred = set(map(tuple, prediction))
+     gold_sp_pred = set(map(tuple, gold))
+@@ -74,12 +83,13 @@ def update_sp(metrics, prediction, gold):
+     recall = 1.0 * tp / (tp + fn) if tp + fn > 0 else 0.0
+     f1 = 2 * prec * recall / (prec + recall) if prec + recall > 0 else 0.0
+     em = 1.0 if fp + fn == 0 else 0.0
+-    metrics['sp_em'] += em
+-    metrics['sp_f1'] += f1
+-    metrics['sp_prec'] += prec
+-    metrics['sp_recall'] += recall
++    metrics["sp_em"] += em
++    metrics["sp_f1"] += f1
++    metrics["sp_prec"] += prec
++    metrics["sp_recall"] += recall
+     return em, prec, recall
+ 
++
+ def eval(prediction_file, gold_file, num_cases=None):
+     with open(prediction_file) as f:
+         prediction = json.load(f)
+@@ -90,43 +100,55 @@ def eval(prediction_file, gold_file, num_cases=None):
+     if num_cases is not None:
+         gold = gold[:num_cases]
+ 
+-    metrics = {'em': 0, 'f1': 0, 'prec': 0, 'recall': 0,
+-        'sp_em': 0, 'sp_f1': 0, 'sp_prec': 0, 'sp_recall': 0,
+-        'joint_em': 0, 'joint_f1': 0, 'joint_prec': 0, 'joint_recall': 0}
++    metrics = {
++        "em": 0,
++        "f1": 0,
++        "prec": 0,
++        "recall": 0,
++        "sp_em": 0,
++        "sp_f1": 0,
++        "sp_prec": 0,
++        "sp_recall": 0,
++        "joint_em": 0,
++        "joint_f1": 0,
++        "joint_prec": 0,
++        "joint_recall": 0,
++    }
+     num_answered = 0
+     for dp in gold:
+-        cur_id = dp['_id']
++        cur_id = dp["_id"]
+         # Skip any question that doesn't have a prediction
+-        if cur_id not in prediction['answer'] or cur_id not in prediction['sp']:
++        if cur_id not in prediction["answer"] or cur_id not in prediction["sp"]:
+             continue
+ 
+         num_answered += 1
+-        em, prec, recall = update_answer(
+-            metrics, prediction['answer'][cur_id], dp['answer'])
++        em, prec, recall = update_answer(metrics, prediction["answer"][cur_id], dp["answer"])
+         sp_em, sp_prec, sp_recall = update_sp(
+-            metrics, prediction['sp'][cur_id], dp['supporting_facts'])
++            metrics, prediction["sp"][cur_id], dp["supporting_facts"]
++        )
+ 
+         joint_prec = prec * sp_prec
+         joint_recall = recall * sp_recall
+         if joint_prec + joint_recall > 0:
+             joint_f1 = 2 * joint_prec * joint_recall / (joint_prec + joint_recall)
+         else:
+-            joint_f1 = 0.
++            joint_f1 = 0.0
+         joint_em = em * sp_em
+ 
+-        metrics['joint_em'] += joint_em
+-        metrics['joint_f1'] += joint_f1
+-        metrics['joint_prec'] += joint_prec
+-        metrics['joint_recall'] += joint_recall
++        metrics["joint_em"] += joint_em
++        metrics["joint_f1"] += joint_f1
++        metrics["joint_prec"] += joint_prec
++        metrics["joint_recall"] += joint_recall
+ 
+     N = num_answered if num_answered > 0 else 1
+     for k in metrics.keys():
+         metrics[k] /= N
+ 
+-    print('answered {} / {} questions'.format(num_answered, len(gold)))
++    print("answered {} / {} questions".format(num_answered, len(gold)))
+     print(metrics)
+ 
+-if __name__ == '__main__':
++
++if __name__ == "__main__":
+     # Usage: python hotpot_evaluate_v1.py <prediction_file> <gold_file> [num_cases]
+     num_cases = int(sys.argv[3]) if len(sys.argv) > 3 else None
+-    eval(sys.argv[1], sys.argv[2], num_cases)
+\ No newline at end of file
++    eval(sys.argv[1], sys.argv[2], num_cases)
+diff --git a/eval/swebench_eval.py b/eval/swebench_eval.py
+index 40cb3de..cae6edd 100644
+--- a/eval/swebench_eval.py
++++ b/eval/swebench_eval.py
+@@ -1,17 +1,17 @@
+ from __future__ import annotations
+ 
+-import docker
+ import json
+ import platform
+ import threading
+ import traceback
+ 
++import docker
++
+ if platform.system() == "Linux":
+     import resource
+ 
+-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
++from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+ from pathlib import Path, PurePosixPath
+-from tqdm.auto import tqdm
+ 
+ from swebench.harness.constants import (
+     APPLY_PATCH_FAIL,
+@@ -23,12 +23,19 @@ from swebench.harness.constants import (
+     KEY_INSTANCE_ID,
+     KEY_MODEL,
+     KEY_PREDICTION,
+-    LOG_REPORT,
+     LOG_INSTANCE,
++    LOG_REPORT,
+     LOG_TEST_OUTPUT,
+     RUN_EVALUATION_LOG_DIR,
+     UTF8,
+ )
++from swebench.harness.docker_build import (
++    BuildImageError,
++    build_container,
++    build_env_images,
++    close_logger,
++    setup_logger,
++)
+ from swebench.harness.docker_utils import (
+     clean_images,
+     cleanup_container,
+@@ -38,28 +45,22 @@ from swebench.harness.docker_utils import (
+     remove_image,
+     should_remove,
+ )
+-from swebench.harness.docker_build import (
+-    BuildImageError,
+-    build_container,
+-    build_env_images,
+-    close_logger,
+-    setup_logger,
+-)
+ from swebench.harness.grading import get_eval_report
+-from swebench.harness.reporting import make_run_report
+ from swebench.harness.modal_eval import (
+     run_instances_modal,
+     validate_modal_credentials,
+ )
+-from swebench.harness.test_spec.test_spec import make_test_spec, TestSpec
++from swebench.harness.reporting import make_run_report
++from swebench.harness.test_spec.test_spec import TestSpec, make_test_spec
+ from swebench.harness.utils import (
+     EvaluationError,
+-    load_swebench_dataset,
+     get_predictions_from_file,
++    load_swebench_dataset,
++    optional_str,
+     run_threadpool,
+     str2bool,
+-    optional_str,
+ )
++from tqdm.auto import tqdm
+ 
+ GIT_APPLY_CMDS = [
+     "git apply --verbose",
+@@ -124,18 +125,14 @@ def run_instance(
+ 
+     if not test_spec.is_remote_image:
+         # Link the image build dir in the log dir
+-        build_dir = INSTANCE_IMAGE_BUILD_DIR / test_spec.instance_image_key.replace(
+-            ":", "__"
+-        )
++        build_dir = INSTANCE_IMAGE_BUILD_DIR / test_spec.instance_image_key.replace(":", "__")
+         image_build_link = log_dir / "image_build_dir"
+         if not image_build_link.exists():
+             try:
+                 # link the image build dir in the log dir
+-                image_build_link.symlink_to(
+-                    build_dir.absolute(), target_is_directory=True
+-                )
+-            except:
+-                # some error, idk why
++                image_build_link.symlink_to(build_dir.absolute(), target_is_directory=True)
++            except OSError:
++                # symlink may already exist or fs may not support it
+                 pass
+ 
+     # Set up logger
+@@ -149,9 +146,7 @@ def run_instance(
+     report = {}
+     try:
+         # Build + start instance container (instance image should already be built)
+-        container = build_container(
+-            test_spec, client, run_id, logger, rm_image, force_rebuild
+-        )
++        container = build_container(test_spec, client, run_id, logger, rm_image, force_rebuild)
+         container.start()
+         logger.info(f"Container for {instance_id} started: {container.id}")
+ 
+@@ -187,9 +182,7 @@ def run_instance(
+ 
+         # Get git diff before running eval script
+         git_diff_output_before = (
+-            container.exec_run(
+-                "git -c core.fileMode=false diff", workdir=DOCKER_WORKDIR
+-            )
++            container.exec_run("git -c core.fileMode=false diff", workdir=DOCKER_WORKDIR)
+             .output.decode(UTF8)
+             .strip()
+         )
+@@ -221,9 +214,7 @@ def run_instance(
+ 
+         # Get git diff after running eval script (ignore permission changes)
+         git_diff_output_after = (
+-            container.exec_run(
+-                "git -c core.fileMode=false diff", workdir=DOCKER_WORKDIR
+-            )
++            container.exec_run("git -c core.fileMode=false diff", workdir=DOCKER_WORKDIR)
+             .output.decode(UTF8)
+             .strip()
+         )
+@@ -316,15 +307,10 @@ def run_instances(
+     # print number of existing instance images
+     instance_image_ids = {x.instance_image_key for x in test_specs}
+     existing_images = {
+-        tag
+-        for i in client.images.list(all=True)
+-        for tag in i.tags
+-        if tag in instance_image_ids
++        tag for i in client.images.list(all=True) for tag in i.tags if tag in instance_image_ids
+     }
+     if not force_rebuild and len(existing_images):
+-        print(
+-            f"Found {len(existing_images)} existing instance images. Will reuse them."
+-        )
++        print(f"Found {len(existing_images)} existing instance images. Will reuse them.")
+ 
+     # run instances in parallel
+     payloads = []
+@@ -393,9 +379,7 @@ def get_dataset_from_preds(
+         # check that all instance IDs have predictions
+         missing_preds = set(instance_ids) - set(predictions.keys())
+         if missing_preds:
+-            print(
+-                f"Warning: Missing predictions for {len(missing_preds)} instance IDs."
+-            )
++            print(f"Warning: Missing predictions for {len(missing_preds)} instance IDs.")
+ 
+     # check that all prediction IDs are in the dataset
+     prediction_ids = set(predictions.keys())
+@@ -428,8 +412,7 @@ def get_dataset_from_preds(
+         dataset = [
+             i
+             for i in dataset
+-            if i[KEY_INSTANCE_ID] in prediction_ids
+-            and i[KEY_INSTANCE_ID] in test_output_ids
++            if i[KEY_INSTANCE_ID] in prediction_ids and i[KEY_INSTANCE_ID] in test_output_ids
+         ]
+         return dataset
+ 
+@@ -456,17 +439,14 @@ def get_dataset_from_preds(
+         dataset = [i for i in dataset if i[KEY_INSTANCE_ID] not in completed_ids]
+ 
+     empty_patch_ids = {
+-        k
+-        for k, v in predictions.items()
+-        if v[KEY_PREDICTION] == "" or v[KEY_PREDICTION] is None
++        k for k, v in predictions.items() if v[KEY_PREDICTION] == "" or v[KEY_PREDICTION] is None
+     }
+ 
+     # filter dataset to only instances with predictions
+     dataset = [
+         i
+         for i in dataset
+-        if i[KEY_INSTANCE_ID] in prediction_ids
+-        and i[KEY_INSTANCE_ID] not in empty_patch_ids
++        if i[KEY_INSTANCE_ID] in prediction_ids and i[KEY_INSTANCE_ID] not in empty_patch_ids
+     ]
+     return dataset
+ 
+@@ -591,9 +571,7 @@ if __name__ == "__main__":
+         type=str,
+         help="Name of dataset or path to JSON file.",
+     )
+-    parser.add_argument(
+-        "-s", "--split", type=str, default="test", help="Split of the dataset"
+-    )
++    parser.add_argument("-s", "--split", type=str, default="test", help="Split of the dataset")
+     parser.add_argument(
+         "-i",
+         "--instance_ids",
+@@ -616,9 +594,7 @@ if __name__ == "__main__":
+         default=4,
+         help="Maximum number of workers (should be <= 75%% of CPU cores)",
+     )
+-    parser.add_argument(
+-        "--open_file_limit", type=int, default=4096, help="Open file limit"
+-    )
++    parser.add_argument("--open_file_limit", type=int, default=4096, help="Open file limit")
+     parser.add_argument(
+         "-t",
+         "--timeout",
+@@ -657,18 +633,14 @@ if __name__ == "__main__":
+     parser.add_argument(
+         "--instance_image_tag", type=str, default="latest", help="Instance image tag"
+     )
+-    parser.add_argument(
+-        "--env_image_tag", type=str, default="latest", help="Environment image tag"
+-    )
++    parser.add_argument("--env_image_tag", type=str, default="latest", help="Environment image tag")
+     parser.add_argument(
+         "--rewrite_reports",
+         type=str2bool,
+         default=False,
+         help="Doesn't run new instances, only writes reports for instances with existing test outputs",
+     )
+-    parser.add_argument(
+-        "--report_dir", type=str, default=".", help="Directory to write reports to"
+-    )
++    parser.add_argument("--report_dir", type=str, default=".", help="Directory to write reports to")
+ 
+     # Modal execution args
+     parser.add_argument("--modal", type=str2bool, default=False, help="Run on Modal")
+diff --git a/eval/swebench_singularity_eval.py b/eval/swebench_singularity_eval.py
+index 0405b2c..71a144b 100644
+--- a/eval/swebench_singularity_eval.py
++++ b/eval/swebench_singularity_eval.py
+@@ -21,22 +21,22 @@ Usage:
+ predictions: a .jsonl, one object per line, each with
+   {"instance_id": "...", "model_name_or_path": "...", "model_patch": "<diff>"}
+ """
++
+ import argparse
+ import json
+ import subprocess
+ import sys
+ from pathlib import Path
+ 
+-from swebench.harness.utils import load_swebench_dataset
+-from swebench.harness.test_spec.test_spec import make_test_spec
+-from swebench.harness.grading import get_eval_report
+ from swebench.harness.constants import (
+     KEY_INSTANCE_ID,
+-    KEY_MODEL,
+     KEY_PREDICTION,
+-    LOG_TEST_OUTPUT,
+     LOG_REPORT,
++    LOG_TEST_OUTPUT,
+ )
++from swebench.harness.grading import get_eval_report
++from swebench.harness.test_spec.test_spec import make_test_spec
++from swebench.harness.utils import load_swebench_dataset
+ 
+ # Mirrors GIT_APPLY_CMDS in swebench/harness/run_evaluation.py
+ GIT_APPLY_CMDS = [
+@@ -78,8 +78,7 @@ def ensure_image(image_key, image_dir, apptainer, sandbox):
+         target = image_dir / (name + ".sandbox")
+         if target.exists():
+             return target
+-        r = sh([apptainer, "build", "--sandbox", str(target),
+-                f"docker://{image_key}"])
++        r = sh([apptainer, "build", "--sandbox", str(target), f"docker://{image_key}"])
+     else:
+         target = image_dir / (name + ".sif")
+         if target.exists():
+@@ -98,25 +97,24 @@ def run_instance(spec, pred, image, work, apptainer, overlay_size, timeout, fake
+     (host / "patch.diff").write_text(pred.get(KEY_PREDICTION) or "")
+     (host / "eval.sh").write_text(spec.eval_script)
+     driver = host / "driver.sh"
+-    driver.write_text(
+-        DRIVER_TEMPLATE.format(
+-            apply_cmds=" ".join(f'"{c}"' for c in GIT_APPLY_CMDS)
+-        )
+-    )
++    driver.write_text(DRIVER_TEMPLATE.format(apply_cmds=" ".join(f'"{c}"' for c in GIT_APPLY_CMDS)))
+ 
+     overlay = inst_dir / "overlay.img"
+     if overlay.exists():
+         overlay.unlink()  # fresh state each run
+-    sh([apptainer, "overlay", "create", "--size", str(overlay_size), str(overlay)],
+-       check=True)
++    sh([apptainer, "overlay", "create", "--size", str(overlay_size), str(overlay)], check=True)
+ 
+     cmd = [apptainer, "exec", "--cleanenv", "--no-home", "--pwd", "/testbed"]
+     if fakeroot:
+         cmd.append("--fakeroot")
+     cmd += [
+-        "--overlay", str(overlay),
+-        "--bind", f"{host}:/host",
+-        str(image), "/bin/bash", "/host/driver.sh",
++        "--overlay",
++        str(overlay),
++        "--bind",
++        f"{host}:/host",
++        str(image),
++        "/bin/bash",
++        "/host/driver.sh",
+     ]
+ 
+     log_path = inst_dir / LOG_TEST_OUTPUT
+@@ -144,24 +142,30 @@ def main():
+     ap.add_argument("--dataset", default="SWE-bench/SWE-bench")
+     ap.add_argument("--split", default="test")
+     ap.add_argument("--instance-ids", nargs="*", default=None)
+-    ap.add_argument("--namespace", default="swebench",
+-                    help="Docker Hub namespace for prebuilt images")
++    ap.add_argument(
++        "--namespace", default="swebench", help="Docker Hub namespace for prebuilt images"
++    )
+     ap.add_argument("--image-tag", default="latest")
+     ap.add_argument("--workdir", default="./sb_work")
+-    ap.add_argument("--sif-dir", default="./sifs",
+-                    help="where SIFs / sandbox dirs are stored")
+-    ap.add_argument("--sandbox", action="store_true",
+-                    help="build unpacked sandbox dirs instead of .sif "
+-                         "(skips mksquashfs; fixes the exit-139 segfault on "
+-                         "low-RAM machines, and usually removes the fakeroot need)")
++    ap.add_argument("--sif-dir", default="./sifs", help="where SIFs / sandbox dirs are stored")
++    ap.add_argument(
++        "--sandbox",
++        action="store_true",
++        help="build unpacked sandbox dirs instead of .sif "
++        "(skips mksquashfs; fixes the exit-139 segfault on "
++        "low-RAM machines, and usually removes the fakeroot need)",
++    )
+     ap.add_argument("--overlay-size", type=int, default=4096, help="overlay MB")
+     ap.add_argument("--timeout", type=int, default=1800, help="per-instance seconds")
+-    ap.add_argument("--apptainer", default="apptainer",
+-                    help="binary name: apptainer or singularity")
+-    ap.add_argument("--fakeroot", dest="fakeroot", action="store_true",
+-                    default=None, help="force --fakeroot on")
+-    ap.add_argument("--no-fakeroot", dest="fakeroot", action="store_false",
+-                    help="force --fakeroot off")
++    ap.add_argument(
++        "--apptainer", default="apptainer", help="binary name: apptainer or singularity"
++    )
++    ap.add_argument(
++        "--fakeroot", dest="fakeroot", action="store_true", default=None, help="force --fakeroot on"
++    )
++    ap.add_argument(
++        "--no-fakeroot", dest="fakeroot", action="store_false", help="force --fakeroot off"
++    )
+     args = ap.parse_args()
+ 
+     # Default: fakeroot ON for SIF (root-owned /testbed), OFF for sandbox
+@@ -184,15 +188,20 @@ def main():
+         if iid not in preds:
+             print(f"[skip] no prediction for {iid}", file=sys.stderr)
+             continue
+-        spec = make_test_spec(inst, namespace=args.namespace,
+-                              instance_image_tag=args.image_tag)
+-        print(f"[{iid}] image={spec.instance_image_key} arch={spec.arch}",
+-              file=sys.stderr)
++        spec = make_test_spec(inst, namespace=args.namespace, instance_image_tag=args.image_tag)
++        print(f"[{iid}] image={spec.instance_image_key} arch={spec.arch}", file=sys.stderr)
+         try:
+-            image = ensure_image(spec.instance_image_key, image_dir,
+-                                 args.apptainer, args.sandbox)
+-            r = run_instance(spec, preds[iid], image, work, args.apptainer,
+-                             args.overlay_size, args.timeout, fakeroot=fakeroot)
++            image = ensure_image(spec.instance_image_key, image_dir, args.apptainer, args.sandbox)
++            r = run_instance(
++                spec,
++                preds[iid],
++                image,
++                work,
++                args.apptainer,
++                args.overlay_size,
++                args.timeout,
++                fakeroot=fakeroot,
++            )
+             status = "RESOLVED" if r.get("resolved") else "unresolved"
+             resolved += int(bool(r.get("resolved")))
+             print(f"[{iid}] {status}", file=sys.stderr)
+diff --git a/grade.sh b/grade.sh
+index c900dbb..2ddee7a 100644
+--- a/grade.sh
++++ b/grade.sh
+@@ -36,11 +36,11 @@
+ set -euo pipefail
+ 
+ # --- knobs (env-overridable at submit time) ---------------------------------
+-FAM="${FAM:-claude}"                       # output family dir under data/
++FAM="${FAM:-claude}" # output family dir under data/
+ REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
+ CONDA_ENV="${CONDA_ENV:-bench}"
+-RESUME="${RESUME:-0}"                      # 1 = skip a stage if its graded file exists
+-STAGES="${STAGES:-hotpot freshqa}"         # subset: "hotpot", "freshqa", or both
++RESUME="${RESUME:-0}"              # 1 = skip a stage if its graded file exists
++STAGES="${STAGES:-hotpot freshqa}" # subset: "hotpot", "freshqa", or both
+ 
+ DATA_DIR="${DATA_DIR:-$REPO_DIR/data/$FAM}"
+ EVAL_DIR="${EVAL_DIR:-$REPO_DIR/eval}"
+@@ -49,7 +49,7 @@ EVAL_DIR="${EVAL_DIR:-$REPO_DIR/eval}"
+ HOTPOT_GOLD="${HOTPOT_GOLD:-$REPO_DIR/hotpot_dev_distractor_v1.json}"
+ HOTPOT_PRED="${HOTPOT_PRED:-$DATA_DIR/hotpot_predictions.json}"
+ HOTPOT_METRICS="${HOTPOT_METRICS:-$DATA_DIR/hotpot_metrics.txt}"
+-HOTPOT_LIMIT="${HOTPOT_LIMIT:-}"           # optional 3rd arg; empty = score all
++HOTPOT_LIMIT="${HOTPOT_LIMIT:-}" # optional 3rd arg; empty = score all
+ 
+ # FreshQA (LLM judge)
+ FRESHQA_RESP="${FRESHQA_RESP:-$DATA_DIR/freshqa_responses.jsonl}"
+@@ -68,82 +68,92 @@ mkdir -p "$DATA_DIR" logs
+ echo "host=$(hostname) job=${SLURM_JOB_ID:-local} fam=$FAM env=$CONDA_ENV stages='$STAGES' resume=$RESUME"
+ 
+ # does STAGES contain $1 ?
+-want () { case " $STAGES " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
++want() { case " $STAGES " in *" $1 "*) return 0 ;; *) return 1 ;; esac }
+ 
+ declare -a STAGE_RESULTS=()
+-run_stage () {
+-    local name="$1"; shift
+-    echo; echo "========== STAGE: $name =========="; echo "+ $*"
+-    local rc=0
+-    "$@" || rc=$?
+-    if [ "$rc" -eq 0 ]; then echo "[$name] OK"
+-    else echo "[$name] FAILED (rc=$rc) -- continuing"; fi
+-    STAGE_RESULTS+=("$name=$rc")
++run_stage() {
++  local name="$1"
++  shift
++  echo
++  echo "========== STAGE: $name =========="
++  echo "+ $*"
++  local rc=0
++  "$@" || rc=$?
++  if [ "$rc" -eq 0 ]; then
++    echo "[$name] OK"
++  else echo "[$name] FAILED (rc=$rc) -- continuing"; fi
++  STAGE_RESULTS+=("$name=$rc")
+ }
+ 
+ # --- 1) HotpotQA (offline) --------------------------------------------------
+ if want hotpot; then
+-    if [ "$RESUME" = "1" ] && [ -s "$HOTPOT_METRICS" ]; then
+-        echo "[hotpot] SKIP -- metrics exist: $HOTPOT_METRICS"; STAGE_RESULTS+=("hotpot=skipped")
+-    elif [ ! -f "$HOTPOT_PRED" ]; then
+-        echo "[hotpot] SKIP -- predictions not found: $HOTPOT_PRED"; STAGE_RESULTS+=("hotpot=missing")
+-    elif [ ! -f "$HOTPOT_GOLD" ]; then
+-        echo "[hotpot] SKIP -- gold not found: $HOTPOT_GOLD"; STAGE_RESULTS+=("hotpot=missing")
+-    else
+-        # hotpot_evaluate_v1.py prints the metrics dict to stdout; tee it to disk.
+-        # Third positional arg (case cap) is optional -- only pass when set.
+-        run_stage hotpot bash -c '
++  if [ "$RESUME" = "1" ] && [ -s "$HOTPOT_METRICS" ]; then
++    echo "[hotpot] SKIP -- metrics exist: $HOTPOT_METRICS"
++    STAGE_RESULTS+=("hotpot=skipped")
++  elif [ ! -f "$HOTPOT_PRED" ]; then
++    echo "[hotpot] SKIP -- predictions not found: $HOTPOT_PRED"
++    STAGE_RESULTS+=("hotpot=missing")
++  elif [ ! -f "$HOTPOT_GOLD" ]; then
++    echo "[hotpot] SKIP -- gold not found: $HOTPOT_GOLD"
++    STAGE_RESULTS+=("hotpot=missing")
++  else
++    # hotpot_evaluate_v1.py prints the metrics dict to stdout; tee it to disk.
++    # Third positional arg (case cap) is optional -- only pass when set.
++    run_stage hotpot bash -c '
+             set -euo pipefail
+             args=("'"$HOTPOT_PRED"'" "'"$HOTPOT_GOLD"'")
+             [ -n "'"$HOTPOT_LIMIT"'" ] && args+=("'"$HOTPOT_LIMIT"'")
+             python "'"$EVAL_DIR"'/hotpot_evaluate_v1.py" "${args[@]}" | tee "'"$HOTPOT_METRICS"'"
+         '
+-    fi
++  fi
+ fi
+ 
+ # --- 2) FreshQA (LLM judge via claude -p) -----------------------------------
+ if want freshqa; then
+-    if [ "$RESUME" = "1" ] && [ -s "$FRESHQA_GRADED" ]; then
+-        echo "[freshqa] SKIP -- graded exists: $FRESHQA_GRADED"; STAGE_RESULTS+=("freshqa=skipped")
+-    elif [ ! -f "$FRESHQA_RESP" ]; then
+-        echo "[freshqa] SKIP -- responses not found: $FRESHQA_RESP"; STAGE_RESULTS+=("freshqa=missing")
++  if [ "$RESUME" = "1" ] && [ -s "$FRESHQA_GRADED" ]; then
++    echo "[freshqa] SKIP -- graded exists: $FRESHQA_GRADED"
++    STAGE_RESULTS+=("freshqa=skipped")
++  elif [ ! -f "$FRESHQA_RESP" ]; then
++    echo "[freshqa] SKIP -- responses not found: $FRESHQA_RESP"
++    STAGE_RESULTS+=("freshqa=missing")
++  else
++    # ADAPT: the FreshQA judge shells out to `claude -p`, so it needs:
++    #   (a) the `claude` binary on PATH (Claude Code installed on the node), and
++    #   (b) auth via an env var. You said you'll pass an OAuth token -- the
++    #       headless var is CLAUDE_CODE_OAUTH_TOKEN (generate with
++    #       `claude setup-token` on a login node). VERIFY this name against
++    #       your Claude Code version; if it rejects the token, fall back to
++    #       ANTHROPIC_API_KEY. Either way, export it BEFORE sbatch.
++    #   (c) network egress to the Anthropic API from the COMPUTE node. Your
++    #       compute nodes are known to reach github.com/huggingface.co; if
++    #       the API host is blocked there, grade FreshQA on a login/interactive
++    #       node instead (salloc) or an egress-allowed partition.
++    if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ -z "${ANTHROPIC_API_KEY:-}" ]; then
++      echo "[freshqa] FAILED -- no judge auth (export CLAUDE_CODE_OAUTH_TOKEN before sbatch)"
++      STAGE_RESULTS+=("freshqa=noauth")
++    elif ! command -v claude >/dev/null 2>&1; then
++      echo "[freshqa] FAILED -- 'claude' not on PATH (Claude Code not installed on $(hostname))"
++      STAGE_RESULTS+=("freshqa=noclaude")
+     else
+-        # ADAPT: the FreshQA judge shells out to `claude -p`, so it needs:
+-        #   (a) the `claude` binary on PATH (Claude Code installed on the node), and
+-        #   (b) auth via an env var. You said you'll pass an OAuth token -- the
+-        #       headless var is CLAUDE_CODE_OAUTH_TOKEN (generate with
+-        #       `claude setup-token` on a login node). VERIFY this name against
+-        #       your Claude Code version; if it rejects the token, fall back to
+-        #       ANTHROPIC_API_KEY. Either way, export it BEFORE sbatch.
+-        #   (c) network egress to the Anthropic API from the COMPUTE node. Your
+-        #       compute nodes are known to reach github.com/huggingface.co; if
+-        #       the API host is blocked there, grade FreshQA on a login/interactive
+-        #       node instead (salloc) or an egress-allowed partition.
+-        if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+-            echo "[freshqa] FAILED -- no judge auth (export CLAUDE_CODE_OAUTH_TOKEN before sbatch)"
+-            STAGE_RESULTS+=("freshqa=noauth")
+-        elif ! command -v claude >/dev/null 2>&1; then
+-            echo "[freshqa] FAILED -- 'claude' not on PATH (Claude Code not installed on $(hostname))"
+-            STAGE_RESULTS+=("freshqa=noclaude")
+-        else
+-            echo "claude: $(command -v claude)"
+-            run_stage freshqa \
+-                python "$EVAL_DIR/eval_freshqa.py" \
+-                    --responses "$FRESHQA_RESP" \
+-                    --mode "$FRESHQA_MODE" \
+-                    --judge-cmd "$JUDGE_CMD" \
+-                    --graded-out "$FRESHQA_GRADED"
+-        fi
++      echo "claude: $(command -v claude)"
++      run_stage freshqa \
++        python "$EVAL_DIR/eval_freshqa.py" \
++        --responses "$FRESHQA_RESP" \
++        --mode "$FRESHQA_MODE" \
++        --judge-cmd "$JUDGE_CMD" \
++        --graded-out "$FRESHQA_GRADED"
+     fi
++  fi
+ fi
+ 
+ # --- summary ----------------------------------------------------------------
+-echo; echo "========== SUMMARY =========="
++echo
++echo "========== SUMMARY =========="
+ fail=0
+ for r in "${STAGE_RESULTS[@]}"; do
+-    echo "  $r"
+-    case "$r" in *=0|*=skipped) ;; *) fail=1 ;; esac
++  echo "  $r"
++  case "$r" in *=0 | *=skipped) ;; *) fail=1 ;; esac
+ done
+ echo "hotpot metrics -> $HOTPOT_METRICS"
+ echo "freshqa graded -> $FRESHQA_GRADED"
+-exit "$fail"
+\ No newline at end of file
++exit "$fail"
+diff --git a/harness/agent_core.py b/harness/agent_core.py
+index 2ca3a90..741874c 100644
+--- a/harness/agent_core.py
++++ b/harness/agent_core.py
+@@ -25,9 +25,9 @@ import os
+ import re
+ import shutil
+ import subprocess
++import sys
+ import time
+ from pathlib import Path
+-import sys
+ 
+ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root
+ 
+@@ -41,7 +41,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ # Either way, --agents-file overrides this.
+ _HARNESS_DIR = Path(__file__).resolve().parent
+ _CWD_AGENTS = Path("agents.yaml")
+-AGENTS_FILE = _CWD_AGENTS if _CWD_AGENTS.is_file() else _HARNESS_DIR.parent / "configs" / "agents.yaml"
++AGENTS_FILE = (
++    _CWD_AGENTS if _CWD_AGENTS.is_file() else _HARNESS_DIR.parent / "configs" / "agents.yaml"
++)
+ AGENT_TIMEOUT_S = 600
+ 
+ 
+@@ -55,16 +57,24 @@ AGENT_TIMEOUT_S = 600
+ # stderr too (codex prints its session id there). These underscore-prefixed
+ # keys are scratch for the parser; harnesses should not persist them.
+ 
++
+ def _tel_claude_json(stdout, meta):
+     try:
+         data = json.loads(stdout)
+         meta["result_keys"] = list(data.keys())
+-        meta["usage"] = data.get("usage")           # 4 token buckets
+-        for k in ("total_cost_usd", "cost_usd", "duration_ms",
+-                  "duration_api_ms", "ttft_ms", "num_turns", "session_id"):
++        meta["usage"] = data.get("usage")  # 4 token buckets
++        for k in (
++            "total_cost_usd",
++            "cost_usd",
++            "duration_ms",
++            "duration_api_ms",
++            "ttft_ms",
++            "num_turns",
++            "session_id",
++        ):
+             if k in data:
+                 meta[k] = data[k]
+-        return data.get("result", "") or ""          # diff/prose/answer lives here
++        return data.get("result", "") or ""  # diff/prose/answer lives here
+     except json.JSONDecodeError:
+         meta["parse_error"] = True
+         return stdout
+@@ -148,6 +158,7 @@ TELEMETRY = {
+ 
+ # === agent interface ========================================================
+ 
++
+ class Agent:
+     """Minimal contract the harnesses depend on. Subclass for plugin agents."""
+ 
+@@ -179,9 +190,7 @@ class ShellAgent(Agent):
+     def check(self):
+         binary = self.cfg["command"][0]
+         if shutil.which(binary) is None:
+-            raise SystemExit(
+-                f"`{binary}` not found on PATH (needed for --agent {self.name})."
+-            )
++            raise SystemExit(f"`{binary}` not found on PATH (needed for --agent {self.name}).")
+         super().check()
+ 
+     def run(self, prompt, cwd, model=None):
+@@ -202,15 +211,26 @@ class ShellAgent(Agent):
+         t0 = time.time()
+         try:
+             result = subprocess.run(
+-                cmd, input=stdin_text, capture_output=True, text=True,
+-                cwd=cwd, timeout=AGENT_TIMEOUT_S,
++                cmd,
++                input=stdin_text,
++                capture_output=True,
++                text=True,
++                cwd=cwd,
++                timeout=AGENT_TIMEOUT_S,
+             )
+         except subprocess.TimeoutExpired:
+-            return "", {"agent": self.name, "wall_time_s": round(time.time() - t0, 2),
+-                        "returncode": None, "timeout": True}
+-
+-        meta = {"agent": self.name, "wall_time_s": round(time.time() - t0, 2),
+-                "returncode": result.returncode}
++            return "", {
++                "agent": self.name,
++                "wall_time_s": round(time.time() - t0, 2),
++                "returncode": None,
++                "timeout": True,
++            }
++
++        meta = {
++            "agent": self.name,
++            "wall_time_s": round(time.time() - t0, 2),
++            "returncode": result.returncode,
++        }
+         if result.returncode != 0:
+             meta["stderr"] = (result.stderr or "")[:500]
+ 
+@@ -247,5 +267,6 @@ def load_agent(name, agents_cfg):
+ 
+ def load_agents_file(path):
+     import yaml  # imported here so a missing pyyaml only bites if you run this
++
+     with open(path) as f:
+-        return yaml.safe_load(f)
+\ No newline at end of file
++        return yaml.safe_load(f)
+diff --git a/harness/run_freshqa_agent.py b/harness/run_freshqa_agent.py
+index 09dad82..a3b92d1 100644
+--- a/harness/run_freshqa_agent.py
++++ b/harness/run_freshqa_agent.py
+@@ -67,9 +67,11 @@ from agent_core import AGENTS_FILE, load_agent, load_agents_file
+ try:
+     from tqdm import tqdm
+ except ImportError:  # tqdm optional
++
+     def tqdm(x, **k):
+         return x
+ 
++
+ # Root under which every harness writes its per-agent output. Keeping data
+ # together by agent family is what the reward-vs-cost join keys off of.
+ DATA_ROOT = "data"
+@@ -103,11 +105,15 @@ def load_rows(path):
+             if not q:
+                 continue
+             answers = [(r.get(c) or "").strip() for c in ans_cols if (r.get(c) or "").strip()]
+-            rows.append({
+-                "question": q,
+-                "category": (r.get(cat_col) or "uncategorized").strip() if cat_col else "uncategorized",
+-                "reference_answers": answers,
+-            })
++            rows.append(
++                {
++                    "question": q,
++                    "category": (r.get(cat_col) or "uncategorized").strip()
++                    if cat_col
++                    else "uncategorized",
++                    "reference_answers": answers,
++                }
++            )
+         return rows
+ 
+ 
+@@ -170,16 +176,21 @@ def summarize(output_path):
+     print(f"total cost (usd): {s('total_cost_usd'):.4f}   (notional if on a subscription)")
+     print(f"input tokens:     {s('input_tokens'):,}")
+     print(f"output tokens:    {s('output_tokens'):,}")
+-    print(f"cache read:       {s('cache_read_input_tokens'):,}   "
+-          f"cache create: {s('cache_creation_input_tokens'):,}")
++    print(
++        f"cache read:       {s('cache_read_input_tokens'):,}   "
++        f"cache create: {s('cache_creation_input_tokens'):,}"
++    )
+     lat = s("latency_s")
+     print(f"latency (s):      {lat:.1f}   (mean {lat / n:.1f}/q)")
+ 
+     # Tool-activity rollup — the at-a-glance check that web tools actually ran.
+     # Derived from claude_json telemetry; for non-claude agents these are absent.
+     web = s("web_search_requests") + s("web_fetch_requests")
+-    used = sum(1 for r in recs
+-               if (r.get("web_search_requests") or 0) + (r.get("web_fetch_requests") or 0) > 0)
++    used = sum(
++        1
++        for r in recs
++        if (r.get("web_search_requests") or 0) + (r.get("web_fetch_requests") or 0) > 0
++    )
+     if web:
+         print(f"web tool calls:   {web} executed across {used}/{n} questions")
+         print("  OK: web tools are live (executed > 0).")
+@@ -191,20 +202,34 @@ def summarize(output_path):
+ 
+ def main():
+     ap = argparse.ArgumentParser(description="Agent-open FreshQA harness (agents.yaml-driven).")
+-    ap.add_argument("--agent", default="claude",
+-                    help="Agent name from the agents file (default: claude). For FreshQA "
+-                         "use an online/open-book agent.")
+-    ap.add_argument("--agents-file", default=str(AGENTS_FILE),
+-                    help=f"Path to the agent registry (default: {AGENTS_FILE}).")
++    ap.add_argument(
++        "--agent",
++        default="claude",
++        help="Agent name from the agents file (default: claude). For FreshQA "
++        "use an online/open-book agent.",
++    )
++    ap.add_argument(
++        "--agents-file",
++        default=str(AGENTS_FILE),
++        help=f"Path to the agent registry (default: {AGENTS_FILE}).",
++    )
+     ap.add_argument("--input", help="FreshQA CSV exported from the Google Sheet")
+-    ap.add_argument("--output", default=None,
+-                    help="responses JSONL to write "
+-                         "(default: data/<agent>/freshqa_responses.jsonl)")
++    ap.add_argument(
++        "--output",
++        default=None,
++        help="responses JSONL to write (default: data/<agent>/freshqa_responses.jsonl)",
++    )
+     ap.add_argument("--limit", type=int, default=50)
+-    ap.add_argument("--model", default=None, help="optional model override (via the agent's model_flag)")
+-    ap.add_argument("--timeout", type=int, default=None,
+-                    help="per-question timeout (s); applies to shell agents. "
+-                         f"Default: harness AGENT_TIMEOUT_S ({agent_core.AGENT_TIMEOUT_S}).")
++    ap.add_argument(
++        "--model", default=None, help="optional model override (via the agent's model_flag)"
++    )
++    ap.add_argument(
++        "--timeout",
++        type=int,
++        default=None,
++        help="per-question timeout (s); applies to shell agents. "
++        f"Default: harness AGENT_TIMEOUT_S ({agent_core.AGENT_TIMEOUT_S}).",
++    )
+     ap.add_argument("--resume", action="store_true", help="skip questions already in --output")
+     ap.add_argument("--list-agents", action="store_true", help="print known agents and exit")
+     args = ap.parse_args()
+@@ -238,8 +263,10 @@ def main():
+     # runs in *some* cwd. An empty temp dir means a closed-book agent has nothing
+     # local to read, and no agent can dirty your tree.
+     scratch = tempfile.mkdtemp(prefix="freshqa_")
+-    print(f"Agent: {args.agent} | questions: {min(len(rows), args.limit)} | "
+-          f"cwd: {scratch} | output: {args.output}")
++    print(
++        f"Agent: {args.agent} | questions: {min(len(rows), args.limit)} | "
++        f"cwd: {scratch} | output: {args.output}"
++    )
+ 
+     try:
+         with open(args.output, mode, encoding="utf-8") as out:
+@@ -250,9 +277,11 @@ def main():
+                 try:
+                     raw, meta = agent.run(row["question"], cwd=scratch, model=args.model)
+                     resp = (raw or "").strip()
+-                    ok = (not meta.get("timeout")
+-                          and meta.get("returncode") in (0, None)
+-                          and bool(resp))
++                    ok = (
++                        not meta.get("timeout")
++                        and meta.get("returncode") in (0, None)
++                        and bool(resp)
++                    )
+                     err = meta.get("stderr") if not ok else None
+                 except Exception as e:
+                     resp, ok, err, meta = "", False, str(e)[:500], {}
+@@ -281,4 +310,4 @@ def main():
+ 
+ 
+ if __name__ == "__main__":
+-    main()
+\ No newline at end of file
++    main()
+diff --git a/harness/run_hotpot_agent.py b/harness/run_hotpot_agent.py
+index 296b439..5697140 100644
+--- a/harness/run_hotpot_agent.py
++++ b/harness/run_hotpot_agent.py
+@@ -60,9 +60,11 @@ from agent_core import AGENTS_FILE, load_agent, load_agents_file
+ try:
+     from tqdm import tqdm
+ except ImportError:  # tqdm optional
++
+     def tqdm(x, **k):
+         return x
+ 
++
+ SENTINEL = "FINAL ANSWER:"
+ SP_SENTINEL = "SUPPORTING FACTS:"
+ 
+@@ -101,8 +103,7 @@ def default_paths(agent_name):
+     """(predictions, metrics) under data/<family>/, family = name up to '-'."""
+     fam = agent_name.split("-", 1)[0]
+     d = os.path.join(DATA_ROOT, fam)
+-    return (os.path.join(d, "hotpot_predictions.json"),
+-            os.path.join(d, "hotpot_metrics.json"))
++    return (os.path.join(d, "hotpot_predictions.json"), os.path.join(d, "hotpot_metrics.json"))
+ 
+ 
+ def build_prompt(item):
+@@ -121,7 +122,7 @@ def build_prompt(item):
+         "paragraphs as needed. Do not use tools, search the web, or read local files.\n\n"
+         "End your reply with EXACTLY these two lines:\n"
+         f"{SENTINEL} <shortest exact answer>\n"
+-        f'{SP_SENTINEL} <JSON list of [paragraph_title, sentence_index] pairs>\n\n'
++        f"{SP_SENTINEL} <JSON list of [paragraph_title, sentence_index] pairs>\n\n"
+         "Rules:\n"
+         "- The answer must be an entity, a short phrase, or 'yes'/'no' — nothing else on that line.\n"
+         "- For supporting facts, list every sentence needed to justify the answer.\n"
+@@ -139,7 +140,7 @@ def extract_answer(raw):
+         return ""
+     matches = list(re.finditer(re.escape(SENTINEL), raw, flags=re.I))
+     if matches:
+-        tail = raw[matches[-1].end():]
++        tail = raw[matches[-1].end() :]
+         return tail.splitlines()[0].strip() if tail.strip() else ""
+     lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+     return lines[-1] if lines else raw.strip()
+@@ -154,7 +155,7 @@ def extract_supporting_facts(raw, item):
+     matches = list(re.finditer(re.escape(SP_SENTINEL), raw, flags=re.I))
+     if not matches:
+         return []
+-    tail = raw[matches[-1].end():].strip()
++    tail = raw[matches[-1].end() :].strip()
+     if not tail:
+         return []
+     m = re.search(r"\[.*\]", tail, flags=re.DOTALL)
+@@ -211,8 +212,9 @@ def summarize(metrics):
+     def present(key):
+         return any(isinstance(v.get(key), (int, float)) for v in vals)
+ 
+-    errors = sum(1 for v in vals if v.get("returncode") not in (0, None)
+-                 or v.get("timeout") or "error" in v)
++    errors = sum(
++        1 for v in vals if v.get("returncode") not in (0, None) or v.get("timeout") or "error" in v
++    )
+     print("\n--- run summary ---")
+     print(f"questions:        {n}  ({errors} errored)")
+     print(f"total cost (usd): {s('total_cost_usd'):.4f}   (notional if on a subscription)")
+@@ -220,8 +222,10 @@ def summarize(metrics):
+     print(f"output tokens:    {s('output_tokens'):,}")
+     if present("reasoning_tokens"):
+         print(f"reasoning tokens: {s('reasoning_tokens'):,}")
+-    print(f"cache read:       {s('cache_read_input_tokens'):,}   "
+-          f"cache create: {s('cache_creation_input_tokens'):,}")
++    print(
++        f"cache read:       {s('cache_read_input_tokens'):,}   "
++        f"cache create: {s('cache_creation_input_tokens'):,}"
++    )
+     if present("num_turns"):
+         nt = s("num_turns")
+         print(f"turns:            {nt:,}   (mean {nt / n:.1f}/q)")
+@@ -237,22 +241,39 @@ def summarize(metrics):
+ 
+ def main():
+     ap = argparse.ArgumentParser(description="Agent-open HotpotQA harness (agents.yaml-driven).")
+-    ap.add_argument("--agent", default="claude",
+-                    help="Agent name from the agents file (default: claude). For HotpotQA "
+-                         "use a closed-book agent.")
+-    ap.add_argument("--agents-file", default=str(AGENTS_FILE),
+-                    help=f"Path to the agent registry (default: {AGENTS_FILE}).")
++    ap.add_argument(
++        "--agent",
++        default="claude",
++        help="Agent name from the agents file (default: claude). For HotpotQA "
++        "use a closed-book agent.",
++    )
++    ap.add_argument(
++        "--agents-file",
++        default=str(AGENTS_FILE),
++        help=f"Path to the agent registry (default: {AGENTS_FILE}).",
++    )
+     ap.add_argument("--input", help="hotpot_dev_distractor_v1.json")
+-    ap.add_argument("--output", default=None,
+-                    help="predictions JSON (default: data/<agent>/hotpot_predictions.json)")
+-    ap.add_argument("--metrics", default=None,
+-                    help="per-question telemetry file "
+-                         "(default: data/<agent>/hotpot_metrics.json)")
++    ap.add_argument(
++        "--output",
++        default=None,
++        help="predictions JSON (default: data/<agent>/hotpot_predictions.json)",
++    )
++    ap.add_argument(
++        "--metrics",
++        default=None,
++        help="per-question telemetry file (default: data/<agent>/hotpot_metrics.json)",
++    )
+     ap.add_argument("--limit", type=int, default=None, help="cap number of questions")
+-    ap.add_argument("--model", default=None, help="optional model override (via the agent's model_flag)")
+-    ap.add_argument("--timeout", type=int, default=None,
+-                    help="per-question timeout (s); applies to shell agents. "
+-                         f"Default: harness AGENT_TIMEOUT_S ({agent_core.AGENT_TIMEOUT_S}).")
++    ap.add_argument(
++        "--model", default=None, help="optional model override (via the agent's model_flag)"
++    )
++    ap.add_argument(
++        "--timeout",
++        type=int,
++        default=None,
++        help="per-question timeout (s); applies to shell agents. "
++        f"Default: harness AGENT_TIMEOUT_S ({agent_core.AGENT_TIMEOUT_S}).",
++    )
+     ap.add_argument("--resume", action="store_true", help="skip ids already present in --output")
+     ap.add_argument("--list-agents", action="store_true", help="print known agents and exit")
+     args = ap.parse_args()
+@@ -296,8 +317,7 @@ def main():
+         print(f"Resuming: {len(answers)} predictions already on disk.")
+ 
+     scratch = tempfile.mkdtemp(prefix="hotpot_")
+-    print(f"Agent: {args.agent} | questions: {len(data)} | cwd: {scratch} | "
+-          f"output: {args.output}")
++    print(f"Agent: {args.agent} | questions: {len(data)} | cwd: {scratch} | output: {args.output}")
+ 
+     try:
+         for item in tqdm(data, desc="hotpot"):
+@@ -326,6 +346,7 @@ def main():
+                 json.dump(metrics, f, indent=2)
+     finally:
+         import shutil
++
+         shutil.rmtree(scratch, ignore_errors=True)
+ 
+     print(f"\nWrote {len(answers)} predictions to {args.output}")
+@@ -335,4 +356,4 @@ def main():
+ 
+ 
+ if __name__ == "__main__":
+-    main()
+\ No newline at end of file
++    main()
+diff --git a/harness/run_swebench_agent.py b/harness/run_swebench_agent.py
+index 4dcbc23..d66f986 100644
+--- a/harness/run_swebench_agent.py
++++ b/harness/run_swebench_agent.py
+@@ -37,23 +37,24 @@ Requires: pip install pyyaml datasets
+ """
+ 
+ import argparse
+-import importlib
+ import json
+-import os
+-import time
+ import shutil
+ import subprocess
+ from pathlib import Path
+ 
+-from datasets import load_dataset
+-
+ # Shared, agent-agnostic machinery now lives in agent_core. Re-export the names
+ # here so anything still doing `from run_swebench_agent import Agent, ...`
+ # (e.g. older plugin code) keeps working unchanged.
+ from agent_core import (  # noqa: E402,F401
+-    AGENTS_FILE, AGENT_TIMEOUT_S, TELEMETRY,
+-    Agent, ShellAgent, load_agent, load_agents_file,
++    AGENT_TIMEOUT_S,
++    AGENTS_FILE,
++    TELEMETRY,
++    Agent,
++    ShellAgent,
++    load_agent,
++    load_agents_file,
+ )
++from datasets import load_dataset
+ 
+ # --- config (SWE-bench-specific) --------------------------------------------
+ DATA_DIR = Path("data")
+@@ -70,11 +71,12 @@ def out_paths(agent):
+ 
+ # === shared: prompt, git, repo setup ========================================
+ 
++
+ def build_prompt(example):
+     return f"""Fix this GitHub issue. You are in the root of a git checkout of the
+ repository at the relevant base commit.
+ 
+-{example['problem_statement']}
++{example["problem_statement"]}
+ 
+ Instructions:
+ 1. Inspect the relevant source files to locate the bug.
+@@ -87,9 +89,7 @@ Instructions:
+ 
+ 
+ def git(args, cwd, check=True):
+-    return subprocess.run(
+-        ["git", *args], cwd=cwd, capture_output=True, text=True, check=check
+-    )
++    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=check)
+ 
+ 
+ def ensure_repo(repo, base_commit):
+@@ -101,8 +101,11 @@ def ensure_repo(repo, base_commit):
+         git(["clone", f"https://github.com/{repo}.git", str(dest)], cwd=".")
+     # Fetch all branches + tags so historical base_commits (often not reachable
+     # from a branch tip, which a bare `fetch origin <sha>` can't retrieve) are present.
+-    git(["fetch", "--quiet", "--tags", "origin",
+-         "+refs/heads/*:refs/remotes/origin/*"], cwd=dest, check=False)
++    git(
++        ["fetch", "--quiet", "--tags", "origin", "+refs/heads/*:refs/remotes/origin/*"],
++        cwd=dest,
++        check=False,
++    )
+     # Try a direct SHA fetch too, in case the commit lives only behind a PR ref.
+     git(["fetch", "--quiet", "origin", base_commit], cwd=dest, check=False)
+     git(["reset", "--hard", "--quiet", base_commit], cwd=dest)
+@@ -112,6 +115,7 @@ def ensure_repo(repo, base_commit):
+ 
+ # === shared: patch capture, validation, resume ==============================
+ 
++
+ def clean_patch(output):
+     if not output:
+         return ""
+@@ -119,9 +123,9 @@ def clean_patch(output):
+     if "```" in output:
+         for part in output.split("```"):
+             if "diff --git" in part:
+-                return part[part.index("diff --git"):].strip() + "\n"
++                return part[part.index("diff --git") :].strip() + "\n"
+     if "diff --git" in output:
+-        return output[output.index("diff --git"):].strip() + "\n"
++        return output[output.index("diff --git") :].strip() + "\n"
+     return ""
+ 
+ 
+@@ -130,7 +134,10 @@ def patch_applies(patch, cwd):
+         return False
+     proc = subprocess.run(
+         ["git", "apply", "--reverse", "--check", "-"],
+-        cwd=cwd, input=patch, capture_output=True, text=True,
++        cwd=cwd,
++        input=patch,
++        capture_output=True,
++        text=True,
+     )
+     return proc.returncode == 0
+ 
+@@ -151,25 +158,44 @@ def already_done(pred_path):
+ 
+ # === main ===================================================================
+ 
++
+ def main():
+     ap = argparse.ArgumentParser(description="Agent-open SWE-bench generation harness.")
+-    ap.add_argument("--agent", default="claude",
+-                    help="Agent name from the agents file (default: claude).")
+-    ap.add_argument("--n", type=int, default=DEFAULT_N_INSTANCES,
+-                    help=f"Number of instances from the start of the split "
+-                         f"(default: {DEFAULT_N_INSTANCES}). Ignored if --instances is given.")
+-    ap.add_argument("--instances", nargs="+", default=None, metavar="INSTANCE_ID",
+-                    help="Run only these specific instance_id(s), e.g. "
+-                         "--instances astropy__astropy-12907. Accepts several "
+-                         "(space- or comma-separated) and overrides --n.")
++    ap.add_argument(
++        "--agent", default="claude", help="Agent name from the agents file (default: claude)."
++    )
++    ap.add_argument(
++        "--n",
++        type=int,
++        default=DEFAULT_N_INSTANCES,
++        help=f"Number of instances from the start of the split "
++        f"(default: {DEFAULT_N_INSTANCES}). Ignored if --instances is given.",
++    )
++    ap.add_argument(
++        "--instances",
++        nargs="+",
++        default=None,
++        metavar="INSTANCE_ID",
++        help="Run only these specific instance_id(s), e.g. "
++        "--instances astropy__astropy-12907. Accepts several "
++        "(space- or comma-separated) and overrides --n.",
++    )
+     ap.add_argument("--model", default=None, help="Optional model override.")
+-    ap.add_argument("--agents-file", default=str(AGENTS_FILE),
+-                    help=f"Path to the agent registry (default: {AGENTS_FILE}).")
+-    ap.add_argument("--list-agents", action="store_true",
+-                    help="Print known agents and exit.")
+-    ap.add_argument("--list-instances", nargs="?", const="", default=None, metavar="FILTER",
+-                    help="Print available SWE-bench_Lite instance_ids and exit. "
+-                         "Optionally filter by substring, e.g. --list-instances astropy.")
++    ap.add_argument(
++        "--agents-file",
++        default=str(AGENTS_FILE),
++        help=f"Path to the agent registry (default: {AGENTS_FILE}).",
++    )
++    ap.add_argument("--list-agents", action="store_true", help="Print known agents and exit.")
++    ap.add_argument(
++        "--list-instances",
++        nargs="?",
++        const="",
++        default=None,
++        metavar="FILTER",
++        help="Print available SWE-bench_Lite instance_ids and exit. "
++        "Optionally filter by substring, e.g. --list-instances astropy.",
++    )
+     args = ap.parse_args()
+ 
+     agents_cfg = load_agents_file(args.agents_file)
+@@ -182,8 +208,7 @@ def main():
+     if args.list_instances is not None:
+         flt = args.list_instances.lower()
+         ds = load_dataset("princeton-nlp/SWE-bench_Lite", split="test")
+-        ids = sorted(ex["instance_id"] for ex in ds
+-                     if flt in ex["instance_id"].lower())
++        ids = sorted(ex["instance_id"] for ex in ds if flt in ex["instance_id"].lower())
+         for iid in ids:
+             print(iid)
+         suffix = f" matching '{flt}'" if flt else ""
+@@ -194,7 +219,7 @@ def main():
+         raise SystemExit("`git` not found on PATH.")
+ 
+     agent = load_agent(args.agent, agents_cfg)
+-    agent.check()                              # preflight: binary + keys
++    agent.check()  # preflight: binary + keys
+ 
+     pred_path, metrics_path = out_paths(args.agent)
+     REPO_CACHE.mkdir(parents=True, exist_ok=True)
+@@ -202,8 +227,9 @@ def main():
+     model_name = args.model or args.agent
+     if args.instances:
+         # accept either repeated args or comma-separated lists, flattened
+-        wanted = {iid.strip() for chunk in args.instances
+-                  for iid in chunk.split(",") if iid.strip()}
++        wanted = {
++            iid.strip() for chunk in args.instances for iid in chunk.split(",") if iid.strip()
++        }
+         full = load_dataset("princeton-nlp/SWE-bench_Lite", split="test")
+         dataset = full.filter(lambda ex: ex["instance_id"] in wanted)
+         found = {ex["instance_id"] for ex in dataset}
+@@ -214,8 +240,7 @@ def main():
+             raise SystemExit("No matching instances found; nothing to run.")
+         print(f"Selected {len(dataset)} specific instance(s): {', '.join(sorted(found))}")
+     else:
+-        dataset = load_dataset("princeton-nlp/SWE-bench_Lite",
+-                               split=f"test[:{args.n}]")
++        dataset = load_dataset("princeton-nlp/SWE-bench_Lite", split=f"test[:{args.n}]")
+ 
+     done = already_done(pred_path)
+     if done:
+@@ -226,17 +251,19 @@ def main():
+         for i, ex in enumerate(dataset):
+             iid = ex["instance_id"]
+             if iid in done:
+-                print(f"=== {iid} ({i+1}/{len(dataset)}) -- skipped")
++                print(f"=== {iid} ({i + 1}/{len(dataset)}) -- skipped")
+                 continue
+ 
+-            print(f"\n=== {iid} ({i+1}/{len(dataset)}) [{args.agent}] ===")
++            print(f"\n=== {iid} ({i + 1}/{len(dataset)}) [{args.agent}] ===")
+ 
+             try:
+                 repo_dir = ensure_repo(ex["repo"], ex["base_commit"])
+             except subprocess.CalledProcessError as e:
+                 print(f"  repo setup failed: {e.stderr[:200] if e.stderr else e}")
+-                mf.write(json.dumps({"instance_id": iid, "agent": args.agent,
+-                                     "repo_setup_error": True}) + "\n")
++                mf.write(
++                    json.dumps({"instance_id": iid, "agent": args.agent, "repo_setup_error": True})
++                    + "\n"
++                )
+                 mf.flush()
+                 continue
+ 
+@@ -269,21 +296,28 @@ def main():
+                 patch = ""
+                 meta["applies_clean"] = False
+ 
+-            pf.write(json.dumps({
+-                "instance_id": iid,
+-                "model_patch": patch,
+-                "model_name_or_path": model_name,
+-            }) + "\n")
++            pf.write(
++                json.dumps(
++                    {
++                        "instance_id": iid,
++                        "model_patch": patch,
++                        "model_name_or_path": model_name,
++                    }
++                )
++                + "\n"
++            )
+             pf.flush()
+ 
+             mf.write(json.dumps({"instance_id": iid, **meta}) + "\n")
+             mf.flush()
+ 
+-            print(f"  tokens={meta.get('usage')} time={meta['wall_time_s']}s "
+-                  f"cost={meta.get('total_cost_usd')} rc={meta.get('returncode')}")
++            print(
++                f"  tokens={meta.get('usage')} time={meta['wall_time_s']}s "
++                f"cost={meta.get('total_cost_usd')} rc={meta.get('returncode')}"
++            )
+ 
+     print(f"\nDONE: {pred_path} + {metrics_path}")
+ 
+ 
+ if __name__ == "__main__":
+-    main()
+\ No newline at end of file
++    main()
+diff --git a/job.sh b/job.sh
+index 1b9ad72..b3864b5 100644
+--- a/job.sh
++++ b/job.sh
+@@ -32,7 +32,7 @@ set -euo pipefail
+ AGENT="${AGENT:-codex}"
+ REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
+ CONDA_ENV="${CONDA_ENV:-bench}"
+-RESUME="${RESUME:-0}"          # 1 = skip work already on disk (requeue-friendly)
++RESUME="${RESUME:-0}" # 1 = skip work already on disk (requeue-friendly)
+ 
+ SWE_N="${SWE_N:-25}"
+ HOTPOT_LIMIT="${HOTPOT_LIMIT:-50}"
+@@ -85,8 +85,14 @@ set -u
+ [ -n "${GIT_BINDIR:-}" ] && export PATH="$GIT_BINDIR:$PATH"
+ 
+ # preflight: binaries the harnesses shell out to
+-command -v codex >/dev/null 2>&1 || { echo "ERROR: codex not on PATH"; exit 1; }
+-command -v git   >/dev/null 2>&1 || { echo "ERROR: git not on PATH";   exit 1; }
++command -v codex >/dev/null 2>&1 || {
++  echo "ERROR: codex not on PATH"
++  exit 1
++}
++command -v git >/dev/null 2>&1 || {
++  echo "ERROR: git not on PATH"
++  exit 1
++}
+ 
+ # Cache HF datasets + repo clones on a persistent path.
+ # ADAPT: SWE-bench fetches princeton-nlp/SWE-bench_Lite (HF) and clones repos
+@@ -105,16 +111,18 @@ echo "swe_n=$SWE_N hotpot_limit=$HOTPOT_LIMIT freshqa_limit=$FRESHQA_LIMIT resum
+ 
+ # Run a stage WITHOUT letting one failure abort the remaining stages.
+ declare -a STAGE_RESULTS=()
+-run_stage () {
+-    local name="$1"; shift
+-    echo
+-    echo "========== STAGE: $name =========="
+-    echo "+ $*"
+-    local rc=0
+-    "$@" || rc=$?
+-    if [ "$rc" -eq 0 ]; then echo "[$name] OK"
+-    else echo "[$name] FAILED (rc=$rc) -- continuing to next stage"; fi
+-    STAGE_RESULTS+=("$name=$rc")
++run_stage() {
++  local name="$1"
++  shift
++  echo
++  echo "========== STAGE: $name =========="
++  echo "+ $*"
++  local rc=0
++  "$@" || rc=$?
++  if [ "$rc" -eq 0 ]; then
++    echo "[$name] OK"
++  else echo "[$name] FAILED (rc=$rc) -- continuing to next stage"; fi
++  STAGE_RESULTS+=("$name=$rc")
+ }
+ 
+ # 1) SWE-bench_Lite (closed-book by design) -- no --input; loads split from HF.
+@@ -123,12 +131,12 @@ run_stage () {
+ 
+ #2) HotpotQA (closed-book) -- needs the distractor JSON.
+ if [ -f "$HOTPOT_INPUT" ]; then
+-    run_stage hotpotqa \
+-        python "$HARNESS_DIR/run_hotpot_agent.py" --agent "$AGENT" \
+-            --input "$HOTPOT_INPUT" --limit "$HOTPOT_LIMIT" $RESUME_ARG
++  run_stage hotpotqa \
++    python "$HARNESS_DIR/run_hotpot_agent.py" --agent "$AGENT" \
++    --input "$HOTPOT_INPUT" --limit "$HOTPOT_LIMIT" $RESUME_ARG
+ else
+-    echo "[hotpotqa] SKIP -- input not found: $HOTPOT_INPUT (set HOTPOT_INPUT=...)"
+-    STAGE_RESULTS+=("hotpotqa=skipped")
++  echo "[hotpotqa] SKIP -- input not found: $HOTPOT_INPUT (set HOTPOT_INPUT=...)"
++  STAGE_RESULTS+=("hotpotqa=skipped")
+ fi
+ 
+ # 3) FreshQA (open-book) -- needs the CSV.
+@@ -145,9 +153,9 @@ echo
+ echo "========== SUMMARY =========="
+ fail=0
+ for r in "${STAGE_RESULTS[@]}"; do
+-    echo "  $r"
+-    case "$r" in *=0|*=skipped) ;; *) fail=1 ;; esac
++  echo "  $r"
++  case "$r" in *=0 | *=skipped) ;; *) fail=1 ;; esac
+ done
+ fam="${AGENT%%-*}"
+ echo "predictions under data/$fam/  (freshqa under data/${FRESHQA_AGENT%%-*}/)"
+-exit "$fail"   # non-zero if any stage genuinely failed, so SLURM marks it FAILED
+\ No newline at end of file
++exit "$fail" # non-zero if any stage genuinely failed, so SLURM marks it FAILED
+diff --git a/prebake_harbor_sifs.sh b/prebake_harbor_sifs.sh
+index b4b3211..fdef9cb 100644
+--- a/prebake_harbor_sifs.sh
++++ b/prebake_harbor_sifs.sh
+@@ -34,7 +34,7 @@ SIF_CACHE_DIR="${SIF_CACHE_DIR:-$SCRATCH_DIR/.harbor_sif_cache}"
+ export APPTAINER_CACHEDIR="${APPTAINER_CACHEDIR:-$SCRATCH_DIR/.apptainer_cache}"
+ export SINGULARITY_CACHEDIR="$APPTAINER_CACHEDIR"
+ export APPTAINER_TMPDIR="${APPTAINER_TMPDIR:-$SCRATCH_DIR/tmp}"
+-BAKE_TMP="${BAKE_TMP:-$SCRATCH_DIR/tmp/sif_bake}"   # sandboxes live on DISK, not tmpfs
++BAKE_TMP="${BAKE_TMP:-$SCRATCH_DIR/tmp/sif_bake}" # sandboxes live on DISK, not tmpfs
+ FORCE="${FORCE:-0}"
+ 
+ # What to bake. CORE must install cleanly; tmux/asciinema are best-effort
+@@ -59,83 +59,99 @@ chgrp "$(id -g)" "$BAKE_TMP" 2>/dev/null || true
+ unset APPTAINER_BINDPATH SINGULARITY_BINDPATH APPTAINER_BIND SINGULARITY_BIND 2>/dev/null || true
+ 
+ command -v singularity >/dev/null 2>&1 || {
+-    echo "ERROR: singularity not on PATH (module load hosts/hopper apptainer/1.4.1)"; exit 1; }
++  echo "ERROR: singularity not on PATH (module load hosts/hopper apptainer/1.4.1)"
++  exit 1
++}
+ 
+ # --- collect target images ------------------------------------------------------
+ declare -a IMAGES=()
+ mode="${1:-}"
+ case "$mode" in
+-    --all-cached)
+-        # Rebake whatever harbor has already converted. Filename -> image is
+-        # ambiguous ('_' was both '/' and ':'), but for baking we don't need
+-        # the image name -- we operate on the .sif directly.
+-        for sif in "$SIF_CACHE_DIR"/*.sif; do
+-            [ -e "$sif" ] && IMAGES+=("sif:$sif")
+-        done
+-        ;;
+-    --from-tasks)
+-        task_dir="${2:?--from-tasks needs a directory of harbor task dirs}"
+-        while IFS= read -r img; do
+-            IMAGES+=("$img")
+-        done < <(grep -rh '^docker_image' "$task_dir" --include=task.toml 2>/dev/null \
+-                 | sed 's/.*=\s*"\(.*\)"/\1/' | sort -u)
+-        ;;
+-    "")
+-        echo "usage: $0 <image[:tag] ...> | --all-cached | --from-tasks <dir>"; exit 1
+-        ;;
+-    *)
+-        IMAGES=("$@")
+-        ;;
++  --all-cached)
++    # Rebake whatever harbor has already converted. Filename -> image is
++    # ambiguous ('_' was both '/' and ':'), but for baking we don't need
++    # the image name -- we operate on the .sif directly.
++    for sif in "$SIF_CACHE_DIR"/*.sif; do
++      [ -e "$sif" ] && IMAGES+=("sif:$sif")
++    done
++    ;;
++  --from-tasks)
++    task_dir="${2:?--from-tasks needs a directory of harbor task dirs}"
++    while IFS= read -r img; do
++      IMAGES+=("$img")
++    done < <(grep -rh '^docker_image' "$task_dir" --include=task.toml 2>/dev/null |
++      sed 's/.*=\s*"\(.*\)"/\1/' | sort -u)
++    ;;
++  "")
++    echo "usage: $0 <image[:tag] ...> | --all-cached | --from-tasks <dir>"
++    exit 1
++    ;;
++  *)
++    IMAGES=("$@")
++    ;;
+ esac
+-[ "${#IMAGES[@]}" -gt 0 ] || { echo "no images to bake"; exit 1; }
++[ "${#IMAGES[@]}" -gt 0 ] || {
++  echo "no images to bake"
++  exit 1
++}
+ echo "baking ${#IMAGES[@]} image(s) into $SIF_CACHE_DIR"
+ 
+ # --- helpers ---------------------------------------------------------------------
+-sif_path_for() {  # image -> cache path (harbor's safe_name scheme)
+-    local img="$1"
+-    case "$img" in *:*) ;; *) img="$img:latest";; esac
+-    echo "$SIF_CACHE_DIR/$(echo "$img" | tr '/:' '__').sif"
++sif_path_for() { # image -> cache path (harbor's safe_name scheme)
++  local img="$1"
++  case "$img" in *:*) ;; *) img="$img:latest" ;; esac
++  echo "$SIF_CACHE_DIR/$(echo "$img" | tr '/:' '__').sif"
+ }
+ 
+-is_baked() {  # sif -> 0 if all runtime deps present
+-    singularity exec --no-mount bind-paths --containall "$1" bash -c '
++is_baked() { # sif -> 0 if all runtime deps present
++  singularity exec --no-mount bind-paths --containall "$1" bash -c '
+         command -v python3 >/dev/null 2>&1 &&
+         [ -x /opt/harbor-server/bin/python3 ] &&
+         /opt/harbor-server/bin/python3 -c "import uvicorn, fastapi" 2>/dev/null &&
+         command -v curl >/dev/null 2>&1' >/dev/null 2>&1
+-    # NOTE: tmux deliberately NOT required here -- it is best-effort (userns
+-    # chown issues) and harbor warns-and-continues without it.
++  # NOTE: tmux deliberately NOT required here -- it is best-effort (userns
++  # chown issues) and harbor warns-and-continues without it.
+ }
+ 
+-bake_one() {  # <sif path> [image name for pull]
+-    local sif="$1" img="${2:-}" name rc=0
+-    name="$(basename "$sif")"
+-
+-    if [ ! -f "$sif" ]; then
+-        [ -n "$img" ] || { echo "[$name] missing and no image name to pull"; return 1; }
+-        echo "[$name] pulling docker://$img ..."
+-        singularity pull "$sif" "docker://$img" || { echo "[$name] pull FAILED"; return 1; }
+-    fi
+-
+-    if [ "$FORCE" != "1" ] && is_baked "$sif"; then
+-        echo "[$name] already baked -- skip"; return 0
+-    fi
+-
+-    local work="$BAKE_TMP/$name.$$"
+-    local sandbox="$work/sandbox"
+-    mkdir -p "$work"
+-    trap 'rm -rf "$work"' RETURN
+-
+-    echo "[$name] unpacking to disk sandbox (no tmpfs limits here)..."
+-    singularity build --sandbox "$sandbox" "$sif" >/dev/null \
+-        || { echo "[$name] sandbox build FAILED"; return 1; }
+-
+-    echo "[$name] installing runtime deps..."
+-    # --writable on a DISK sandbox: apt unpacks to scratch, not the 64MiB tmpfs.
+-    # --no-mount bind-paths: site apptainer.conf binds (/groups, /projects, ...)
+-    # can't be auto-created in --writable sandbox mode (no overlay) and aren't
+-    # needed for the bake. Matches harbor's own default (home,tmp,bind-paths).
+-    singularity exec --no-mount bind-paths --writable --fakeroot --containall "$sandbox" bash -c '
++bake_one() { # <sif path> [image name for pull]
++  local sif="$1" img="${2:-}" name rc=0
++  name="$(basename "$sif")"
++
++  if [ ! -f "$sif" ]; then
++    [ -n "$img" ] || {
++      echo "[$name] missing and no image name to pull"
++      return 1
++    }
++    echo "[$name] pulling docker://$img ..."
++    singularity pull "$sif" "docker://$img" || {
++      echo "[$name] pull FAILED"
++      return 1
++    }
++  fi
++
++  if [ "$FORCE" != "1" ] && is_baked "$sif"; then
++    echo "[$name] already baked -- skip"
++    return 0
++  fi
++
++  local work="$BAKE_TMP/$name.$$"
++  local sandbox="$work/sandbox"
++  mkdir -p "$work"
++  trap 'rm -rf "$work"' RETURN
++
++  echo "[$name] unpacking to disk sandbox (no tmpfs limits here)..."
++  singularity build --sandbox "$sandbox" "$sif" >/dev/null ||
++    {
++      echo "[$name] sandbox build FAILED"
++      return 1
++    }
++
++  echo "[$name] installing runtime deps..."
++  # --writable on a DISK sandbox: apt unpacks to scratch, not the 64MiB tmpfs.
++  # --no-mount bind-paths: site apptainer.conf binds (/groups, /projects, ...)
++  # can't be auto-created in --writable sandbox mode (no overlay) and aren't
++  # needed for the bake. Matches harbor's own default (home,tmp,bind-paths).
++  singularity exec --no-mount bind-paths --writable --fakeroot --containall "$sandbox" bash -c '
+         set -e
+         export DEBIAN_FRONTEND=noninteractive
+         if command -v apt-get >/dev/null 2>&1; then
+@@ -205,45 +221,54 @@ bake_one() {  # <sif path> [image name for pull]
+         command -v asciinema >/dev/null 2>&1 \
+             || /opt/harbor-server/bin/python3 -m pip install --quiet asciinema || true
+     ' || rc=$?
+-    if [ "$rc" -eq 42 ]; then
+-        echo "[$name] UNBAKEABLE (no python3, no package manager) -> EXCLUDE_TASKS"; return 2
+-    elif [ "$rc" -ne 0 ]; then
+-        echo "[$name] dep install FAILED (rc=$rc) -- read the apptainer/apt output above"; return 1
+-    fi
+-
+-    echo "[$name] normalizing ownership for rebuild..."
+-    # All sandbox files are uid czhai on disk (created as mapped-root), but
+-    # setgid scratch dirs gave many of them group 'scratch' -- unmapped in the
+-    # userns -> gid 65534 -> apptainer build FATALs on Lchown. As the file
+-    # owner we may chgrp to our own primary group; also clear setgid dir bits
+-    # so nothing re-inherits during the build's copy.
+-    chgrp -Rh "$(id -g)" "$sandbox" 2>/dev/null || true
+-    find "$sandbox" -type d -perm -2000 -exec chmod g-s {} + 2>/dev/null || true
+-
+-    echo "[$name] rebuilding SIF (bundled mksquashfs, --fakeroot)..."
+-    singularity build --fakeroot "$work/new.sif" "$sandbox" >/dev/null \
+-        || { echo "[$name] SIF rebuild FAILED"; return 1; }
+-
+-    # Replace under harbor's own lock so a concurrently starting trial never
+-    # sees a half-written file (harbor flocks <sif>.lock around conversion).
+-    (
+-        exec 9>"$sif.lock"
+-        flock 9
+-        mv -f "$work/new.sif" "$sif"
+-    )
+-    is_baked "$sif" && echo "[$name] baked OK" || { echo "[$name] verify FAILED"; return 1; }
++  if [ "$rc" -eq 42 ]; then
++    echo "[$name] UNBAKEABLE (no python3, no package manager) -> EXCLUDE_TASKS"
++    return 2
++  elif [ "$rc" -ne 0 ]; then
++    echo "[$name] dep install FAILED (rc=$rc) -- read the apptainer/apt output above"
++    return 1
++  fi
++
++  echo "[$name] normalizing ownership for rebuild..."
++  # All sandbox files are uid czhai on disk (created as mapped-root), but
++  # setgid scratch dirs gave many of them group 'scratch' -- unmapped in the
++  # userns -> gid 65534 -> apptainer build FATALs on Lchown. As the file
++  # owner we may chgrp to our own primary group; also clear setgid dir bits
++  # so nothing re-inherits during the build's copy.
++  chgrp -Rh "$(id -g)" "$sandbox" 2>/dev/null || true
++  find "$sandbox" -type d -perm -2000 -exec chmod g-s {} + 2>/dev/null || true
++
++  echo "[$name] rebuilding SIF (bundled mksquashfs, --fakeroot)..."
++  singularity build --fakeroot "$work/new.sif" "$sandbox" >/dev/null ||
++    {
++      echo "[$name] SIF rebuild FAILED"
++      return 1
++    }
++
++  # Replace under harbor's own lock so a concurrently starting trial never
++  # sees a half-written file (harbor flocks <sif>.lock around conversion).
++  (
++    exec 9>"$sif.lock"
++    flock 9
++    mv -f "$work/new.sif" "$sif"
++  )
++  is_baked "$sif" && echo "[$name] baked OK" || {
++    echo "[$name] verify FAILED"
++    return 1
++  }
+ }
+ 
+ # --- main loop -------------------------------------------------------------------
+-fail=0; unbakeable=0
++fail=0
++unbakeable=0
+ for entry in "${IMAGES[@]}"; do
+-    if [[ "$entry" == sif:* ]]; then
+-        bake_one "${entry#sif:}" || { [ $? -eq 2 ] && unbakeable=$((unbakeable+1)) || fail=$((fail+1)); }
+-    else
+-        bake_one "$(sif_path_for "$entry")" "$entry" || { [ $? -eq 2 ] && unbakeable=$((unbakeable+1)) || fail=$((fail+1)); }
+-    fi
++  if [[ "$entry" == sif:* ]]; then
++    bake_one "${entry#sif:}" || { [ $? -eq 2 ] && unbakeable=$((unbakeable + 1)) || fail=$((fail + 1)); }
++  else
++    bake_one "$(sif_path_for "$entry")" "$entry" || { [ $? -eq 2 ] && unbakeable=$((unbakeable + 1)) || fail=$((fail + 1)); }
++  fi
+ done
+ 
+ echo
+ echo "done: $((${#IMAGES[@]} - fail - unbakeable)) baked, $unbakeable unbakeable (add to EXCLUDE_TASKS), $fail failed"
+-[ "$fail" -eq 0 ] || exit 1
+\ No newline at end of file
++[ "$fail" -eq 0 ] || exit 1
+diff --git a/pyproject.toml b/pyproject.toml
+new file mode 100644
+index 0000000..e014779
+--- /dev/null
++++ b/pyproject.toml
+@@ -0,0 +1,18 @@
++[tool.ruff]
++line-length = 100
++target-version = "py311"
++extend-exclude = [
++    "jobs",
++    "logs",
++    "data/results",
++    ".hf_cache",
++]
++
++[tool.ruff.lint]
++select = ["E", "F", "W", "I"]  # pycodestyle, pyflakes, import sorting
++ignore = [
++    "E501",  # line length handled by formatter
++]
++
++[tool.ruff.format]
++quote-style = "double"
+diff --git a/run_fresh.sh b/run_fresh.sh
+index c796e17..525f6a4 100644
+--- a/run_fresh.sh
++++ b/run_fresh.sh
+@@ -57,8 +57,14 @@ module load git/2.27.1 || echo "WARNING: 'module load git/2.27.1' failed"
+ set -u
+ [ -n "${GIT_BINDIR:-}" ] && export PATH="$GIT_BINDIR:$PATH"
+ 
+-command -v codex >/dev/null 2>&1 || { echo "ERROR: codex not on PATH"; exit 1; }
+-command -v git   >/dev/null 2>&1 || { echo "ERROR: git not on PATH";   exit 1; }
++command -v codex >/dev/null 2>&1 || {
++  echo "ERROR: codex not on PATH"
++  exit 1
++}
++command -v git >/dev/null 2>&1 || {
++  echo "ERROR: git not on PATH"
++  exit 1
++}
+ 
+ RESUME_ARG=""
+ [ "$RESUME" = "1" ] && RESUME_ARG="--resume"
+@@ -71,13 +77,13 @@ echo
+ echo "========== STAGE: freshqa =========="
+ rc=0
+ if [ -f "$FRESHQA_INPUT" ]; then
+-    python "$HARNESS_DIR/run_freshqa_agent.py" --agent "$FRESHQA_AGENT" \
+-        --input "$FRESHQA_INPUT" --limit "$FRESHQA_LIMIT" $RESUME_ARG || rc=$?
+-    if [ "$rc" -eq 0 ]; then echo "[freshqa] OK"; else echo "[freshqa] FAILED (rc=$rc)"; fi
++  python "$HARNESS_DIR/run_freshqa_agent.py" --agent "$FRESHQA_AGENT" \
++    --input "$FRESHQA_INPUT" --limit "$FRESHQA_LIMIT" $RESUME_ARG || rc=$?
++  if [ "$rc" -eq 0 ]; then echo "[freshqa] OK"; else echo "[freshqa] FAILED (rc=$rc)"; fi
+ else
+-    echo "[freshqa] SKIP -- input not found: $FRESHQA_INPUT (set FRESHQA_INPUT=...)"
+-    rc=1
++  echo "[freshqa] SKIP -- input not found: $FRESHQA_INPUT (set FRESHQA_INPUT=...)"
++  rc=1
+ fi
+ 
+ echo "predictions under data/${FRESHQA_AGENT%%-*}/"
+-exit "$rc"
+\ No newline at end of file
++exit "$rc"
+diff --git a/run_hotpot.sh b/run_hotpot.sh
+index ec8ba6b..21eb65e 100644
+--- a/run_hotpot.sh
++++ b/run_hotpot.sh
+@@ -50,8 +50,14 @@ module load git/2.27.1 || echo "WARNING: 'module load git/2.27.1' failed"
+ set -u
+ [ -n "${GIT_BINDIR:-}" ] && export PATH="$GIT_BINDIR:$PATH"
+ 
+-command -v codex >/dev/null 2>&1 || { echo "ERROR: codex not on PATH"; exit 1; }
+-command -v git   >/dev/null 2>&1 || { echo "ERROR: git not on PATH";   exit 1; }
++command -v codex >/dev/null 2>&1 || {
++  echo "ERROR: codex not on PATH"
++  exit 1
++}
++command -v git >/dev/null 2>&1 || {
++  echo "ERROR: git not on PATH"
++  exit 1
++}
+ 
+ RESUME_ARG=""
+ [ "$RESUME" = "1" ] && RESUME_ARG="--resume"
+@@ -64,13 +70,13 @@ echo
+ echo "========== STAGE: hotpotqa =========="
+ rc=0
+ if [ -f "$HOTPOT_INPUT" ]; then
+-    python "$HARNESS_DIR/run_hotpot_agent.py" --agent "$AGENT" \
+-        --input "$HOTPOT_INPUT" --limit "$HOTPOT_LIMIT" $RESUME_ARG || rc=$?
+-    if [ "$rc" -eq 0 ]; then echo "[hotpotqa] OK"; else echo "[hotpotqa] FAILED (rc=$rc)"; fi
++  python "$HARNESS_DIR/run_hotpot_agent.py" --agent "$AGENT" \
++    --input "$HOTPOT_INPUT" --limit "$HOTPOT_LIMIT" $RESUME_ARG || rc=$?
++  if [ "$rc" -eq 0 ]; then echo "[hotpotqa] OK"; else echo "[hotpotqa] FAILED (rc=$rc)"; fi
+ else
+-    echo "[hotpotqa] SKIP -- input not found: $HOTPOT_INPUT (set HOTPOT_INPUT=...)"
+-    rc=1
++  echo "[hotpotqa] SKIP -- input not found: $HOTPOT_INPUT (set HOTPOT_INPUT=...)"
++  rc=1
+ fi
+ 
+ echo "predictions under data/${AGENT%%-*}/"
+-exit "$rc"
+\ No newline at end of file
++exit "$rc"
+diff --git a/run_swebench.sh b/run_swebench.sh
+index 45f165a..235ecd1 100644
+--- a/run_swebench.sh
++++ b/run_swebench.sh
+@@ -47,10 +47,22 @@ module load git/2.27.1 || echo "WARNING: 'module load git/2.27.1' failed"
+ set -u
+ [ -n "${GIT_BINDIR:-}" ] && export PATH="$GIT_BINDIR:$PATH"
+ 
+-command -v codex >/dev/null 2>&1 || { echo "ERROR: codex not on PATH"; exit 1; }
+-command -v bwrap >/dev/null 2>&1 || { echo "ERROR: bwrap not on PATH"; exit 1; }
+-bwrap --ro-bind / / true || { echo "ERROR: bwrap present but userns blocked"; exit 1; }
+-command -v git   >/dev/null 2>&1 || { echo "ERROR: git not on PATH";   exit 1; }
++command -v codex >/dev/null 2>&1 || {
++  echo "ERROR: codex not on PATH"
++  exit 1
++}
++command -v bwrap >/dev/null 2>&1 || {
++  echo "ERROR: bwrap not on PATH"
++  exit 1
++}
++bwrap --ro-bind / / true || {
++  echo "ERROR: bwrap present but userns blocked"
++  exit 1
++}
++command -v git >/dev/null 2>&1 || {
++  echo "ERROR: git not on PATH"
++  exit 1
++}
+ 
+ # SWE-bench fetches princeton-nlp/SWE-bench_Lite (HF) and clones from github.com.
+ export HF_HOME="${HF_HOME:-$REPO_DIR/.hf_cache}"
+@@ -71,4 +83,4 @@ if [ "$rc" -eq 0 ]; then echo "[swebench] OK"; else echo "[swebench] FAILED (rc=
+ 
+ fam="${AGENT%%-*}"
+ echo "predictions under data/$fam/"
+-exit "$rc"
+\ No newline at end of file
++exit "$rc"
+diff --git a/run_terminalbench.sh b/run_terminalbench.sh
+index 36b78f3..cfa81ff 100755
+--- a/run_terminalbench.sh
++++ b/run_terminalbench.sh
+@@ -89,9 +89,9 @@
+ set -euo pipefail
+ 
+ # --- knobs -------------------------------------------------------------------
+-AGENT="${AGENT:-codex}"              # codex | openhands-sdk | claude-code
+-MODEL="${MODEL:-gpt-5.5}"            # bare name required for LiteLLM cost lookup
+-EFFORT="${EFFORT:-medium}"           # low | medium | high (codex/openhands only)
++AGENT="${AGENT:-codex}"    # codex | openhands-sdk | claude-code
++MODEL="${MODEL:-gpt-5.5}"  # bare name required for LiteLLM cost lookup
++EFFORT="${EFFORT:-medium}" # low | medium | high (codex/openhands only)
+ OPENHANDS_VERSION="${OPENHANDS_VERSION:-1.27.0}"
+ 
+ REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
+@@ -104,7 +104,7 @@ N_CONCURRENT="${N_CONCURRENT:-1}"
+ # Hopper has no Docker; Harbor's singularity backend is rootless-compatible.
+ # Use ENV_TYPE=docker when running on the local machine (ChrisWork) instead.
+ ENV_TYPE="${ENV_TYPE:-singularity}"
+-ENV_FILE="${ENV_FILE:-}"             # optional .env for the openhands example
++ENV_FILE="${ENV_FILE:-}" # optional .env for the openhands example
+ 
+ # Space-separated task names to exclude (each becomes a -x flag; -x supports
+ # glob patterns). Grows as minimal/distroless images that can't host Harbor's
+@@ -141,31 +141,43 @@ set +u
+ [ -f /etc/profile.d/lmod.sh ] && source /etc/profile.d/lmod.sh
+ [ -n "${MODULESHOME:-}" ] && [ -f "$MODULESHOME/init/bash" ] && source "$MODULESHOME/init/bash"
+ if [ "$ENV_TYPE" = "singularity" ]; then
+-    module load hosts/hopper apptainer/1.4.1 || echo "WARNING: apptainer module load failed"
+-    module load gnu10/10.3.0-ya git/2.39.1-vd || echo "WARNING: git module load failed"
++  module load hosts/hopper apptainer/1.4.1 || echo "WARNING: apptainer module load failed"
++  module load gnu10/10.3.0-ya git/2.39.1-vd || echo "WARNING: git module load failed"
+ else
+-    module load hosts/hopper gnu10/10.3.0-ya git/2.39.1-vd || echo "WARNING: git module load failed"
++  module load hosts/hopper gnu10/10.3.0-ya git/2.39.1-vd || echo "WARNING: git module load failed"
+ fi
+ set -u
+-[ -n "${GIT_BINDIR:-}" ]       && export PATH="$GIT_BINDIR:$PATH"
++[ -n "${GIT_BINDIR:-}" ] && export PATH="$GIT_BINDIR:$PATH"
+ [ -n "${APPTAINER_BINDIR:-}" ] && export PATH="$APPTAINER_BINDIR:$PATH"
+ 
+ if [ "$ENV_TYPE" = "singularity" ]; then
+-    mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$SIF_CACHE_DIR"
++  mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$SIF_CACHE_DIR"
+ fi
+ 
+ # --- preflight -----------------------------------------------------------------
+-command -v harbor >/dev/null 2>&1 || { echo "ERROR: harbor not on PATH"; exit 1; }
++command -v harbor >/dev/null 2>&1 || {
++  echo "ERROR: harbor not on PATH"
++  exit 1
++}
+ # Harbor clones the task repo before anything container-related.
+-command -v git >/dev/null 2>&1 \
+-    || { echo "ERROR: git not on PATH after module loads (check Lmod 'Inactive Modules' output above)"; exit 1; }
++command -v git >/dev/null 2>&1 ||
++  {
++    echo "ERROR: git not on PATH after module loads (check Lmod 'Inactive Modules' output above)"
++    exit 1
++  }
+ if [ "$ENV_TYPE" = "singularity" ]; then
+-    # Harbor shells out to `singularity`; apptainer/1.4.1 provides the symlink.
+-    command -v singularity >/dev/null 2>&1 \
+-        || { echo "ERROR: singularity not on PATH (module load failed? set APPTAINER_BINDIR=)"; exit 1; }
+-    # rootless fakeroot must work (root-mapped userns). Cheap sanity check:
+-    ns_max="$(cat /proc/sys/user/max_user_namespaces 2>/dev/null || echo 0)"
+-    [ "$ns_max" -gt 0 ] || { echo "ERROR: unprivileged user namespaces disabled on $(hostname)"; exit 1; }
++  # Harbor shells out to `singularity`; apptainer/1.4.1 provides the symlink.
++  command -v singularity >/dev/null 2>&1 ||
++    {
++      echo "ERROR: singularity not on PATH (module load failed? set APPTAINER_BINDIR=)"
++      exit 1
++    }
++  # rootless fakeroot must work (root-mapped userns). Cheap sanity check:
++  ns_max="$(cat /proc/sys/user/max_user_namespaces 2>/dev/null || echo 0)"
++  [ "$ns_max" -gt 0 ] || {
++    echo "ERROR: unprivileged user namespaces disabled on $(hostname)"
++    exit 1
++  }
+ fi
+ 
+ # --- per-agent args -----------------------------------------------------------
+@@ -174,51 +186,52 @@ fi
+ # on the command line are visible in /proc/<pid>/cmdline on shared nodes.
+ declare -a ARGS=()
+ case "$AGENT" in
+-    codex)
+-        : "${OPENAI_API_KEY:?OPENAI_API_KEY not set -- export it before sbatch/bash}"
+-        # codex agent reads OPENAI_API_KEY from host env directly.
+-        ARGS+=(--agent codex --model "$MODEL"
+-               --ak "reasoning_effort=$EFFORT")
+-        ;;
+-    openhands-sdk)
+-        : "${OPENAI_API_KEY:?OPENAI_API_KEY not set -- export it before sbatch/bash}"
+-        # openhands-sdk runner hard-requires LLM_API_KEY (not OPENAI_API_KEY).
+-        export LLM_API_KEY="$OPENAI_API_KEY"
+-        ARGS+=(--agent openhands-sdk --model "$MODEL"
+-               --ak "reasoning_effort=$EFFORT"
+-               --ak "version=$OPENHANDS_VERSION")
+-        ;;
+-    claude-code)
+-        : "${CLAUDE_CODE_OAUTH_TOKEN:?CLAUDE_CODE_OAUTH_TOKEN not set -- export it before sbatch/bash}"
+-        # Without CLAUDE_FORCE_OAUTH, harbor's claude-code agent prefers any
+-        # ANTHROPIC_API_KEY it finds in the host env (--export=ALL leaks the
+-        # login env in!) and would silently bill the API. Force subscription.
+-        export CLAUDE_FORCE_OAUTH=1
+-        ARGS+=(--agent claude-code)
+-        # claude-code takes no reasoning_effort kwarg; model left at agent default.
+-        # To pin one, uncomment:
+-        # ARGS+=(--model "$MODEL")
+-        ;;
+-    *)
+-        echo "ERROR: unknown AGENT=$AGENT (expected codex|openhands-sdk|claude-code)"; exit 1
+-        ;;
++  codex)
++    : "${OPENAI_API_KEY:?OPENAI_API_KEY not set -- export it before sbatch/bash}"
++    # codex agent reads OPENAI_API_KEY from host env directly.
++    ARGS+=(--agent codex --model "$MODEL"
++      --ak "reasoning_effort=$EFFORT")
++    ;;
++  openhands-sdk)
++    : "${OPENAI_API_KEY:?OPENAI_API_KEY not set -- export it before sbatch/bash}"
++    # openhands-sdk runner hard-requires LLM_API_KEY (not OPENAI_API_KEY).
++    export LLM_API_KEY="$OPENAI_API_KEY"
++    ARGS+=(--agent openhands-sdk --model "$MODEL"
++      --ak "reasoning_effort=$EFFORT"
++      --ak "version=$OPENHANDS_VERSION")
++    ;;
++  claude-code)
++    : "${CLAUDE_CODE_OAUTH_TOKEN:?CLAUDE_CODE_OAUTH_TOKEN not set -- export it before sbatch/bash}"
++    # Without CLAUDE_FORCE_OAUTH, harbor's claude-code agent prefers any
++    # ANTHROPIC_API_KEY it finds in the host env (--export=ALL leaks the
++    # login env in!) and would silently bill the API. Force subscription.
++    export CLAUDE_FORCE_OAUTH=1
++    ARGS+=(--agent claude-code)
++    # claude-code takes no reasoning_effort kwarg; model left at agent default.
++    # To pin one, uncomment:
++    # ARGS+=(--model "$MODEL")
++    ;;
++  *)
++    echo "ERROR: unknown AGENT=$AGENT (expected codex|openhands-sdk|claude-code)"
++    exit 1
++    ;;
+ esac
+ 
+ [ -n "$ENV_FILE" ] && ARGS+=(--env-file "$ENV_FILE")
+ 
+ # --- task exclusions + raw passthrough ------------------------------------------
+ for t in $EXCLUDE_TASKS; do
+-    ARGS+=(-x "$t")
++  ARGS+=(-x "$t")
+ done
+ # shellcheck disable=SC2206  # intentional word splitting of raw harbor args
+ [ -n "$EXTRA_ARGS" ] && ARGS+=($EXTRA_ARGS)
+ 
+ # --- environment kwargs ---------------------------------------------------------
+ if [ "$ENV_TYPE" = "singularity" ]; then
+-    # Persist converted SIFs across runs (backend default is a throwaway
+-    # mkdtemp -> full docker->SIF re-conversion every job). Cache is .lock-file
+-    # coordinated, safe to share across concurrent jobs.
+-    ARGS+=(--ek "singularity_image_cache_dir=$SIF_CACHE_DIR")
++  # Persist converted SIFs across runs (backend default is a throwaway
++  # mkdtemp -> full docker->SIF re-conversion every job). Cache is .lock-file
++  # coordinated, safe to share across concurrent jobs.
++  ARGS+=(--ek "singularity_image_cache_dir=$SIF_CACHE_DIR")
+ fi
+ 
+ # --- log capture ------------------------------------------------------------------
+@@ -237,22 +250,22 @@ echo "run_id=$RUN_ID jobs_dir=$JOBS_DIR"
+ echo "harbor: $(command -v harbor) ($(harbor --version 2>/dev/null || echo '?'))"
+ echo "git: $(command -v git) ($(git --version 2>/dev/null || echo '?'))"
+ if [ "$ENV_TYPE" = "singularity" ]; then
+-    echo "singularity: $(command -v singularity) ($(singularity --version 2>/dev/null || echo '?'))"
+-    echo "caches: APPTAINER_CACHEDIR=$APPTAINER_CACHEDIR TMPDIR=$APPTAINER_TMPDIR SIF=$SIF_CACHE_DIR"
++  echo "singularity: $(command -v singularity) ($(singularity --version 2>/dev/null || echo '?'))"
++  echo "caches: APPTAINER_CACHEDIR=$APPTAINER_CACHEDIR TMPDIR=$APPTAINER_TMPDIR SIF=$SIF_CACHE_DIR"
+ fi
+ 
+ echo
+ echo "========== STAGE: terminal-bench =========="
+ rc=0
+ harbor run \
+-    --dataset "$DATASET" \
+-    --env "$ENV_TYPE" \
+-    --n-tasks "$N_TASKS" \
+-    --n-concurrent "$N_CONCURRENT" \
+-    --job-name "$RUN_ID" \
+-    --jobs-dir "$JOBS_DIR" \
+-    --yes \
+-    "${ARGS[@]}" || rc=$?
++  --dataset "$DATASET" \
++  --env "$ENV_TYPE" \
++  --n-tasks "$N_TASKS" \
++  --n-concurrent "$N_CONCURRENT" \
++  --job-name "$RUN_ID" \
++  --jobs-dir "$JOBS_DIR" \
++  --yes \
++  "${ARGS[@]}" || rc=$?
+ 
+ # `harbor run` exits 0 even when trials raise exceptions; surface that here so
+ # batch jobs don't silently "succeed" with zero completed trials.
+@@ -260,8 +273,9 @@ harbor run \
+ # (legacy runs used stats.n_trials / stats.n_errors -- handled below).
+ RESULT_JSON="$JOBS_DIR/$RUN_ID/result.json"
+ if [ "$rc" -eq 0 ]; then
+-    if [ -f "$RESULT_JSON" ]; then
+-        summary="$(python - "$RESULT_JSON" <<'PYEOF'
++  if [ -f "$RESULT_JSON" ]; then
++    summary="$(
++      python - "$RESULT_JSON" <<'PYEOF'
+ import json, sys
+ r = json.load(open(sys.argv[1]))
+ s = r.get("stats", {})
+@@ -270,23 +284,27 @@ n_done = s.get("n_completed_trials", s.get("n_trials", 0)) or 0
+ n_total = r.get("n_total_trials", 0) or 0
+ print(f"{n_err} {n_done} {n_total}")
+ PYEOF
+-        )" || summary=""
+-        if [ -n "$summary" ]; then
+-            read -r n_err n_done n_total <<< "$summary"
+-            echo "trials: total=$n_total completed=$n_done errored=$n_err (see $RESULT_JSON)"
+-            if [ "$n_err" -gt 0 ]; then
+-                echo "WARNING: $n_err trial(s) errored despite rc=0"; rc=2
+-            elif [ "$n_done" -eq 0 ]; then
+-                echo "WARNING: 0 trials completed despite rc=0"; rc=2
+-            fi
+-        else
+-            echo "WARNING: could not parse $RESULT_JSON"; rc=2
+-        fi
++    )" || summary=""
++    if [ -n "$summary" ]; then
++      read -r n_err n_done n_total <<<"$summary"
++      echo "trials: total=$n_total completed=$n_done errored=$n_err (see $RESULT_JSON)"
++      if [ "$n_err" -gt 0 ]; then
++        echo "WARNING: $n_err trial(s) errored despite rc=0"
++        rc=2
++      elif [ "$n_done" -eq 0 ]; then
++        echo "WARNING: 0 trials completed despite rc=0"
++        rc=2
++      fi
+     else
+-        echo "WARNING: rc=0 but $RESULT_JSON missing -- job likely never started trials"; rc=2
++      echo "WARNING: could not parse $RESULT_JSON"
++      rc=2
+     fi
++  else
++    echo "WARNING: rc=0 but $RESULT_JSON missing -- job likely never started trials"
++    rc=2
++  fi
+ fi
+ if [ "$rc" -eq 0 ]; then echo "[terminal-bench] OK"; else echo "[terminal-bench] FAILED/PARTIAL (rc=$rc)"; fi
+ 
+ echo "results + logs under $JOBS_DIR/$RUN_ID/"
+-exit "$rc"
+\ No newline at end of file
++exit "$rc"
+diff --git a/setup_hopper_deps.sh b/setup_hopper_deps.sh
+index 7d82c1e..0b762d8 100644
+--- a/setup_hopper_deps.sh
++++ b/setup_hopper_deps.sh
+@@ -23,28 +23,43 @@ set -uo pipefail
+ SCRATCH_DIR="${SCRATCH_DIR:-/scratch/czhai}"
+ REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
+ CONDA_ENV="${CONDA_ENV:-bench}"
+-PYTHON_VERSION="${PYTHON_VERSION:-3.12}"     # harbor requires >= 3.12
++PYTHON_VERSION="${PYTHON_VERSION:-3.12}" # harbor requires >= 3.12
+ HARBOR_MIN_VERSION="${HARBOR_MIN_VERSION:-0.16.1}"
+ 
+ APPTAINER_CACHEDIR="${APPTAINER_CACHEDIR:-$SCRATCH_DIR/.apptainer_cache}"
+ APPTAINER_TMPDIR="${APPTAINER_TMPDIR:-$SCRATCH_DIR/tmp}"
+ SIF_CACHE_DIR="${SIF_CACHE_DIR:-$SCRATCH_DIR/.harbor_sif_cache}"
+ JOBS_DIR="${JOBS_DIR:-$REPO_DIR/data/harbor_jobs}"
+-MIN_SCRATCH_FREE_GB="${MIN_SCRATCH_FREE_GB:-100}"   # full tb2 sweep wants 50-150+
++MIN_SCRATCH_FREE_GB="${MIN_SCRATCH_FREE_GB:-100}" # full tb2 sweep wants 50-150+
+ 
+-CHECK_ONLY=0; DO_NET=0
++CHECK_ONLY=0
++DO_NET=0
+ for arg in "$@"; do
+-    case "$arg" in
+-        --check-only) CHECK_ONLY=1 ;;
+-        --net)        DO_NET=1 ;;
+-        *) echo "unknown arg: $arg (expected --check-only and/or --net)"; exit 1 ;;
+-    esac
++  case "$arg" in
++    --check-only) CHECK_ONLY=1 ;;
++    --net) DO_NET=1 ;;
++    *)
++      echo "unknown arg: $arg (expected --check-only and/or --net)"
++      exit 1
++      ;;
++  esac
+ done
+ 
+-PASS=0; FAIL=0; WARN=0
+-ok()   { echo "  [ OK ] $*"; PASS=$((PASS+1)); }
+-bad()  { echo "  [FAIL] $*"; FAIL=$((FAIL+1)); }
+-warn() { echo "  [WARN] $*"; WARN=$((WARN+1)); }
++PASS=0
++FAIL=0
++WARN=0
++ok() {
++  echo "  [ OK ] $*"
++  PASS=$((PASS + 1))
++}
++bad() {
++  echo "  [FAIL] $*"
++  FAIL=$((FAIL + 1))
++}
++warn() {
++  echo "  [WARN] $*"
++  WARN=$((WARN + 1))
++}
+ 
+ echo "== Hopper Harbor/terminal-bench dependency setup ($(hostname)) =="
+ 
+@@ -55,51 +70,51 @@ set +u
+ [ -f /etc/profile.d/lmod.sh ] && source /etc/profile.d/lmod.sh
+ [ -n "${MODULESHOME:-}" ] && [ -f "$MODULESHOME/init/bash" ] && source "$MODULESHOME/init/bash"
+ if command -v module >/dev/null 2>&1; then
+-    module load hosts/hopper apptainer/1.4.1 2>/dev/null && ok "module apptainer/1.4.1" \
+-        || warn "apptainer module load failed (fine off-cluster; fatal on Hopper)"
+-    # gnu10 chain LAST -- a later hosts/hopper reload flips gnu10->gnu9 and
+-    # silently inactivates git/2.39.1-vd.
+-    module load gnu10/10.3.0-ya git/2.39.1-vd 2>/dev/null && ok "module git/2.39.1-vd (gnu10 chain)" \
+-        || warn "git module load failed (fine off-cluster; check Lmod 'Inactive Modules' on Hopper)"
++  module load hosts/hopper apptainer/1.4.1 2>/dev/null && ok "module apptainer/1.4.1" ||
++    warn "apptainer module load failed (fine off-cluster; fatal on Hopper)"
++  # gnu10 chain LAST -- a later hosts/hopper reload flips gnu10->gnu9 and
++  # silently inactivates git/2.39.1-vd.
++  module load gnu10/10.3.0-ya git/2.39.1-vd 2>/dev/null && ok "module git/2.39.1-vd (gnu10 chain)" ||
++    warn "git module load failed (fine off-cluster; check Lmod 'Inactive Modules' on Hopper)"
+ else
+-    warn "no Lmod on this host (skipping module loads)"
++  warn "no Lmod on this host (skipping module loads)"
+ fi
+ set -u
+-[ -n "${GIT_BINDIR:-}" ]       && export PATH="$GIT_BINDIR:$PATH"
++[ -n "${GIT_BINDIR:-}" ] && export PATH="$GIT_BINDIR:$PATH"
+ [ -n "${APPTAINER_BINDIR:-}" ] && export PATH="$APPTAINER_BINDIR:$PATH"
+ 
+ # ================================================================================
+ echo
+ echo "-- 2. Conda env '$CONDA_ENV' with Python >= $PYTHON_VERSION + harbor >= $HARBOR_MIN_VERSION"
+ if ! command -v conda >/dev/null 2>&1; then
+-    bad "conda not on PATH -- install miniforge/miniconda first:
++  bad "conda not on PATH -- install miniforge/miniconda first:
+        curl -fsSLo Miniforge3.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
+        bash Miniforge3.sh -b -p \$SCRATCH_DIR/miniforge3   # scratch, not home (quota)"
+ else
+-    source "$(conda info --base)/etc/profile.d/conda.sh"
+-    if ! conda env list | awk '{print $1}' | grep -qx "$CONDA_ENV"; then
+-        if [ "$CHECK_ONLY" -eq 1 ]; then
+-            bad "conda env '$CONDA_ENV' missing (rerun without --check-only to create)"
+-        else
+-            echo "  creating conda env '$CONDA_ENV' (python=$PYTHON_VERSION)..."
+-            conda create -y -n "$CONDA_ENV" "python=$PYTHON_VERSION" >/dev/null \
+-                && ok "created env $CONDA_ENV" || bad "conda create failed"
+-        fi
++  source "$(conda info --base)/etc/profile.d/conda.sh"
++  if ! conda env list | awk '{print $1}' | grep -qx "$CONDA_ENV"; then
++    if [ "$CHECK_ONLY" -eq 1 ]; then
++      bad "conda env '$CONDA_ENV' missing (rerun without --check-only to create)"
++    else
++      echo "  creating conda env '$CONDA_ENV' (python=$PYTHON_VERSION)..."
++      conda create -y -n "$CONDA_ENV" "python=$PYTHON_VERSION" >/dev/null &&
++        ok "created env $CONDA_ENV" || bad "conda create failed"
+     fi
+-    if conda activate "$CONDA_ENV" 2>/dev/null; then
+-        pyver="$(python -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')"
+-        python -c 'import sys; sys.exit(0 if sys.version_info >= (3,12) else 1)' \
+-            && ok "python $pyver (>= 3.12, harbor requires-python)" \
+-            || bad "python $pyver < 3.12 -- harbor won't install; recreate env with python=3.12"
+-        if [ "$CHECK_ONLY" -eq 0 ]; then
+-            echo "  pip installing harbor>=$HARBOR_MIN_VERSION (pure-python wheels)..."
+-            pip install -q --upgrade "harbor>=$HARBOR_MIN_VERSION" \
+-                && ok "pip install harbor" || bad "pip install harbor failed (egress to pypi.org?)"
+-        fi
+-        if command -v harbor >/dev/null 2>&1; then
+-            hv="$(harbor --version 2>/dev/null || echo '?')"
+-            ok "harbor on PATH (version $hv)"
+-            python - "$hv" "$HARBOR_MIN_VERSION" <<'PYEOF' && ok "harbor version >= $HARBOR_MIN_VERSION" || warn "harbor $hv < $HARBOR_MIN_VERSION -- upgrade recommended"
++  fi
++  if conda activate "$CONDA_ENV" 2>/dev/null; then
++    pyver="$(python -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')"
++    python -c 'import sys; sys.exit(0 if sys.version_info >= (3,12) else 1)' &&
++      ok "python $pyver (>= 3.12, harbor requires-python)" ||
++      bad "python $pyver < 3.12 -- harbor won't install; recreate env with python=3.12"
++    if [ "$CHECK_ONLY" -eq 0 ]; then
++      echo "  pip installing harbor>=$HARBOR_MIN_VERSION (pure-python wheels)..."
++      pip install -q --upgrade "harbor>=$HARBOR_MIN_VERSION" &&
++        ok "pip install harbor" || bad "pip install harbor failed (egress to pypi.org?)"
++    fi
++    if command -v harbor >/dev/null 2>&1; then
++      hv="$(harbor --version 2>/dev/null || echo '?')"
++      ok "harbor on PATH (version $hv)"
++      python - "$hv" "$HARBOR_MIN_VERSION" <<'PYEOF' && ok "harbor version >= $HARBOR_MIN_VERSION" || warn "harbor $hv < $HARBOR_MIN_VERSION -- upgrade recommended"
+ import sys
+ from packaging.version import Version
+ try:
+@@ -107,110 +122,110 @@ try:
+ except Exception:
+     sys.exit(1)
+ PYEOF
+-        else
+-            bad "harbor not on PATH after install"
+-        fi
+     else
+-        bad "could not activate conda env '$CONDA_ENV'"
++      bad "harbor not on PATH after install"
+     fi
++  else
++    bad "could not activate conda env '$CONDA_ENV'"
++  fi
+ fi
+ 
+ # ================================================================================
+ echo
+ echo "-- 3. Scratch cache/dir layout"
+ for d in "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$SIF_CACHE_DIR" "$JOBS_DIR" "$REPO_DIR/logs"; do
+-    if [ "$CHECK_ONLY" -eq 1 ]; then
+-        [ -d "$d" ] && ok "$d" || warn "$d missing"
+-    else
+-        mkdir -p "$d" && ok "$d" || bad "cannot create $d"
+-    fi
++  if [ "$CHECK_ONLY" -eq 1 ]; then
++    [ -d "$d" ] && ok "$d" || warn "$d missing"
++  else
++    mkdir -p "$d" && ok "$d" || bad "cannot create $d"
++  fi
+ done
+ free_gb="$(df -BG --output=avail "$SCRATCH_DIR" 2>/dev/null | tail -1 | tr -dc '0-9')"
+ if [ -n "$free_gb" ]; then
+-    if [ "$free_gb" -ge "$MIN_SCRATCH_FREE_GB" ]; then
+-        ok "scratch free space: ${free_gb}G (>= ${MIN_SCRATCH_FREE_GB}G; every tb2 task has its own SIF)"
+-    else
+-        warn "scratch free space: ${free_gb}G < ${MIN_SCRATCH_FREE_GB}G -- full tb2 sweep needs 50-150+ GB of SIFs"
+-    fi
++  if [ "$free_gb" -ge "$MIN_SCRATCH_FREE_GB" ]; then
++    ok "scratch free space: ${free_gb}G (>= ${MIN_SCRATCH_FREE_GB}G; every tb2 task has its own SIF)"
++  else
++    warn "scratch free space: ${free_gb}G < ${MIN_SCRATCH_FREE_GB}G -- full tb2 sweep needs 50-150+ GB of SIFs"
++  fi
+ fi
+ 
+ # ================================================================================
+ echo
+ echo "-- 4. Host preflight (binaries, rootless userns)"
+ if command -v git >/dev/null 2>&1; then
+-    gitver="$(git --version | awk '{print $3}')"
+-    # --filter=blob:none needs git >= 2.19
+-    printf '%s\n2.19.0\n' "$gitver" | sort -V -C && bad "git $gitver < 2.19 (no partial clone)" \
+-        || ok "git $gitver (partial clone OK)"
++  gitver="$(git --version | awk '{print $3}')"
++  # --filter=blob:none needs git >= 2.19
++  printf '%s\n2.19.0\n' "$gitver" | sort -V -C && bad "git $gitver < 2.19 (no partial clone)" ||
++    ok "git $gitver (partial clone OK)"
+ else
+-    bad "git not on PATH (module chain broken? see Lmod Inactive Modules)"
++  bad "git not on PATH (module chain broken? see Lmod Inactive Modules)"
+ fi
+ if command -v singularity >/dev/null 2>&1; then
+-    ok "singularity on PATH ($(singularity --version 2>/dev/null))"
+-    # apptainer bundles mksquashfs for docker->SIF conversion
+-    singularity buildcfg 2>/dev/null | grep -qi mksquashfs && ok "bundled mksquashfs configured" \
+-        || warn "could not confirm mksquashfs via buildcfg (pull will tell)"
++  ok "singularity on PATH ($(singularity --version 2>/dev/null))"
++  # apptainer bundles mksquashfs for docker->SIF conversion
++  singularity buildcfg 2>/dev/null | grep -qi mksquashfs && ok "bundled mksquashfs configured" ||
++    warn "could not confirm mksquashfs via buildcfg (pull will tell)"
+ else
+-    warn "singularity not on PATH (fatal on Hopper; fine if setting up elsewhere with ENV_TYPE=docker)"
++  warn "singularity not on PATH (fatal on Hopper; fine if setting up elsewhere with ENV_TYPE=docker)"
+ fi
+ ns_max="$(cat /proc/sys/user/max_user_namespaces 2>/dev/null || echo 0)"
+-[ "${ns_max:-0}" -gt 0 ] && ok "unprivileged user namespaces enabled (max=$ns_max)" \
+-    || bad "user namespaces disabled on $(hostname) -- --fakeroot cannot work (check on a COMPUTE node)"
++[ "${ns_max:-0}" -gt 0 ] && ok "unprivileged user namespaces enabled (max=$ns_max)" ||
++  bad "user namespaces disabled on $(hostname) -- --fakeroot cannot work (check on a COMPUTE node)"
+ command -v curl >/dev/null 2>&1 && ok "curl" || warn "curl missing (needed for --net checks only)"
+ 
+ # ================================================================================
+ echo
+ echo "-- 5. Credentials (export before sbatch; consumed via host env, never argv)"
+-[ -n "${OPENAI_API_KEY:-}" ] && ok "OPENAI_API_KEY set (codex / openhands-sdk)" \
+-    || warn "OPENAI_API_KEY not set (required for AGENT=codex|openhands-sdk)"
+-[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && ok "CLAUDE_CODE_OAUTH_TOKEN set (claude-code)" \
+-    || warn "CLAUDE_CODE_OAUTH_TOKEN not set (required for AGENT=claude-code; get via 'claude setup-token')"
++[ -n "${OPENAI_API_KEY:-}" ] && ok "OPENAI_API_KEY set (codex / openhands-sdk)" ||
++  warn "OPENAI_API_KEY not set (required for AGENT=codex|openhands-sdk)"
++[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && ok "CLAUDE_CODE_OAUTH_TOKEN set (claude-code)" ||
++  warn "CLAUDE_CODE_OAUTH_TOKEN not set (required for AGENT=claude-code; get via 'claude setup-token')"
+ [ -n "${ANTHROPIC_API_KEY:-}" ] && warn "ANTHROPIC_API_KEY is set in this env -- harmless (run script forces OAuth), but be aware" || true
+ 
+ # ================================================================================
+ if [ "$DO_NET" -eq 1 ]; then
+-    echo
+-    echo "-- 6. Egress probes (run from an salloc'd COMPUTE node -- login egress differs)"
+-    probe() {  # probe <label> <url>
+-        local code
+-        code="$(curl -s -o /dev/null --connect-timeout 8 --max-time 15 -w '%{http_code}' "$2" 2>/dev/null)"
+-        # any HTTP response (incl. 401/403/404) proves TCP+TLS egress works
+-        if [ -n "$code" ] && [ "$code" != "000" ]; then ok "$1 ($2 -> $code)"; else bad "$1 ($2 unreachable)"; fi
+-    }
+-    echo "  [harbor host process]"
+-    probe "dataset registry"        "https://raw.githubusercontent.com/laude-institute/harbor/main/registry.json"
+-    probe "task repo (github)"      "https://github.com/laude-institute/terminal-bench-2"
+-    probe "github codeload"         "https://codeload.github.com"
+-    probe "pypi index"              "https://pypi.org/simple/harbor/"
+-    probe "pypi files"              "https://files.pythonhosted.org"
+-    echo "  [SIF conversion -- all tb2 images are Docker Hub alexgshaw/*]"
+-    probe "docker hub registry"     "https://registry-1.docker.io/v2/"
+-    probe "docker hub auth"         "https://auth.docker.io/token?service=registry.docker.io&scope=repository:alexgshaw/gpt2-codegolf:pull"
+-    probe "docker hub CDN"          "https://production.cloudflare.docker.com"
+-    echo "  [container bootstrap (shares host netns under apptainer)]"
+-    probe "debian mirror"           "https://deb.debian.org"
+-    probe "ubuntu archive"          "http://archive.ubuntu.com/ubuntu/"
+-    probe "ubuntu security"         "http://security.ubuntu.com/ubuntu/"
+-    probe "get-pip fallback"        "https://bootstrap.pypa.io/get-pip.py"
+-    echo "  [agent installs]"
+-    probe "nvm installer (codex)"   "https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh"
+-    probe "node dist (codex)"       "https://nodejs.org/dist/"
+-    probe "npm registry (codex)"    "https://registry.npmjs.org/@openai/codex"
+-    probe "claude-code bootstrap"   "https://downloads.claude.ai/claude-code-releases/bootstrap.sh"
+-    probe "uv installer (openhands)" "https://astral.sh/uv/install.sh"
+-    probe "github release objects"  "https://objects.githubusercontent.com"
+-    echo "  [agent runtime APIs -- the previously-bitten VPN egress check]"
+-    probe "OpenAI API"              "https://api.openai.com/v1/models"
+-    probe "Anthropic API"           "https://api.anthropic.com/v1/messages"
++  echo
++  echo "-- 6. Egress probes (run from an salloc'd COMPUTE node -- login egress differs)"
++  probe() { # probe <label> <url>
++    local code
++    code="$(curl -s -o /dev/null --connect-timeout 8 --max-time 15 -w '%{http_code}' "$2" 2>/dev/null)"
++    # any HTTP response (incl. 401/403/404) proves TCP+TLS egress works
++    if [ -n "$code" ] && [ "$code" != "000" ]; then ok "$1 ($2 -> $code)"; else bad "$1 ($2 unreachable)"; fi
++  }
++  echo "  [harbor host process]"
++  probe "dataset registry" "https://raw.githubusercontent.com/laude-institute/harbor/main/registry.json"
++  probe "task repo (github)" "https://github.com/laude-institute/terminal-bench-2"
++  probe "github codeload" "https://codeload.github.com"
++  probe "pypi index" "https://pypi.org/simple/harbor/"
++  probe "pypi files" "https://files.pythonhosted.org"
++  echo "  [SIF conversion -- all tb2 images are Docker Hub alexgshaw/*]"
++  probe "docker hub registry" "https://registry-1.docker.io/v2/"
++  probe "docker hub auth" "https://auth.docker.io/token?service=registry.docker.io&scope=repository:alexgshaw/gpt2-codegolf:pull"
++  probe "docker hub CDN" "https://production.cloudflare.docker.com"
++  echo "  [container bootstrap (shares host netns under apptainer)]"
++  probe "debian mirror" "https://deb.debian.org"
++  probe "ubuntu archive" "http://archive.ubuntu.com/ubuntu/"
++  probe "ubuntu security" "http://security.ubuntu.com/ubuntu/"
++  probe "get-pip fallback" "https://bootstrap.pypa.io/get-pip.py"
++  echo "  [agent installs]"
++  probe "nvm installer (codex)" "https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh"
++  probe "node dist (codex)" "https://nodejs.org/dist/"
++  probe "npm registry (codex)" "https://registry.npmjs.org/@openai/codex"
++  probe "claude-code bootstrap" "https://downloads.claude.ai/claude-code-releases/bootstrap.sh"
++  probe "uv installer (openhands)" "https://astral.sh/uv/install.sh"
++  probe "github release objects" "https://objects.githubusercontent.com"
++  echo "  [agent runtime APIs -- the previously-bitten VPN egress check]"
++  probe "OpenAI API" "https://api.openai.com/v1/models"
++  probe "Anthropic API" "https://api.anthropic.com/v1/messages"
+ fi
+ 
+ # ================================================================================
+ echo
+ echo "== summary: $PASS ok, $WARN warn, $FAIL fail =="
+ if [ "$FAIL" -gt 0 ]; then
+-    echo "Fix FAILs before submitting. WARNs are context-dependent (e.g. creds for agents you aren't running)."
+-    exit 1
++  echo "Fix FAILs before submitting. WARNs are context-dependent (e.g. creds for agents you aren't running)."
++  exit 1
+ fi
+ echo "Ready. Smoke test:"
+ echo "  cd $REPO_DIR && export OPENAI_API_KEY=... && N_TASKS=1 sbatch run_terminalbench_harbor.sh"
+-exit 0
+\ No newline at end of file
++exit 0

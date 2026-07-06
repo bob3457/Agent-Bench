@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-import docker
 import json
 import platform
 import threading
 import traceback
 
+import docker
+
 if platform.system() == "Linux":
     import resource
 
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path, PurePosixPath
-from tqdm.auto import tqdm
 
 from swebench.harness.constants import (
     APPLY_PATCH_FAIL,
@@ -23,11 +23,18 @@ from swebench.harness.constants import (
     KEY_INSTANCE_ID,
     KEY_MODEL,
     KEY_PREDICTION,
-    LOG_REPORT,
     LOG_INSTANCE,
+    LOG_REPORT,
     LOG_TEST_OUTPUT,
     RUN_EVALUATION_LOG_DIR,
     UTF8,
+)
+from swebench.harness.docker_build import (
+    BuildImageError,
+    build_container,
+    build_env_images,
+    close_logger,
+    setup_logger,
 )
 from swebench.harness.docker_utils import (
     clean_images,
@@ -38,28 +45,22 @@ from swebench.harness.docker_utils import (
     remove_image,
     should_remove,
 )
-from swebench.harness.docker_build import (
-    BuildImageError,
-    build_container,
-    build_env_images,
-    close_logger,
-    setup_logger,
-)
 from swebench.harness.grading import get_eval_report
-from swebench.harness.reporting import make_run_report
 from swebench.harness.modal_eval import (
     run_instances_modal,
     validate_modal_credentials,
 )
-from swebench.harness.test_spec.test_spec import make_test_spec, TestSpec
+from swebench.harness.reporting import make_run_report
+from swebench.harness.test_spec.test_spec import TestSpec, make_test_spec
 from swebench.harness.utils import (
     EvaluationError,
-    load_swebench_dataset,
     get_predictions_from_file,
+    load_swebench_dataset,
+    optional_str,
     run_threadpool,
     str2bool,
-    optional_str,
 )
+from tqdm.auto import tqdm
 
 GIT_APPLY_CMDS = [
     "git apply --verbose",
@@ -124,17 +125,13 @@ def run_instance(
 
     if not test_spec.is_remote_image:
         # Link the image build dir in the log dir
-        build_dir = INSTANCE_IMAGE_BUILD_DIR / test_spec.instance_image_key.replace(
-            ":", "__"
-        )
+        build_dir = INSTANCE_IMAGE_BUILD_DIR / test_spec.instance_image_key.replace(":", "__")
         image_build_link = log_dir / "image_build_dir"
         if not image_build_link.exists():
             try:
                 # link the image build dir in the log dir
-                image_build_link.symlink_to(
-                    build_dir.absolute(), target_is_directory=True
-                )
-            except:
+                image_build_link.symlink_to(build_dir.absolute(), target_is_directory=True)
+            except OSError:
                 # some error, idk why
                 pass
 
@@ -149,9 +146,7 @@ def run_instance(
     report = {}
     try:
         # Build + start instance container (instance image should already be built)
-        container = build_container(
-            test_spec, client, run_id, logger, rm_image, force_rebuild
-        )
+        container = build_container(test_spec, client, run_id, logger, rm_image, force_rebuild)
         container.start()
         logger.info(f"Container for {instance_id} started: {container.id}")
 
@@ -187,9 +182,7 @@ def run_instance(
 
         # Get git diff before running eval script
         git_diff_output_before = (
-            container.exec_run(
-                "git -c core.fileMode=false diff", workdir=DOCKER_WORKDIR
-            )
+            container.exec_run("git -c core.fileMode=false diff", workdir=DOCKER_WORKDIR)
             .output.decode(UTF8)
             .strip()
         )
@@ -221,9 +214,7 @@ def run_instance(
 
         # Get git diff after running eval script (ignore permission changes)
         git_diff_output_after = (
-            container.exec_run(
-                "git -c core.fileMode=false diff", workdir=DOCKER_WORKDIR
-            )
+            container.exec_run("git -c core.fileMode=false diff", workdir=DOCKER_WORKDIR)
             .output.decode(UTF8)
             .strip()
         )
@@ -316,15 +307,10 @@ def run_instances(
     # print number of existing instance images
     instance_image_ids = {x.instance_image_key for x in test_specs}
     existing_images = {
-        tag
-        for i in client.images.list(all=True)
-        for tag in i.tags
-        if tag in instance_image_ids
+        tag for i in client.images.list(all=True) for tag in i.tags if tag in instance_image_ids
     }
     if not force_rebuild and len(existing_images):
-        print(
-            f"Found {len(existing_images)} existing instance images. Will reuse them."
-        )
+        print(f"Found {len(existing_images)} existing instance images. Will reuse them.")
 
     # run instances in parallel
     payloads = []
@@ -393,9 +379,7 @@ def get_dataset_from_preds(
         # check that all instance IDs have predictions
         missing_preds = set(instance_ids) - set(predictions.keys())
         if missing_preds:
-            print(
-                f"Warning: Missing predictions for {len(missing_preds)} instance IDs."
-            )
+            print(f"Warning: Missing predictions for {len(missing_preds)} instance IDs.")
 
     # check that all prediction IDs are in the dataset
     prediction_ids = set(predictions.keys())
@@ -428,8 +412,7 @@ def get_dataset_from_preds(
         dataset = [
             i
             for i in dataset
-            if i[KEY_INSTANCE_ID] in prediction_ids
-            and i[KEY_INSTANCE_ID] in test_output_ids
+            if i[KEY_INSTANCE_ID] in prediction_ids and i[KEY_INSTANCE_ID] in test_output_ids
         ]
         return dataset
 
@@ -456,17 +439,14 @@ def get_dataset_from_preds(
         dataset = [i for i in dataset if i[KEY_INSTANCE_ID] not in completed_ids]
 
     empty_patch_ids = {
-        k
-        for k, v in predictions.items()
-        if v[KEY_PREDICTION] == "" or v[KEY_PREDICTION] is None
+        k for k, v in predictions.items() if v[KEY_PREDICTION] == "" or v[KEY_PREDICTION] is None
     }
 
     # filter dataset to only instances with predictions
     dataset = [
         i
         for i in dataset
-        if i[KEY_INSTANCE_ID] in prediction_ids
-        and i[KEY_INSTANCE_ID] not in empty_patch_ids
+        if i[KEY_INSTANCE_ID] in prediction_ids and i[KEY_INSTANCE_ID] not in empty_patch_ids
     ]
     return dataset
 
@@ -591,9 +571,7 @@ if __name__ == "__main__":
         type=str,
         help="Name of dataset or path to JSON file.",
     )
-    parser.add_argument(
-        "-s", "--split", type=str, default="test", help="Split of the dataset"
-    )
+    parser.add_argument("-s", "--split", type=str, default="test", help="Split of the dataset")
     parser.add_argument(
         "-i",
         "--instance_ids",
@@ -616,9 +594,7 @@ if __name__ == "__main__":
         default=4,
         help="Maximum number of workers (should be <= 75%% of CPU cores)",
     )
-    parser.add_argument(
-        "--open_file_limit", type=int, default=4096, help="Open file limit"
-    )
+    parser.add_argument("--open_file_limit", type=int, default=4096, help="Open file limit")
     parser.add_argument(
         "-t",
         "--timeout",
@@ -657,18 +633,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--instance_image_tag", type=str, default="latest", help="Instance image tag"
     )
-    parser.add_argument(
-        "--env_image_tag", type=str, default="latest", help="Environment image tag"
-    )
+    parser.add_argument("--env_image_tag", type=str, default="latest", help="Environment image tag")
     parser.add_argument(
         "--rewrite_reports",
         type=str2bool,
         default=False,
         help="Doesn't run new instances, only writes reports for instances with existing test outputs",
     )
-    parser.add_argument(
-        "--report_dir", type=str, default=".", help="Directory to write reports to"
-    )
+    parser.add_argument("--report_dir", type=str, default=".", help="Directory to write reports to")
 
     # Modal execution args
     parser.add_argument("--modal", type=str2bool, default=False, help="Run on Modal")

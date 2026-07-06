@@ -1,0 +1,17 @@
+host=hop063.orc.gmu.edu job=8821411 fam=codexlow env=bench resume=0 judge='codex exec --skip-git-repo-check -s read-only -c model_reasoning_effort=low'
+judge binary: /home/czhai/.local/bin/codex
+
+========== STAGE: freshqa ==========
++ python /scratch/czhai/Agent-Bench/eval/eval_freshqa.py --responses /scratch/czhai/Agent-Bench/data/codexlow/freshqa_responses.jsonl --mode both --judge-cmd 'codex exec --skip-git-repo-check -s read-only -c model_reasoning_effort=low' --graded-out /scratch/czhai/Agent-Bench/data/codexlow/freshqa_graded.jsonl
+========================================================================
+category                  n     relaxed      strict     halluc.
+------------------------------------------------------------------------
+TEST                      1       0.0%       0.0%       0.0%
+------------------------------------------------------------------------
+OVERALL                   1       0.0%       0.0%       0.0%
+
+Hallucination rate = 0/1 = 0.0% of all responses
+
+========== SUMMARY ==========
+  freshqa=0 (OK)
+freshqa graded -> /scratch/czhai/Agent-Bench/data/codexlow/freshqa_graded.jsonl

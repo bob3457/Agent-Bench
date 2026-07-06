@@ -1,0 +1,15 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["jobs", "logs", "data/results", ".hf_cache"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# intentional late import after OPENHANDS_SUPPRESS_BANNER env setup
+"agent_plugins/openhands_agent.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
