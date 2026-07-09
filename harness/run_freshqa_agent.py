@@ -9,10 +9,10 @@ agents.yaml, and the harness only ever hands it a question and reads back its
 answer + telemetry. Adding an agent is a YAML edit, not a code change.
 
     # open-book (web tools allowed) — see the agents.yaml row note below
-    python run_freshqa_agent.py --agent claude-search \
-        --input freshqa.csv --limit 50
+    python harness/run_freshqa_agent.py --agent claude-search \
+        --input datasets/freshqa.csv --limit 50
 
-    python run_freshqa_agent.py --agent codex --input freshqa.csv
+    python harness/run_freshqa_agent.py --agent codex --input datasets/freshqa.csv
 
 Output paths default to data/<agent-family>/freshqa_responses.jsonl, where the
 family is the agent name up to the first '-' (so claude-search and

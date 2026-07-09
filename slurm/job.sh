@@ -2,15 +2,15 @@
 # Run all three Agent-Bench generation harnesses (SWE-bench, HotpotQA, FreshQA)
 # with the Codex agent on Hopper (SLURM), sequentially in one job.
 #
-# USAGE (submit from ~/Agent-Bench):
-#     cd ~/Agent-Bench
+# USAGE (submit from the repo root):
+#     cd /scratch/$USER/Agent-Bench   # your repo root
 #     mkdir -p logs                       # SLURM won't create --output dirs
 #     export OPENAI_API_KEY=sk-...        # consumed by codex exec
-#     sbatch run_agentbench_codex.sh
+#     sbatch slurm/job.sh
 #     # override any knob at submit time, e.g. a quick smoke test:
-#     SWE_N=3 HOTPOT_LIMIT=5 FRESHQA_LIMIT=5 sbatch run_agentbench_codex.sh
+#     SWE_N=3 HOTPOT_LIMIT=5 FRESHQA_LIMIT=5 sbatch slurm/job.sh
 #     # resume after a timeout/requeue (skips work already on disk):
-#     RESUME=1 sbatch run_agentbench_codex.sh
+#     RESUME=1 sbatch slurm/job.sh
 #
 #SBATCH --job-name=agentbench-codex
 #SBATCH --output=logs/agentbench-codex-%j.out

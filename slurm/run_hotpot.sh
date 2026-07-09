@@ -2,11 +2,11 @@
 # Run ONLY the HotpotQA generation harness with the Codex agent on Hopper.
 #
 # USAGE:
-#     cd ~/Agent-Bench && mkdir -p logs
+#     cd /scratch/$USER/Agent-Bench && mkdir -p logs   # your repo root
 #     export OPENAI_API_KEY=sk-...
-#     sbatch run_hotpot_codex.sh
-#     # smoke test:            HOTPOT_LIMIT=5 sbatch run_hotpot_codex.sh
-#     # resume after timeout:  RESUME=1 sbatch run_hotpot_codex.sh
+#     sbatch slurm/run_hotpot.sh
+#     # smoke test:            HOTPOT_LIMIT=5 sbatch slurm/run_hotpot.sh
+#     # resume after timeout:  RESUME=1 sbatch slurm/run_hotpot.sh
 #
 #SBATCH --job-name=agentbench-hotpot
 #SBATCH --output=logs/agentbench-hotpot-%j.out

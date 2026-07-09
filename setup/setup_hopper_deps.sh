@@ -8,9 +8,9 @@
 # (def-file --fakeroot prebakes). The old conda squashfuse hack is gone.
 #
 # Usage:
-#   bash setup_hopper_deps.sh              # install + local preflight
-#   bash setup_hopper_deps.sh --net        # also probe network egress (from a COMPUTE node)
-#   bash setup_hopper_deps.sh --check-only # no installs, preflight only
+#   bash setup/setup_hopper_deps.sh              # install + local preflight
+#   bash setup/setup_hopper_deps.sh --net        # also probe network egress (from a COMPUTE node)
+#   bash setup/setup_hopper_deps.sh --check-only # no installs, preflight only
 #
 # Everything is idempotent; rerun freely.
 

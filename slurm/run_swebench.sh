@@ -2,10 +2,10 @@
 # Run ONLY the SWE-bench_Lite generation harness with the Codex agent on Hopper.
 #
 # USAGE:
-#     cd ~/Agent-Bench && mkdir -p logs
+#     cd /scratch/$USER/Agent-Bench && mkdir -p logs   # your repo root
 #     export OPENAI_API_KEY=sk-...
-#     sbatch run_swebench_codex.sh
-#     # smoke test:            SWE_N=3 sbatch run_swebench_codex.sh
+#     sbatch slurm/run_swebench.sh
+#     # smoke test:            SWE_N=3 sbatch slurm/run_swebench.sh
 #     # (SWE-bench resumes automatically by skipping instance_ids already predicted)
 #
 #SBATCH --job-name=agentbench-swe

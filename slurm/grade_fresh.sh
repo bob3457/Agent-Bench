@@ -12,19 +12,19 @@
 #
 # TO SWITCH THE JUDGE TO CLAUDE CODE: submit with
 #     export CLAUDE_CODE_OAUTH_TOKEN=...            # `claude setup-token` on a login node
-#     JUDGE_CMD="claude -p" sbatch grade_freshqa.sh
+#     JUDGE_CMD="claude -p" sbatch slurm/grade_fresh.sh
 # (or edit the JUDGE_CMD default below). Claude needs the `claude` binary on
 # PATH + egress to the Anthropic API. If the token is rejected, fall back to
 # ANTHROPIC_API_KEY.
 #
-# USAGE (submit from ~/Agent-Bench):
-#     cd ~/Agent-Bench
+# USAGE (submit from the repo root):
+#     cd /scratch/$USER/Agent-Bench   # your repo root
 #     mkdir -p logs
-#     sbatch grade_freshqa.sh
+#     sbatch slurm/grade_fresh.sh
 #     # skip if graded output already exists:
-#     RESUME=1 sbatch grade_freshqa.sh
+#     RESUME=1 sbatch slurm/grade_fresh.sh
 #     # grade a different output family dir under data/:
-#     FAM=codexhigh sbatch grade_freshqa.sh
+#     FAM=codexhigh sbatch slurm/grade_fresh.sh
 #
 #SBATCH --job-name=freshqa-grade
 #SBATCH --output=logs/freshqa-grade-%j.out
@@ -63,7 +63,7 @@ FRESHQA_MODE="${FRESHQA_MODE:-both}"
 JUDGE_CMD="${JUDGE_CMD:-codex exec --skip-git-repo-check -s read-only -c model_reasoning_effort=low}"
 #
 # To use Claude Code as the judge instead, override at submit time:
-#     JUDGE_CMD="claude -p" sbatch grade_freshqa.sh
+#     JUDGE_CMD="claude -p" sbatch slurm/grade_fresh.sh
 # or swap the default above for:
 #     JUDGE_CMD="${JUDGE_CMD:-claude -p}"
 # ----------------------------------------------------------------------------

@@ -8,16 +8,16 @@
 # is loaded offline via HF_HUB_OFFLINE=1, so pre-cache
 # princeton-nlp/SWE-bench_Lite on a login node before submitting.
 #
-# USAGE (submit from ~/Agent-Bench):
-#     cd ~/Agent-Bench
+# USAGE (submit from the repo root):
+#     cd /scratch/$USER/Agent-Bench   # your repo root
 #     mkdir -p logs
-#     sbatch grade_swebench.sh
+#     sbatch slurm/grade_swebench.sh
 #     # skip if the report already exists:
-#     RESUME=1 sbatch grade_swebench.sh
+#     RESUME=1 sbatch slurm/grade_swebench.sh
 #     # grade a different output family dir under data/:
-#     FAM=codex sbatch grade_swebench.sh
+#     FAM=codexhigh sbatch slurm/grade_swebench.sh
 #     # bump parallel workers (watch memory -- each worker builds/runs a container):
-#     MAX_WORKERS=8 sbatch grade_swebench.sh
+#     MAX_WORKERS=8 sbatch slurm/grade_swebench.sh
 #
 #SBATCH --job-name=swebench-grade
 #SBATCH --output=logs/swebench-grade-%j.out

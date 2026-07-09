@@ -2,12 +2,12 @@
 # Run ONLY the FreshQA generation harness with the Codex agent on Hopper.
 #
 # USAGE:
-#     cd ~/Agent-Bench && mkdir -p logs
+#     cd /scratch/$USER/Agent-Bench && mkdir -p logs   # your repo root
 #     export OPENAI_API_KEY=sk-...
-#     sbatch run_freshqa_codex.sh
-#     # smoke test:            FRESHQA_LIMIT=5 sbatch run_freshqa_codex.sh
-#     # open-book (web) run:   FRESHQA_AGENT=codex-search sbatch run_freshqa_codex.sh
-#     # resume after timeout:  RESUME=1 sbatch run_freshqa_codex.sh
+#     sbatch slurm/run_fresh.sh
+#     # smoke test:            FRESHQA_LIMIT=5 sbatch slurm/run_fresh.sh
+#     # open-book (web) run:   FRESHQA_AGENT=codex-search sbatch slurm/run_fresh.sh
+#     # resume after timeout:  RESUME=1 sbatch slurm/run_fresh.sh
 #
 #SBATCH --job-name=agentbench-freshqa
 #SBATCH --output=logs/agentbench-freshqa-%j.out

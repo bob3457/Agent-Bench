@@ -4,16 +4,16 @@
 # Grading is OFFLINE (official EM/F1 script vs the gold distractor file) --
 # no API key, no internet needed on the compute node.
 #
-# USAGE (submit from ~/Agent-Bench):
-#     cd ~/Agent-Bench
+# USAGE (submit from the repo root):
+#     cd /scratch/$USER/Agent-Bench   # your repo root
 #     mkdir -p logs
-#     sbatch grade_hotpot.sh
+#     sbatch slurm/grade_hotpot.sh
 #     # cap hotpot cases scored (optional 3rd arg to the eval script):
-#     HOTPOT_LIMIT=100 sbatch grade_hotpotqa.sh
+#     HOTPOT_LIMIT=100 sbatch slurm/grade_hotpot.sh
 #     # skip if graded output already exists:
-#     RESUME=1 sbatch grade_hotpotqa.sh
+#     RESUME=1 sbatch slurm/grade_hotpot.sh
 #     # grade a different output family dir under data/:
-#     FAM=codexlow sbatch grade_hotpotqa.sh
+#     FAM=codexlow sbatch slurm/grade_hotpot.sh
 #
 #SBATCH --job-name=hotpot-grade
 #SBATCH --output=logs/hotpot-grade-%j.out

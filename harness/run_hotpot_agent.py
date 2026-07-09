@@ -11,8 +11,8 @@ latency, turn count, per-usage breakdown, and any other field an agent chooses
 to emit) goes to a SEPARATE metrics file so predictions.json stays exactly what
 the scorer reads.
 
-    python run_hotpot_agent.py --agent claude-closedbook \
-        --input hotpot_dev_distractor_v1.json --limit 100
+    python harness/run_hotpot_agent.py --agent claude-closedbook \
+        --input datasets/hotpot_dev_distractor_v1.json --limit 100
 
 Output paths default to data/<agent-family>/ (family = agent name up to the
 first '-', so claude-closedbook -> data/claude/):
@@ -21,7 +21,7 @@ first '-', so claude-closedbook -> data/claude/):
 Override either with --output / --metrics.
 
 Then score:
-    python hotpot_evaluate_v1.py predictions.json hotpot_dev_distractor_v1.json
+    python eval/hotpot_evaluate_v1.py predictions.json datasets/hotpot_dev_distractor_v1.json
 
 ------------------------------------------------------------------------------
 TELEMETRY IS PASS-THROUGH BY DEFAULT

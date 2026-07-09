@@ -17,10 +17,10 @@
 #
 # Usage (run where egress works -- login node or egress-enabled compute node,
 # with the conda env active so `fakeroot` is on PATH):
-#   bash prebake_harbor_sifs.sh alexgshaw/adaptive-rejection-sampler:20251031
-#   bash prebake_harbor_sifs.sh --all-cached          # rebake every SIF in cache
-#   bash prebake_harbor_sifs.sh --from-tasks ~/.cache/harbor/tasks
-#   FORCE=1 bash prebake_harbor_sifs.sh ...           # rebake even if baked
+#   bash setup/prebake_harbor_sifs.sh alexgshaw/adaptive-rejection-sampler:20251031
+#   bash setup/prebake_harbor_sifs.sh --all-cached          # rebake every SIF in cache
+#   bash setup/prebake_harbor_sifs.sh --from-tasks ~/.cache/harbor/tasks
+#   FORCE=1 bash setup/prebake_harbor_sifs.sh ...           # rebake even if baked
 
 set -uo pipefail
 
