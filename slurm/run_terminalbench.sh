@@ -101,10 +101,14 @@ OPENHANDS_VERSION="${OPENHANDS_VERSION:-1.27.0}"
 
 REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
 SCRATCH_DIR="${SCRATCH_DIR:-/scratch/czhai}"
-CONDA_ENV="${CONDA_ENV:-bench}"
+CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
+CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
 
 DATASET="${DATASET:-terminal-bench@2.0}"
-TBENCH_N="${TBENCJ_N:-25}"
+# Accept both spellings (README documents TBENCH_N; header examples use
+# N_TASKS). Historic bug: this read ${TBENCJ_N:-25} (typo) into TBENCH_N,
+# while the rest of the script consumes $N_TASKS -- unbound under set -u.
+N_TASKS="${N_TASKS:-${TBENCH_N:-25}}"
 N_CONCURRENT="${N_CONCURRENT:-1}"
 # Hopper has no Docker; Harbor's singularity backend is rootless-compatible.
 # Use ENV_TYPE=docker when running on the local machine (ChrisWork) instead.
@@ -133,9 +137,6 @@ RUN_ID="${RUN_ID:-tbench_${AGENT}_${EFFORT}_$(date +%Y%m%d_%H%M%S)}"
 JOBS_DIR="${JOBS_DIR:-$REPO_DIR/data/harbor_jobs}"
 # ------------------------------------------------------------------------------
 
-source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate "$CONDA_ENV"
-
 cd "$REPO_DIR"
 mkdir -p "$REPO_DIR/logs" "$JOBS_DIR"
 
@@ -159,6 +160,20 @@ set -u
 # still resolves; even then, 1.4.1 picks up bundled squashfuse from PATH.
 APPTAINER_BINDIR="${APPTAINER_BINDIR:-$SCRATCH_DIR/apptainer/bin}"
 [ -d "${APPTAINER_BINDIR:-}" ] && export PATH="$APPTAINER_BINDIR:$PATH"
+
+# conda activation LAST -- module loads prepend to PATH and would shadow the
+# env's python if activation ran first. NEVER `conda info --base` in batch
+# shells: it resolves via whatever conda is on PATH (a coin flip with
+# multiple installs, or nothing at all in a clean batch env).
+source "$CONDA_ROOT/etc/profile.d/conda.sh"
+conda activate "$CONDA_ENV"
+# Reactivating an already-active env (e.g. submitted from a `(bench)` shell
+# with --export=ALL) is a PATH no-op -- force the env bin dir to the front.
+export PATH="$CONDA_PREFIX/bin:$PATH"
+python -c "import sys; assert sys.version_info >= (3, 12), sys.version" || {
+  echo "FATAL: wrong python: $(command -v python || echo none)"
+  exit 1
+}
 
 if [ "$ENV_TYPE" = "singularity" ]; then
   mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$SIF_CACHE_DIR"

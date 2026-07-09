@@ -31,9 +31,8 @@ set -euo pipefail
 # --- knobs (env-overridable at submit time) ---------------------------------
 AGENT="${AGENT:-codex}"
 REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
-CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
-CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
-RESUME="${RESUME:-0}" # 1 = skip work already on disk (requeue-friendly)
+CONDA_ENV="${CONDA_ENV:-bench}"
+RESUME="${RESUME:-0}"          # 1 = skip work already on disk (requeue-friendly)
 
 SWE_N="${SWE_N:-25}"
 HOTPOT_LIMIT="${HOTPOT_LIMIT:-50}"
@@ -58,6 +57,10 @@ FRESHQA_AGENT="${FRESHQA_AGENT:-$AGENT}"
 # Fail fast if the key didn't make it through (export it BEFORE sbatch).
 : "${OPENAI_API_KEY:?OPENAI_API_KEY not set -- run: export OPENAI_API_KEY=... before sbatch}"
 
+# conda activation inside a non-interactive shell
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate "$CONDA_ENV"
+
 cd "$REPO_DIR"
 mkdir -p "$REPO_DIR/logs"
 
@@ -81,29 +84,9 @@ set -u
 # so the path is valid on every node).
 [ -n "${GIT_BINDIR:-}" ] && export PATH="$GIT_BINDIR:$PATH"
 
-# conda activation LAST -- module loads prepend to PATH and would shadow the
-# env's python if activation ran first. NEVER `conda info --base` in batch
-# shells: it resolves via whatever conda is on PATH (a coin flip with
-# multiple installs, or nothing at all in a clean batch env).
-source "$CONDA_ROOT/etc/profile.d/conda.sh"
-conda activate "$CONDA_ENV"
-# Reactivating an already-active env (e.g. submitted from a `(bench)` shell
-# with --export=ALL) is a PATH no-op -- force the env bin dir to the front.
-export PATH="$CONDA_PREFIX/bin:$PATH"
-python -c "import sys; assert sys.version_info >= (3, 12), sys.version" || {
-  echo "FATAL: wrong python: $(command -v python || echo none)"
-  exit 1
-}
-
 # preflight: binaries the harnesses shell out to
-command -v codex >/dev/null 2>&1 || {
-  echo "ERROR: codex not on PATH"
-  exit 1
-}
-command -v git >/dev/null 2>&1 || {
-  echo "ERROR: git not on PATH"
-  exit 1
-}
+command -v codex >/dev/null 2>&1 || { echo "ERROR: codex not on PATH"; exit 1; }
+command -v git   >/dev/null 2>&1 || { echo "ERROR: git not on PATH";   exit 1; }
 
 # Cache HF datasets + repo clones on a persistent path.
 # ADAPT: SWE-bench fetches princeton-nlp/SWE-bench_Lite (HF) and clones repos
@@ -122,18 +105,16 @@ echo "swe_n=$SWE_N hotpot_limit=$HOTPOT_LIMIT freshqa_limit=$FRESHQA_LIMIT resum
 
 # Run a stage WITHOUT letting one failure abort the remaining stages.
 declare -a STAGE_RESULTS=()
-run_stage() {
-  local name="$1"
-  shift
-  echo
-  echo "========== STAGE: $name =========="
-  echo "+ $*"
-  local rc=0
-  "$@" || rc=$?
-  if [ "$rc" -eq 0 ]; then
-    echo "[$name] OK"
-  else echo "[$name] FAILED (rc=$rc) -- continuing to next stage"; fi
-  STAGE_RESULTS+=("$name=$rc")
+run_stage () {
+    local name="$1"; shift
+    echo
+    echo "========== STAGE: $name =========="
+    echo "+ $*"
+    local rc=0
+    "$@" || rc=$?
+    if [ "$rc" -eq 0 ]; then echo "[$name] OK"
+    else echo "[$name] FAILED (rc=$rc) -- continuing to next stage"; fi
+    STAGE_RESULTS+=("$name=$rc")
 }
 
 # 1) SWE-bench_Lite (closed-book by design) -- no --input; loads split from HF.
@@ -142,12 +123,12 @@ run_stage() {
 
 #2) HotpotQA (closed-book) -- needs the distractor JSON.
 if [ -f "$HOTPOT_INPUT" ]; then
-  run_stage hotpotqa \
-    python "$HARNESS_DIR/run_hotpot_agent.py" --agent "$AGENT" \
-    --input "$HOTPOT_INPUT" --limit "$HOTPOT_LIMIT" $RESUME_ARG
+    run_stage hotpotqa \
+        python "$HARNESS_DIR/run_hotpot_agent.py" --agent "$AGENT" \
+            --input "$HOTPOT_INPUT" --limit "$HOTPOT_LIMIT" $RESUME_ARG
 else
-  echo "[hotpotqa] SKIP -- input not found: $HOTPOT_INPUT (set HOTPOT_INPUT=...)"
-  STAGE_RESULTS+=("hotpotqa=skipped")
+    echo "[hotpotqa] SKIP -- input not found: $HOTPOT_INPUT (set HOTPOT_INPUT=...)"
+    STAGE_RESULTS+=("hotpotqa=skipped")
 fi
 
 # 3) FreshQA (open-book) -- needs the CSV.
@@ -164,9 +145,9 @@ echo
 echo "========== SUMMARY =========="
 fail=0
 for r in "${STAGE_RESULTS[@]}"; do
-  echo "  $r"
-  case "$r" in *=0 | *=skipped) ;; *) fail=1 ;; esac
+    echo "  $r"
+    case "$r" in *=0|*=skipped) ;; *) fail=1 ;; esac
 done
 fam="${AGENT%%-*}"
 echo "predictions under data/$fam/  (freshqa under data/${FRESHQA_AGENT%%-*}/)"
-exit "$fail" # non-zero if any stage genuinely failed, so SLURM marks it FAILED
+exit "$fail"   # non-zero if any stage genuinely failed, so SLURM marks it FAILED

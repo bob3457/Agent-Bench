@@ -25,14 +25,12 @@
 set -euo pipefail
 
 # --- knobs -------------------------------------------------------------------
-AGENT="${AGENT:-codex}"
+AGENT="${AGENT:-codexlow}"
 REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
 CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
 CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
 RESUME="${RESUME:-0}"
-# Accept both spellings (README documents FRESHQA_N; the invocation below
-# consumes $FRESHQA_LIMIT, which was previously never set -- unbound under set -u).
-FRESHQA_LIMIT="${FRESHQA_LIMIT:-${FRESHQA_N:-50}}"
+FRESHQA_N="${FRESHQA_N:-50}"
 HARNESS_DIR="${HARNESS_DIR:-$REPO_DIR/harness}"
 # ADAPT: dataset ships at the repo root in this repo.
 FRESHQA_INPUT="${FRESHQA_INPUT:-$REPO_DIR/datasets/freshqa.csv}"
@@ -46,6 +44,9 @@ FRESHQA_AGENT="${FRESHQA_AGENT:-$AGENT}"
 
 : "${OPENAI_API_KEY:?OPENAI_API_KEY not set -- run: export OPENAI_API_KEY=... before sbatch}"
 
+source "$CONDA_ROOT/etc/profile.d/conda.sh"
+conda activate "$CONDA_ENV"
+python -c 'import sys; assert sys.version_info >=
 cd "$REPO_DIR"
 mkdir -p "$REPO_DIR/logs"
 
@@ -56,20 +57,6 @@ set +u
 module load git/2.27.1 || echo "WARNING: 'module load git/2.27.1' failed"
 set -u
 [ -n "${GIT_BINDIR:-}" ] && export PATH="$GIT_BINDIR:$PATH"
-
-# conda activation LAST -- module loads prepend to PATH and would shadow the
-# env's python if activation ran first. NEVER `conda info --base` in batch
-# shells: it resolves via whatever conda is on PATH (a coin flip with
-# multiple installs, or nothing at all in a clean batch env).
-source "$CONDA_ROOT/etc/profile.d/conda.sh"
-conda activate "$CONDA_ENV"
-# Reactivating an already-active env (e.g. submitted from a `(bench)` shell
-# with --export=ALL) is a PATH no-op -- force the env bin dir to the front.
-export PATH="$CONDA_PREFIX/bin:$PATH"
-python -c "import sys; assert sys.version_info >= (3, 12), sys.version" || {
-  echo "FATAL: wrong python: $(command -v python || echo none)"
-  exit 1
-}
 
 command -v codex >/dev/null 2>&1 || {
   echo "ERROR: codex not on PATH"

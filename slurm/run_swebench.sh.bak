@@ -24,7 +24,7 @@
 set -euo pipefail
 
 # --- knobs -------------------------------------------------------------------
-AGENT="${AGENT:-codex}"
+AGENT="${AGENT:-codexlow}"
 REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
 CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
 CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
@@ -33,6 +33,10 @@ HARNESS_DIR="${HARNESS_DIR:-$REPO_DIR/harness}"
 # ------------------------------------------------------------------------------
 
 : "${OPENAI_API_KEY:?OPENAI_API_KEY not set -- run: export OPENAI_API_KEY=... before sbatch}"
+
+source "$CONDA_ROOT/etc/profile.d/conda.sh"
+conda activate "$CONDA_ENV"
+python -c "import datasets" || { echo "FATAL: wrong python: $(which python)"; exit 1; }
 
 cd "$REPO_DIR"
 mkdir -p "$REPO_DIR/logs"
@@ -45,36 +49,10 @@ module load git/2.27.1 || echo "WARNING: 'module load git/2.27.1' failed"
 set -u
 [ -n "${GIT_BINDIR:-}" ] && export PATH="$GIT_BINDIR:$PATH"
 
-# conda activation LAST -- module loads prepend to PATH and would shadow the
-# env's python if activation ran first. NEVER `conda info --base` in batch
-# shells: it resolves via whatever conda is on PATH (a coin flip with
-# multiple installs, or nothing at all in a clean batch env).
-source "$CONDA_ROOT/etc/profile.d/conda.sh"
-conda activate "$CONDA_ENV"
-# Reactivating an already-active env (e.g. submitted from a `(bench)` shell
-# with --export=ALL) is a PATH no-op -- force the env bin dir to the front.
-export PATH="$CONDA_PREFIX/bin:$PATH"
-python -c "import sys; assert sys.version_info >= (3, 12), sys.version" || {
-  echo "FATAL: wrong python: $(command -v python || echo none)"
-  exit 1
-}
-
-command -v codex >/dev/null 2>&1 || {
-  echo "ERROR: codex not on PATH"
-  exit 1
-}
-command -v bwrap >/dev/null 2>&1 || {
-  echo "ERROR: bwrap not on PATH"
-  exit 1
-}
-bwrap --ro-bind / / true || {
-  echo "ERROR: bwrap present but userns blocked"
-  exit 1
-}
-command -v git >/dev/null 2>&1 || {
-  echo "ERROR: git not on PATH"
-  exit 1
-}
+command -v codex >/dev/null 2>&1 || { echo "ERROR: codex not on PATH"; exit 1; }
+command -v bwrap >/dev/null 2>&1 || { echo "ERROR: bwrap not on PATH"; exit 1; }
+bwrap --ro-bind / / true || { echo "ERROR: bwrap present but userns blocked"; exit 1; }
+command -v git   >/dev/null 2>&1 || { echo "ERROR: git not on PATH";   exit 1; }
 
 # SWE-bench fetches princeton-nlp/SWE-bench_Lite (HF) and clones from github.com.
 export HF_HOME="${HF_HOME:-$REPO_DIR/.hf_cache}"

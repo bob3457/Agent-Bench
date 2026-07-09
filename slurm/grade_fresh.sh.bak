@@ -44,8 +44,7 @@ set -euo pipefail
 # --- knobs (env-overridable at submit time) ---------------------------------
 FAM="${FAM:-codexlow}" # output family dir under data/
 REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
-CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
-CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
+CONDA_ENV="${CONDA_ENV:-bench}"
 RESUME="${RESUME:-0}" # 1 = skip if graded file exists
 
 DATA_DIR="${DATA_DIR:-$REPO_DIR/data/$FAM}"
@@ -69,19 +68,9 @@ JUDGE_CMD="${JUDGE_CMD:-codex exec --skip-git-repo-check -s read-only -c model_r
 #     JUDGE_CMD="${JUDGE_CMD:-claude -p}"
 # ----------------------------------------------------------------------------
 
-# conda activation LAST -- module loads prepend to PATH and would shadow the
-# env's python if activation ran first. NEVER `conda info --base` in batch
-# shells: it resolves via whatever conda is on PATH (a coin flip with
-# multiple installs, or nothing at all in a clean batch env).
-source "$CONDA_ROOT/etc/profile.d/conda.sh"
+# conda activation inside a non-interactive shell
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate "$CONDA_ENV"
-# Reactivating an already-active env (e.g. submitted from a `(bench)` shell
-# with --export=ALL) is a PATH no-op -- force the env bin dir to the front.
-export PATH="$CONDA_PREFIX/bin:$PATH"
-python -c "import sys; assert sys.version_info >= (3, 12), sys.version" || {
-  echo "FATAL: wrong python: $(command -v python || echo none)"
-  exit 1
-}
 
 cd "$REPO_DIR"
 mkdir -p "$DATA_DIR" logs
