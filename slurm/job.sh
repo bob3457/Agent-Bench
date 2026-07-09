@@ -43,8 +43,8 @@ FRESHQA_LIMIT="${FRESHQA_LIMIT:-50}"
 HARNESS_DIR="${HARNESS_DIR:-$REPO_DIR/harness}"
 
 # ADAPT: dataset file locations. Both ship at the repo root in this repo.
-HOTPOT_INPUT="${HOTPOT_INPUT:-$REPO_DIR/hotpot_dev_distractor_v1.json}"
-FRESHQA_INPUT="${FRESHQA_INPUT:-$REPO_DIR/freshqa.csv}"
+HOTPOT_INPUT="${HOTPOT_INPUT:-$REPO_DIR/datasets/hotpot_dev_distractor_v1.json}"
+FRESHQA_INPUT="${FRESHQA_INPUT:-$REPO_DIR/datasets/freshqa.csv}"
 
 # FreshQA is OPEN-BOOK (needs live web). Plain `codex` is closed-book unless its
 # agents.yaml row enables web search. If you have a search-enabled variant, set

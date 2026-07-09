@@ -31,7 +31,7 @@ RESUME="${RESUME:-0}"
 HOTPOT_LIMIT="${HOTPOT_LIMIT:-50}"
 HARNESS_DIR="${HARNESS_DIR:-$REPO_DIR/harness}"
 # ADAPT: dataset ships at the repo root in this repo.
-HOTPOT_INPUT="${HOTPOT_INPUT:-$REPO_DIR/hotpot_dev_distractor_v1.json}"
+HOTPOT_INPUT="${HOTPOT_INPUT:-$REPO_DIR/datasets/hotpot_dev_distractor_v1.json}"
 # ------------------------------------------------------------------------------
 
 : "${OPENAI_API_KEY:?OPENAI_API_KEY not set -- run: export OPENAI_API_KEY=... before sbatch}"

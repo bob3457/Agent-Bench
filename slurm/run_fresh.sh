@@ -32,7 +32,7 @@ RESUME="${RESUME:-0}"
 FRESHQA_LIMIT="${FRESHQA_LIMIT:-50}"
 HARNESS_DIR="${HARNESS_DIR:-$REPO_DIR/harness}"
 # ADAPT: dataset ships at the repo root in this repo.
-FRESHQA_INPUT="${FRESHQA_INPUT:-$REPO_DIR/freshqa.csv}"
+FRESHQA_INPUT="${FRESHQA_INPUT:-$REPO_DIR/datasets/freshqa.csv}"
 
 # FreshQA is OPEN-BOOK (needs live web). Plain `codex` is closed-book unless its
 # agents.yaml row enables web search. With plain codex the harness prints a

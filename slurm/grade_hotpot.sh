@@ -39,7 +39,7 @@ RESUME="${RESUME:-0}" # 1 = skip if metrics file exists
 DATA_DIR="${DATA_DIR:-$REPO_DIR/data/$FAM}"
 EVAL_DIR="${EVAL_DIR:-$REPO_DIR/eval}"
 
-HOTPOT_GOLD="${HOTPOT_GOLD:-$REPO_DIR/hotpot_dev_distractor_v1.json}"
+HOTPOT_GOLD="${HOTPOT_GOLD:-$REPO_DIR/datasets/hotpot_dev_distractor_v1.json}"
 HOTPOT_PRED="${HOTPOT_PRED:-$DATA_DIR/hotpot_predictions.json}"
 HOTPOT_METRICS="${HOTPOT_METRICS:-$DATA_DIR/hotpot_metrics.txt}"
 HOTPOT_LIMIT="${HOTPOT_LIMIT:-}" # optional 3rd arg; empty = score all
