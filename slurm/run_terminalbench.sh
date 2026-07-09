@@ -15,6 +15,11 @@
 #     needed; /proc/sys/user/max_user_namespaces > 0)
 #   - no squashfuse on compute nodes -> every container start unpacks the SIF
 #     to a temp sandbox; APPTAINER_TMPDIR must point at scratch
+#     [UPDATE 2026-07-09: superseded -- the self-installed apptainer 1.5.2
+#     ($SCRATCH_DIR/apptainer/bin, prepended to PATH below) bundles
+#     squashfuse_ll/fuse2fs/fuse-overlayfs, so SIFs FUSE-mount directly.
+#     Sandbox unpack only recurs if that install is absent AND no squashfuse
+#     is on PATH. Keep APPTAINER_TMPDIR on scratch regardless.]
 #   - Harbor's singularity backend defaults its SIF cache to a throwaway
 #     tempfile.mkdtemp(); persist it via --ek singularity_image_cache_dir
 #     (kwarg confirmed in SingularityEnvironment.__init__; cache is flock-
@@ -148,7 +153,12 @@ else
 fi
 set -u
 [ -n "${GIT_BINDIR:-}" ]       && export PATH="$GIT_BINDIR:$PATH"
-[ -n "${APPTAINER_BINDIR:-}" ] && export PATH="$APPTAINER_BINDIR:$PATH"
+# Prefer the self-installed apptainer >= 1.5 (bundled squashfuse_ll et al. --
+# SIFs mount instead of sandbox-unpacking on every container start). Failsafe:
+# if the dir is missing or ships no `singularity` symlink, the module's 1.4.1
+# still resolves; even then, 1.4.1 picks up bundled squashfuse from PATH.
+APPTAINER_BINDIR="${APPTAINER_BINDIR:-$SCRATCH_DIR/apptainer/bin}"
+[ -d "${APPTAINER_BINDIR:-}" ] && export PATH="$APPTAINER_BINDIR:$PATH"
 
 if [ "$ENV_TYPE" = "singularity" ]; then
     mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$SIF_CACHE_DIR"
@@ -160,9 +170,11 @@ command -v harbor >/dev/null 2>&1 || { echo "ERROR: harbor not on PATH"; exit 1;
 command -v git >/dev/null 2>&1 \
     || { echo "ERROR: git not on PATH after module loads (check Lmod 'Inactive Modules' output above)"; exit 1; }
 if [ "$ENV_TYPE" = "singularity" ]; then
-    # Harbor shells out to `singularity`; apptainer/1.4.1 provides the symlink.
+    # Harbor shells out to `singularity`; resolved from the self-installed
+    # 1.5.2 bin dir if it ships the compat symlink, else the module's 1.4.1.
     command -v singularity >/dev/null 2>&1 \
         || { echo "ERROR: singularity not on PATH (module load failed? set APPTAINER_BINDIR=)"; exit 1; }
+    echo "[tbench] singularity: $(command -v singularity) ($(singularity --version 2>/dev/null || true))"
     # rootless fakeroot must work (root-mapped userns). Cheap sanity check:
     ns_max="$(cat /proc/sys/user/max_user_namespaces 2>/dev/null || echo 0)"
     [ "$ns_max" -gt 0 ] || { echo "ERROR: unprivileged user namespaces disabled on $(hostname)"; exit 1; }
