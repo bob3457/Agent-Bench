@@ -1,0 +1,26 @@
+Traceback (most recent call last):
+  File "/projects/kzhou6/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py", line 342, in run
+    await self._prepare()
+  File "/projects/kzhou6/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py", line 375, in _prepare
+    await self._setup_agent()
+  File "/projects/kzhou6/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/trial/trial.py", line 1109, in _setup_agent
+    await asyncio.wait_for(
+  File "/projects/kzhou6/czhai/miniconda3/envs/bench/lib/python3.12/asyncio/tasks.py", line 520, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/projects/kzhou6/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/agents/installed/base.py", line 448, in setup
+    await self.install(environment)
+  File "/projects/kzhou6/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/agents/installed/codex.py", line 130, in install
+    await self.exec_as_agent(
+  File "/projects/kzhou6/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/agents/installed/base.py", line 418, in exec_as_agent
+    return await self._exec(
+           ^^^^^^^^^^^^^^^^^
+  File "/projects/kzhou6/czhai/miniconda3/envs/bench/lib/python3.12/site-packages/harbor/agents/installed/base.py", line 385, in _exec
+    raise self._classify_exec_error(command, result)
+harbor.agents.installed.base.NonZeroAgentExitCodeError: Command failed (exit 1): set -euo pipefail; if ldd --version 2>&1 | grep -qi musl || [ -f /etc/alpine-release ]; then  npm install -g @openai/codex@latest; else  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash &&  export NVM_DIR="$HOME/.nvm" &&  \. "$NVM_DIR/nvm.sh" || true &&  command -v nvm &>/dev/null || { echo 'Error: NVM failed to load' >&2; exit 1; } &&  nvm install 22 && nvm alias default 22 && npm -v &&  npm install -g @openai/codex@latest; fi && codex --version
+stdout: % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0curl: (6) Could not resolve host: raw.githubusercontent.com
+Error: NVM failed to load
+stderr: None
