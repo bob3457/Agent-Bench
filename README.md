@@ -2,8 +2,7 @@
 
 Benchmarking harness for AI coding/QA agents (**Codex CLI**, **Claude Code**,
 **OpenHands**) across five benchmarks — **SWE-bench Lite**, **Terminal-Bench
-2.0**, **HotpotQA**, **FreshQA**, and **WebArena** — on GMU's Hopper HPC
-cluster (SLURM, rootless Apptainer, no Docker).
+2.0**, **HotpotQA**, **FreshQA**, and **WebArena**
 
 The workflow is two-phase and agent-agnostic:
 
@@ -166,7 +165,7 @@ tail -f logs/agentbench-*-<jobid>.out
 
 ```bash
 # from a login node
-salloc --partition=normal --nodes=1 --ntasks=1 --cpus-per-task=4 --mem=16G --time=04:00:00
+salloc --partition=normal --nodes=1 --ntasks=1 --cpus-per-task=48 --mem=16G --time=04:00:00
 
 cd Agent-Bench
 export OPENAI_API_KEY=sk-...           # set once, run many times
@@ -178,9 +177,9 @@ SWE_N=1 bash slurm/run_swebench.sh
 | Script | Benchmark | Key knobs (env-overridable) |
 |---|---|---|
 | `slurm/run_swebench.sh` | SWE-bench Lite (generation) | `SWE_N` (default 25) |
-| `slurm/run_hotpot.sh` | HotpotQA | `HOTPOT_LIMIT` (50), `RESUME=1` |
-| `slurm/run_fresh.sh` | FreshQA | `FRESHQA_LIMIT` (50), `FRESHQA_AGENT=codex-search`, `RESUME=1` |
-| `slurm/run_terminalbench.sh` | Terminal-Bench 2.0 via Harbor | `AGENT`, `EFFORT`, `N_TASKS`, `N_CONCURRENT`, `EXTRA_ARGS` |
+| `slurm/run_hotpot.sh` | HotpotQA | `HOTPOT_N` (50), `RESUME=1` |
+| `slurm/run_fresh.sh` | FreshQA | `FRESHQA_N` (50), `FRESHQA_AGENT=codex-search`, `RESUME=1` |
+| `slurm/run_terminalbench.sh` | Terminal-Bench 2.0 via Harbor | `AGENT`, `EFFORT`, `TBENCH_N`, `N_CONCURRENT`, `EXTRA_ARGS` |
 | `slurm/job.sh` | Combined multi-benchmark driver | union of the above |
 
 Common knobs across all scripts: `AGENT`, `REPO_DIR`, `CONDA_ENV`. Agents are
@@ -268,8 +267,7 @@ rather than the stock Docker harness.
 
 - Input: `data/$FAM/predictions.jsonl` · Output: `data/$FAM/swebench_report.json`
   (`resolved_instances / submitted_instances` is the headline number).
-- The dataset loads offline (`HF_HUB_OFFLINE=1`) — pre-cache it **on a login
-  node** first (compute-node egress is throttled):
+- The dataset loads offline (`HF_HUB_OFFLINE=1`) — pre-cache it first
   ```bash
   python -c "from datasets import load_dataset; load_dataset('princeton-nlp/SWE-bench_Lite')"
   ```
@@ -308,6 +306,10 @@ TRUE/FALSE from stdout. Grades `data/$FAM/freshqa_responses.jsonl` →
 There is no separate grading script: Harbor runs each task's hidden pytest
 verification suite immediately after the agent finishes, producing a binary
 pass/fail reward per trial.
+
+**Viewing Harbor data:** Harbor has a command to automatically view jobs ran
+Use "Harbor view jobs" to open a local host with previous runs
+OR follow the steps below to manually look at the folders where the data is stored
 
 **Reading results:** success = `errored=0` in the script's trials line
 (`harbor run` itself exits 0 even when trials fail; the script post-checks
