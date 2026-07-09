@@ -7,9 +7,18 @@ It reuses the official `swebench` package (verified against v4.1.0) for:
   - the eval script     -> TestSpec.eval_script
   - grading / scoring   -> swebench.harness.grading.get_eval_report
 
-...and replaces ONLY the container runtime: instead of the Docker SDK, each
-instance runs in a `singularity exec` session with a sized overlay and
---fakeroot, mirroring run_evaluation.py:run_instance step for step.
+...and replaces ONLY the container runtime. On Hopper neither squashfuse
+(mount SIFs), fuse2fs (ext3 --overlay), nor fuse-overlayfs / rootless kernel
+overlayfs (dir overlays on Lustre) is available, so the strategy is:
+
+  1. keep ONE compressed .sif per instance in --sif-dir (pulled on the login
+     node; ~95 GB for 75 Lite instances),
+  2. per RUN, extract the SIF to a throwaway --writable sandbox on disk
+     (~2-4 min, ~3 GB transient), run the patch+tests writing directly into
+     it, grade, then delete the sandbox.
+
+Pristine state is guaranteed by re-extraction, not overlays. --fakeroot is
+unnecessary (sandbox files are owned by the invoking user) and defaults OFF.
 
 Usage:
   python run_swebench_singularity.py \
@@ -23,6 +32,7 @@ predictions: a .jsonl, one object per line, each with
 """
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -65,32 +75,25 @@ def sh(cmd, **kw):
     return subprocess.run(cmd, **kw)
 
 
-def ensure_image(image_key, image_dir, apptainer, sandbox):
-    """Acquire docker://<image_key> once, then reuse.
+def ensure_sif(image_key, image_dir, apptainer):
+    """Return the local .sif for docker://<image_key>, pulling if absent.
 
-    sandbox=False -> pull a compressed .sif (runs mksquashfs; needs RAM)
-    sandbox=True  -> build an unpacked directory (NO mksquashfs; files owned
-                     by you, so --fakeroot usually isn't needed)
+    NOTE: pulls only work where egress does (login node). Pre-warm the whole
+    --sif-dir there before submitting SLURM jobs; on compute nodes a missing
+    SIF will fail fast rather than crawl through the throttled proxy.
     """
     image_dir.mkdir(parents=True, exist_ok=True)
     name = image_key.split("/")[-1].replace(":", "_")
-    if sandbox:
-        target = image_dir / (name + ".sandbox")
-        if target.exists():
-            return target
-        r = sh([apptainer, "build", "--sandbox", str(target),
-                f"docker://{image_key}"])
-    else:
-        target = image_dir / (name + ".sif")
-        if target.exists():
-            return target
-        r = sh([apptainer, "pull", str(target), f"docker://{image_key}"])
+    target = image_dir / (name + ".sif")
+    if target.exists():
+        return target
+    r = sh([apptainer, "pull", str(target), f"docker://{image_key}"])
     if r.returncode != 0:
         raise RuntimeError(f"image acquisition failed for {image_key}")
     return target
 
 
-def run_instance(spec, pred, image, work, apptainer, overlay_size, timeout, fakeroot):
+def run_instance(spec, pred, sif, work, apptainer, timeout, fakeroot):
     inst_dir = work / spec.instance_id
     host = inst_dir / "host"
     host.mkdir(parents=True, exist_ok=True)
@@ -104,29 +107,39 @@ def run_instance(spec, pred, image, work, apptainer, overlay_size, timeout, fake
         )
     )
 
-    overlay = inst_dir / "overlay.img"
-    if overlay.exists():
-        overlay.unlink()  # fresh state each run
-    sh([apptainer, "overlay", "create", "--size", str(overlay_size), str(overlay)],
-       check=True)
+    # Fresh throwaway sandbox per run: extraction (not an overlay) provides
+    # pristine state, and the run writes directly into it via --writable.
+    run_sandbox = inst_dir / "run.sandbox"
+    if run_sandbox.exists():
+        shutil.rmtree(run_sandbox, ignore_errors=True)
+    r = sh([apptainer, "build", "--sandbox", str(run_sandbox), str(sif)])
+    if r.returncode != 0:
+        raise RuntimeError(f"sandbox extraction failed for {spec.instance_id}")
+
+    # --writable sandboxes cannot auto-create bind mount points (no overlay
+    # to synthesize them in); guarantee /host exists inside the tree.
+    (run_sandbox / "host").mkdir(exist_ok=True)
 
     cmd = [apptainer, "exec", "--cleanenv", "--no-home", "--pwd", "/testbed"]
     if fakeroot:
         cmd.append("--fakeroot")
     cmd += [
-        "--overlay", str(overlay),
+        "--writable",
         "--bind", f"{host}:/host",
-        str(image), "/bin/bash", "/host/driver.sh",
+        str(run_sandbox), "/bin/bash", "/host/driver.sh",
     ]
 
     log_path = inst_dir / LOG_TEST_OUTPUT
-    with open(log_path, "w") as f:
-        try:
-            sh(cmd, stdout=f, stderr=subprocess.STDOUT, timeout=timeout)
-        except subprocess.TimeoutExpired:
-            f.write(f"\n\nTimeout error: {timeout} seconds exceeded.\n")
-
-    overlay.unlink(missing_ok=True)  # overlays are large; drop after scoring
+    try:
+        with open(log_path, "w") as f:
+            try:
+                sh(cmd, stdout=f, stderr=subprocess.STDOUT, timeout=timeout)
+            except subprocess.TimeoutExpired:
+                f.write(f"\n\nTimeout error: {timeout} seconds exceeded.\n")
+    finally:
+        # Sandboxes are ~3 GB / ~58k files each; never leave them behind,
+        # even when grading below raises.
+        shutil.rmtree(run_sandbox, ignore_errors=True)
 
     report = get_eval_report(
         test_spec=spec,
@@ -149,24 +162,15 @@ def main():
     ap.add_argument("--image-tag", default="latest")
     ap.add_argument("--workdir", default="./sb_work")
     ap.add_argument("--sif-dir", default="./sifs",
-                    help="where SIFs / sandbox dirs are stored")
-    ap.add_argument("--sandbox", action="store_true",
-                    help="build unpacked sandbox dirs instead of .sif "
-                         "(skips mksquashfs; fixes the exit-139 segfault on "
-                         "low-RAM machines, and usually removes the fakeroot need)")
-    ap.add_argument("--overlay-size", type=int, default=4096, help="overlay MB")
+                    help="where per-instance .sif files are stored")
     ap.add_argument("--timeout", type=int, default=1800, help="per-instance seconds")
     ap.add_argument("--apptainer", default="apptainer",
                     help="binary name: apptainer or singularity")
     ap.add_argument("--fakeroot", dest="fakeroot", action="store_true",
-                    default=None, help="force --fakeroot on")
-    ap.add_argument("--no-fakeroot", dest="fakeroot", action="store_false",
-                    help="force --fakeroot off")
+                    default=False,
+                    help="force --fakeroot on (rarely needed: sandbox files "
+                         "are owned by you; adds userns friction on Hopper)")
     args = ap.parse_args()
-
-    # Default: fakeroot ON for SIF (root-owned /testbed), OFF for sandbox
-    # (files are owned by you). Either --fakeroot/--no-fakeroot overrides.
-    fakeroot = (not args.sandbox) if args.fakeroot is None else args.fakeroot
 
     preds = {}
     for line in Path(args.predictions).read_text().splitlines():
@@ -189,10 +193,9 @@ def main():
         print(f"[{iid}] image={spec.instance_image_key} arch={spec.arch}",
               file=sys.stderr)
         try:
-            image = ensure_image(spec.instance_image_key, image_dir,
-                                 args.apptainer, args.sandbox)
-            r = run_instance(spec, preds[iid], image, work, args.apptainer,
-                             args.overlay_size, args.timeout, fakeroot=fakeroot)
+            sif = ensure_sif(spec.instance_image_key, image_dir, args.apptainer)
+            r = run_instance(spec, preds[iid], sif, work, args.apptainer,
+                             args.timeout, fakeroot=args.fakeroot)
             status = "RESOLVED" if r.get("resolved") else "unresolved"
             resolved += int(bool(r.get("resolved")))
             print(f"[{iid}] {status}", file=sys.stderr)
