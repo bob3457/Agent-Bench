@@ -28,7 +28,7 @@ AGENT="${AGENT:-codex}"
 REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
 CONDA_ENV="${CONDA_ENV:-bench}"
 RESUME="${RESUME:-0}"
-HOTPOT_LIMIT="${HOTPOT_LIMIT:-50}"
+HOTPOT_N="${HOTPOT_N:-50}"
 HARNESS_DIR="${HARNESS_DIR:-$REPO_DIR/harness}"
 # ADAPT: dataset ships at the repo root in this repo.
 HOTPOT_INPUT="${HOTPOT_INPUT:-$REPO_DIR/datasets/hotpot_dev_distractor_v1.json}"
@@ -50,8 +50,14 @@ module load git/2.27.1 || echo "WARNING: 'module load git/2.27.1' failed"
 set -u
 [ -n "${GIT_BINDIR:-}" ] && export PATH="$GIT_BINDIR:$PATH"
 
-command -v codex >/dev/null 2>&1 || { echo "ERROR: codex not on PATH"; exit 1; }
-command -v git   >/dev/null 2>&1 || { echo "ERROR: git not on PATH";   exit 1; }
+command -v codex >/dev/null 2>&1 || {
+  echo "ERROR: codex not on PATH"
+  exit 1
+}
+command -v git >/dev/null 2>&1 || {
+  echo "ERROR: git not on PATH"
+  exit 1
+}
 
 RESUME_ARG=""
 [ "$RESUME" = "1" ] && RESUME_ARG="--resume"
@@ -64,12 +70,12 @@ echo
 echo "========== STAGE: hotpotqa =========="
 rc=0
 if [ -f "$HOTPOT_INPUT" ]; then
-    python "$HARNESS_DIR/run_hotpot_agent.py" --agent "$AGENT" \
-        --input "$HOTPOT_INPUT" --limit "$HOTPOT_LIMIT" $RESUME_ARG || rc=$?
-    if [ "$rc" -eq 0 ]; then echo "[hotpotqa] OK"; else echo "[hotpotqa] FAILED (rc=$rc)"; fi
+  python "$HARNESS_DIR/run_hotpot_agent.py" --agent "$AGENT" \
+    --input "$HOTPOT_INPUT" --limit "$HOTPOT_LIMIT" $RESUME_ARG || rc=$?
+  if [ "$rc" -eq 0 ]; then echo "[hotpotqa] OK"; else echo "[hotpotqa] FAILED (rc=$rc)"; fi
 else
-    echo "[hotpotqa] SKIP -- input not found: $HOTPOT_INPUT (set HOTPOT_INPUT=...)"
-    rc=1
+  echo "[hotpotqa] SKIP -- input not found: $HOTPOT_INPUT (set HOTPOT_INPUT=...)"
+  rc=1
 fi
 
 echo "predictions under data/${AGENT%%-*}/"

@@ -29,7 +29,7 @@ AGENT="${AGENT:-codex}"
 REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
 CONDA_ENV="${CONDA_ENV:-bench}"
 RESUME="${RESUME:-0}"
-FRESHQA_LIMIT="${FRESHQA_LIMIT:-50}"
+FRESHQA_N="${FRESHQA_N:-50}"
 HARNESS_DIR="${HARNESS_DIR:-$REPO_DIR/harness}"
 # ADAPT: dataset ships at the repo root in this repo.
 FRESHQA_INPUT="${FRESHQA_INPUT:-$REPO_DIR/datasets/freshqa.csv}"
@@ -57,8 +57,14 @@ module load git/2.27.1 || echo "WARNING: 'module load git/2.27.1' failed"
 set -u
 [ -n "${GIT_BINDIR:-}" ] && export PATH="$GIT_BINDIR:$PATH"
 
-command -v codex >/dev/null 2>&1 || { echo "ERROR: codex not on PATH"; exit 1; }
-command -v git   >/dev/null 2>&1 || { echo "ERROR: git not on PATH";   exit 1; }
+command -v codex >/dev/null 2>&1 || {
+  echo "ERROR: codex not on PATH"
+  exit 1
+}
+command -v git >/dev/null 2>&1 || {
+  echo "ERROR: git not on PATH"
+  exit 1
+}
 
 RESUME_ARG=""
 [ "$RESUME" = "1" ] && RESUME_ARG="--resume"
@@ -71,12 +77,12 @@ echo
 echo "========== STAGE: freshqa =========="
 rc=0
 if [ -f "$FRESHQA_INPUT" ]; then
-    python "$HARNESS_DIR/run_freshqa_agent.py" --agent "$FRESHQA_AGENT" \
-        --input "$FRESHQA_INPUT" --limit "$FRESHQA_LIMIT" $RESUME_ARG || rc=$?
-    if [ "$rc" -eq 0 ]; then echo "[freshqa] OK"; else echo "[freshqa] FAILED (rc=$rc)"; fi
+  python "$HARNESS_DIR/run_freshqa_agent.py" --agent "$FRESHQA_AGENT" \
+    --input "$FRESHQA_INPUT" --limit "$FRESHQA_LIMIT" $RESUME_ARG || rc=$?
+  if [ "$rc" -eq 0 ]; then echo "[freshqa] OK"; else echo "[freshqa] FAILED (rc=$rc)"; fi
 else
-    echo "[freshqa] SKIP -- input not found: $FRESHQA_INPUT (set FRESHQA_INPUT=...)"
-    rc=1
+  echo "[freshqa] SKIP -- input not found: $FRESHQA_INPUT (set FRESHQA_INPUT=...)"
+  rc=1
 fi
 
 echo "predictions under data/${FRESHQA_AGENT%%-*}/"

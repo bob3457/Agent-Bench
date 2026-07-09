@@ -94,9 +94,9 @@
 set -euo pipefail
 
 # --- knobs -------------------------------------------------------------------
-AGENT="${AGENT:-codex}"              # codex | openhands-sdk | claude-code
-MODEL="${MODEL:-gpt-5.5}"            # bare name required for LiteLLM cost lookup
-EFFORT="${EFFORT:-medium}"           # low | medium | high (codex/openhands only)
+AGENT="${AGENT:-codex}"    # codex | openhands-sdk | claude-code
+MODEL="${MODEL:-gpt-5.5}"  # bare name required for LiteLLM cost lookup
+EFFORT="${EFFORT:-medium}" # low | medium | high (codex/openhands only)
 OPENHANDS_VERSION="${OPENHANDS_VERSION:-1.27.0}"
 
 REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
@@ -104,12 +104,12 @@ SCRATCH_DIR="${SCRATCH_DIR:-/scratch/czhai}"
 CONDA_ENV="${CONDA_ENV:-bench}"
 
 DATASET="${DATASET:-terminal-bench@2.0}"
-N_TASKS="${N_TASKS:-25}"
+TBENCH_N="${TBENCJ_N:-25}"
 N_CONCURRENT="${N_CONCURRENT:-1}"
 # Hopper has no Docker; Harbor's singularity backend is rootless-compatible.
 # Use ENV_TYPE=docker when running on the local machine (ChrisWork) instead.
 ENV_TYPE="${ENV_TYPE:-singularity}"
-ENV_FILE="${ENV_FILE:-}"             # optional .env for the openhands example
+ENV_FILE="${ENV_FILE:-}" # optional .env for the openhands example
 
 # Space-separated task names to exclude (each becomes a -x flag; -x supports
 # glob patterns). Grows as minimal/distroless images that can't host Harbor's
@@ -146,13 +146,13 @@ set +u
 [ -f /etc/profile.d/lmod.sh ] && source /etc/profile.d/lmod.sh
 [ -n "${MODULESHOME:-}" ] && [ -f "$MODULESHOME/init/bash" ] && source "$MODULESHOME/init/bash"
 if [ "$ENV_TYPE" = "singularity" ]; then
-    module load hosts/hopper apptainer/1.4.1 || echo "WARNING: apptainer module load failed"
-    module load gnu10/10.3.0-ya git/2.39.1-vd || echo "WARNING: git module load failed"
+  module load hosts/hopper apptainer/1.4.1 || echo "WARNING: apptainer module load failed"
+  module load gnu10/10.3.0-ya git/2.39.1-vd || echo "WARNING: git module load failed"
 else
-    module load hosts/hopper gnu10/10.3.0-ya git/2.39.1-vd || echo "WARNING: git module load failed"
+  module load hosts/hopper gnu10/10.3.0-ya git/2.39.1-vd || echo "WARNING: git module load failed"
 fi
 set -u
-[ -n "${GIT_BINDIR:-}" ]       && export PATH="$GIT_BINDIR:$PATH"
+[ -n "${GIT_BINDIR:-}" ] && export PATH="$GIT_BINDIR:$PATH"
 # Prefer the self-installed apptainer >= 1.5 (bundled squashfuse_ll et al. --
 # SIFs mount instead of sandbox-unpacking on every container start). Failsafe:
 # if the dir is missing or ships no `singularity` symlink, the module's 1.4.1
@@ -161,23 +161,35 @@ APPTAINER_BINDIR="${APPTAINER_BINDIR:-$SCRATCH_DIR/apptainer/bin}"
 [ -d "${APPTAINER_BINDIR:-}" ] && export PATH="$APPTAINER_BINDIR:$PATH"
 
 if [ "$ENV_TYPE" = "singularity" ]; then
-    mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$SIF_CACHE_DIR"
+  mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$SIF_CACHE_DIR"
 fi
 
 # --- preflight -----------------------------------------------------------------
-command -v harbor >/dev/null 2>&1 || { echo "ERROR: harbor not on PATH"; exit 1; }
+command -v harbor >/dev/null 2>&1 || {
+  echo "ERROR: harbor not on PATH"
+  exit 1
+}
 # Harbor clones the task repo before anything container-related.
-command -v git >/dev/null 2>&1 \
-    || { echo "ERROR: git not on PATH after module loads (check Lmod 'Inactive Modules' output above)"; exit 1; }
+command -v git >/dev/null 2>&1 ||
+  {
+    echo "ERROR: git not on PATH after module loads (check Lmod 'Inactive Modules' output above)"
+    exit 1
+  }
 if [ "$ENV_TYPE" = "singularity" ]; then
-    # Harbor shells out to `singularity`; resolved from the self-installed
-    # 1.5.2 bin dir if it ships the compat symlink, else the module's 1.4.1.
-    command -v singularity >/dev/null 2>&1 \
-        || { echo "ERROR: singularity not on PATH (module load failed? set APPTAINER_BINDIR=)"; exit 1; }
-    echo "[tbench] singularity: $(command -v singularity) ($(singularity --version 2>/dev/null || true))"
-    # rootless fakeroot must work (root-mapped userns). Cheap sanity check:
-    ns_max="$(cat /proc/sys/user/max_user_namespaces 2>/dev/null || echo 0)"
-    [ "$ns_max" -gt 0 ] || { echo "ERROR: unprivileged user namespaces disabled on $(hostname)"; exit 1; }
+  # Harbor shells out to `singularity`; resolved from the self-installed
+  # 1.5.2 bin dir if it ships the compat symlink, else the module's 1.4.1.
+  command -v singularity >/dev/null 2>&1 ||
+    {
+      echo "ERROR: singularity not on PATH (module load failed? set APPTAINER_BINDIR=)"
+      exit 1
+    }
+  echo "[tbench] singularity: $(command -v singularity) ($(singularity --version 2>/dev/null || true))"
+  # rootless fakeroot must work (root-mapped userns). Cheap sanity check:
+  ns_max="$(cat /proc/sys/user/max_user_namespaces 2>/dev/null || echo 0)"
+  [ "$ns_max" -gt 0 ] || {
+    echo "ERROR: unprivileged user namespaces disabled on $(hostname)"
+    exit 1
+  }
 fi
 
 # --- per-agent args -----------------------------------------------------------
@@ -186,51 +198,52 @@ fi
 # on the command line are visible in /proc/<pid>/cmdline on shared nodes.
 declare -a ARGS=()
 case "$AGENT" in
-    codex)
-        : "${OPENAI_API_KEY:?OPENAI_API_KEY not set -- export it before sbatch/bash}"
-        # codex agent reads OPENAI_API_KEY from host env directly.
-        ARGS+=(--agent codex --model "$MODEL"
-               --ak "reasoning_effort=$EFFORT")
-        ;;
-    openhands-sdk)
-        : "${OPENAI_API_KEY:?OPENAI_API_KEY not set -- export it before sbatch/bash}"
-        # openhands-sdk runner hard-requires LLM_API_KEY (not OPENAI_API_KEY).
-        export LLM_API_KEY="$OPENAI_API_KEY"
-        ARGS+=(--agent openhands-sdk --model "$MODEL"
-               --ak "reasoning_effort=$EFFORT"
-               --ak "version=$OPENHANDS_VERSION")
-        ;;
-    claude-code)
-        : "${CLAUDE_CODE_OAUTH_TOKEN:?CLAUDE_CODE_OAUTH_TOKEN not set -- export it before sbatch/bash}"
-        # Without CLAUDE_FORCE_OAUTH, harbor's claude-code agent prefers any
-        # ANTHROPIC_API_KEY it finds in the host env (--export=ALL leaks the
-        # login env in!) and would silently bill the API. Force subscription.
-        export CLAUDE_FORCE_OAUTH=1
-        ARGS+=(--agent claude-code)
-        # claude-code takes no reasoning_effort kwarg; model left at agent default.
-        # To pin one, uncomment:
-        # ARGS+=(--model "$MODEL")
-        ;;
-    *)
-        echo "ERROR: unknown AGENT=$AGENT (expected codex|openhands-sdk|claude-code)"; exit 1
-        ;;
+  codex)
+    : "${OPENAI_API_KEY:?OPENAI_API_KEY not set -- export it before sbatch/bash}"
+    # codex agent reads OPENAI_API_KEY from host env directly.
+    ARGS+=(--agent codex --model "$MODEL"
+      --ak "reasoning_effort=$EFFORT")
+    ;;
+  openhands-sdk)
+    : "${OPENAI_API_KEY:?OPENAI_API_KEY not set -- export it before sbatch/bash}"
+    # openhands-sdk runner hard-requires LLM_API_KEY (not OPENAI_API_KEY).
+    export LLM_API_KEY="$OPENAI_API_KEY"
+    ARGS+=(--agent openhands-sdk --model "$MODEL"
+      --ak "reasoning_effort=$EFFORT"
+      --ak "version=$OPENHANDS_VERSION")
+    ;;
+  claude-code)
+    : "${CLAUDE_CODE_OAUTH_TOKEN:?CLAUDE_CODE_OAUTH_TOKEN not set -- export it before sbatch/bash}"
+    # Without CLAUDE_FORCE_OAUTH, harbor's claude-code agent prefers any
+    # ANTHROPIC_API_KEY it finds in the host env (--export=ALL leaks the
+    # login env in!) and would silently bill the API. Force subscription.
+    export CLAUDE_FORCE_OAUTH=1
+    ARGS+=(--agent claude-code)
+    # claude-code takes no reasoning_effort kwarg; model left at agent default.
+    # To pin one, uncomment:
+    # ARGS+=(--model "$MODEL")
+    ;;
+  *)
+    echo "ERROR: unknown AGENT=$AGENT (expected codex|openhands-sdk|claude-code)"
+    exit 1
+    ;;
 esac
 
 [ -n "$ENV_FILE" ] && ARGS+=(--env-file "$ENV_FILE")
 
 # --- task exclusions + raw passthrough ------------------------------------------
 for t in $EXCLUDE_TASKS; do
-    ARGS+=(-x "$t")
+  ARGS+=(-x "$t")
 done
 # shellcheck disable=SC2206  # intentional word splitting of raw harbor args
 [ -n "$EXTRA_ARGS" ] && ARGS+=($EXTRA_ARGS)
 
 # --- environment kwargs ---------------------------------------------------------
 if [ "$ENV_TYPE" = "singularity" ]; then
-    # Persist converted SIFs across runs (backend default is a throwaway
-    # mkdtemp -> full docker->SIF re-conversion every job). Cache is .lock-file
-    # coordinated, safe to share across concurrent jobs.
-    ARGS+=(--ek "singularity_image_cache_dir=$SIF_CACHE_DIR")
+  # Persist converted SIFs across runs (backend default is a throwaway
+  # mkdtemp -> full docker->SIF re-conversion every job). Cache is .lock-file
+  # coordinated, safe to share across concurrent jobs.
+  ARGS+=(--ek "singularity_image_cache_dir=$SIF_CACHE_DIR")
 fi
 
 # --- log capture ------------------------------------------------------------------
@@ -249,22 +262,22 @@ echo "run_id=$RUN_ID jobs_dir=$JOBS_DIR"
 echo "harbor: $(command -v harbor) ($(harbor --version 2>/dev/null || echo '?'))"
 echo "git: $(command -v git) ($(git --version 2>/dev/null || echo '?'))"
 if [ "$ENV_TYPE" = "singularity" ]; then
-    echo "singularity: $(command -v singularity) ($(singularity --version 2>/dev/null || echo '?'))"
-    echo "caches: APPTAINER_CACHEDIR=$APPTAINER_CACHEDIR TMPDIR=$APPTAINER_TMPDIR SIF=$SIF_CACHE_DIR"
+  echo "singularity: $(command -v singularity) ($(singularity --version 2>/dev/null || echo '?'))"
+  echo "caches: APPTAINER_CACHEDIR=$APPTAINER_CACHEDIR TMPDIR=$APPTAINER_TMPDIR SIF=$SIF_CACHE_DIR"
 fi
 
 echo
 echo "========== STAGE: terminal-bench =========="
 rc=0
 harbor run \
-    --dataset "$DATASET" \
-    --env "$ENV_TYPE" \
-    --n-tasks "$N_TASKS" \
-    --n-concurrent "$N_CONCURRENT" \
-    --job-name "$RUN_ID" \
-    --jobs-dir "$JOBS_DIR" \
-    --yes \
-    "${ARGS[@]}" || rc=$?
+  --dataset "$DATASET" \
+  --env "$ENV_TYPE" \
+  --n-tasks "$N_TASKS" \
+  --n-concurrent "$N_CONCURRENT" \
+  --job-name "$RUN_ID" \
+  --jobs-dir "$JOBS_DIR" \
+  --yes \
+  "${ARGS[@]}" || rc=$?
 
 # `harbor run` exits 0 even when trials raise exceptions; surface that here so
 # batch jobs don't silently "succeed" with zero completed trials.
@@ -272,8 +285,9 @@ harbor run \
 # (legacy runs used stats.n_trials / stats.n_errors -- handled below).
 RESULT_JSON="$JOBS_DIR/$RUN_ID/result.json"
 if [ "$rc" -eq 0 ]; then
-    if [ -f "$RESULT_JSON" ]; then
-        summary="$(python - "$RESULT_JSON" <<'PYEOF'
+  if [ -f "$RESULT_JSON" ]; then
+    summary="$(
+      python - "$RESULT_JSON" <<'PYEOF'
 import json, sys
 r = json.load(open(sys.argv[1]))
 s = r.get("stats", {})
@@ -282,21 +296,25 @@ n_done = s.get("n_completed_trials", s.get("n_trials", 0)) or 0
 n_total = r.get("n_total_trials", 0) or 0
 print(f"{n_err} {n_done} {n_total}")
 PYEOF
-        )" || summary=""
-        if [ -n "$summary" ]; then
-            read -r n_err n_done n_total <<< "$summary"
-            echo "trials: total=$n_total completed=$n_done errored=$n_err (see $RESULT_JSON)"
-            if [ "$n_err" -gt 0 ]; then
-                echo "WARNING: $n_err trial(s) errored despite rc=0"; rc=2
-            elif [ "$n_done" -eq 0 ]; then
-                echo "WARNING: 0 trials completed despite rc=0"; rc=2
-            fi
-        else
-            echo "WARNING: could not parse $RESULT_JSON"; rc=2
-        fi
+    )" || summary=""
+    if [ -n "$summary" ]; then
+      read -r n_err n_done n_total <<<"$summary"
+      echo "trials: total=$n_total completed=$n_done errored=$n_err (see $RESULT_JSON)"
+      if [ "$n_err" -gt 0 ]; then
+        echo "WARNING: $n_err trial(s) errored despite rc=0"
+        rc=2
+      elif [ "$n_done" -eq 0 ]; then
+        echo "WARNING: 0 trials completed despite rc=0"
+        rc=2
+      fi
     else
-        echo "WARNING: rc=0 but $RESULT_JSON missing -- job likely never started trials"; rc=2
+      echo "WARNING: could not parse $RESULT_JSON"
+      rc=2
     fi
+  else
+    echo "WARNING: rc=0 but $RESULT_JSON missing -- job likely never started trials"
+    rc=2
+  fi
 fi
 if [ "$rc" -eq 0 ]; then echo "[terminal-bench] OK"; else echo "[terminal-bench] FAILED/PARTIAL (rc=$rc)"; fi
 
