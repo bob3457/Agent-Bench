@@ -1,0 +1,254 @@
+diff --git a/README.md b/README.md
+index 205752e..c25748a 100644
+--- a/README.md
++++ b/README.md
+@@ -43,7 +43,7 @@ A "family" (`FAM`) is one agent×effort configuration — e.g. `codexlow`,
+   - **Image building/prebaking**: a self-installed Apptainer **>= 1.5** with
+     bundled FUSE tools (`squashfuse_ll`/`fuse2fs`/`fuse-overlayfs`), enabling
+     def-file `--fakeroot` builds. `setup/prebake_harbor_sifs.sh` picks it up
+-    via `APPTAINER=` (default `/scratch/czhai/apptainer/bin/apptainer` —
++    via `APPTAINER=` (default `/projects/kzhou6/czhai/apptainer/bin/apptainer` —
+     override for your own install). Rootless `--fakeroot` works via
+     root-mapped user namespaces — no `/etc/subuid` entry needed.
+ - **`git` comes from a module** (`git/2.27.1`, ungated). Batch scripts must
+@@ -71,7 +71,7 @@ conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+ ### 3. Clone the repo
+ 
+ ```bash
+-cd /scratch/$USER # Or to whatever other folder you want it
++cd /projects/kzhou6/czhai # Or to whatever other folder you want it
+ git clone https://github.com/bob3457/Agent-Bench.git
+ cd Agent-Bench
+ ```
+diff --git a/setup/prebake_harbor_sifs.sh b/setup/prebake_harbor_sifs.sh
+index 11ebf57..6729e09 100644
+--- a/setup/prebake_harbor_sifs.sh
++++ b/setup/prebake_harbor_sifs.sh
+@@ -25,7 +25,7 @@
+ set -uo pipefail
+ 
+ SCRATCH_DIR="${SCRATCH_DIR:-/scratch/czhai}"
+-APPTAINER="${APPTAINER:-/scratch/czhai/apptainer/bin/apptainer}"
++APPTAINER="${APPTAINER:-/projects/kzhou6/czhai/apptainer/bin/apptainer}"
+ SIF_CACHE_DIR="${SIF_CACHE_DIR:-$SCRATCH_DIR/.harbor_sif_cache}"
+ export APPTAINER_CACHEDIR="${APPTAINER_CACHEDIR:-$SCRATCH_DIR/.apptainer_cache}"
+ export APPTAINER_TMPDIR="${APPTAINER_TMPDIR:-$SCRATCH_DIR/tmp}"
+diff --git a/setup/setup_hopper_deps.sh b/setup/setup_hopper_deps.sh
+index 1ca5b1e..230e2e8 100644
+--- a/setup/setup_hopper_deps.sh
++++ b/setup/setup_hopper_deps.sh
+@@ -18,8 +18,8 @@ set -uo pipefail
+ 
+ # --- knobs (match run_terminalbench_harbor.sh / prebake_harbor_sifs.sh) -------
+ SCRATCH_DIR="${SCRATCH_DIR:-/scratch/czhai}"
+-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
+-APPTAINER_PREFIX="${APPTAINER_PREFIX:-/scratch/czhai/apptainer}" # move to /projects when relocated
++REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
++APPTAINER_PREFIX="${APPTAINER_PREFIX:-/projects/kzhou6/czhai/apptainer}"
+ CONDA_ENV="${CONDA_ENV:-bench}"
+ PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
+ HARBOR_MIN_VERSION="${HARBOR_MIN_VERSION:-0.16.1}"
+diff --git a/slurm/grade_fresh.sh b/slurm/grade_fresh.sh
+index 82f9e8f..b287cdc 100644
+--- a/slurm/grade_fresh.sh
++++ b/slurm/grade_fresh.sh
+@@ -18,7 +18,7 @@
+ # ANTHROPIC_API_KEY.
+ #
+ # USAGE (submit from the repo root):
+-#     cd /scratch/$USER/Agent-Bench   # your repo root
++#     cd /projects/kzhou6/czhai/Agent-Bench   # your repo root
+ #     mkdir -p logs
+ #     sbatch slurm/grade_fresh.sh
+ #     # skip if graded output already exists:
+@@ -43,7 +43,7 @@ set -euo pipefail
+ 
+ # --- knobs (env-overridable at submit time) ---------------------------------
+ FAM="${FAM:-codexlow}" # output family dir under data/
+-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
++REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
+ CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
+ CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
+ RESUME="${RESUME:-0}" # 1 = skip if graded file exists
+diff --git a/slurm/grade_hotpot.sh b/slurm/grade_hotpot.sh
+index d8f7957..d90da2d 100644
+--- a/slurm/grade_hotpot.sh
++++ b/slurm/grade_hotpot.sh
+@@ -5,7 +5,7 @@
+ # no API key, no internet needed on the compute node.
+ #
+ # USAGE (submit from the repo root):
+-#     cd /scratch/$USER/Agent-Bench   # your repo root
++#     cd /projects/kzhou6/czhai/Agent-Bench   # your repo root
+ #     mkdir -p logs
+ #     sbatch slurm/grade_hotpot.sh
+ #     # cap hotpot cases scored (optional 3rd arg to the eval script):
+@@ -32,7 +32,7 @@ set -euo pipefail
+ 
+ # --- knobs (env-overridable at submit time) ---------------------------------
+ FAM="${FAM:-codexlow}" # output family dir under data/
+-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
++REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
+ CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
+ CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
+ RESUME="${RESUME:-0}" # 1 = skip if metrics file exists
+diff --git a/slurm/grade_swebench.sh b/slurm/grade_swebench.sh
+index 0c51c30..05454f4 100644
+--- a/slurm/grade_swebench.sh
++++ b/slurm/grade_swebench.sh
+@@ -12,7 +12,7 @@
+ # --max_workers). Parallelize across families/jobs, not within one.
+ #
+ # USAGE (submit from the repo root):
+-#     cd /scratch/$USER/Agent-Bench   # your repo root
++#     cd /projects/kzhou6/czhai/Agent-Bench   # your repo root
+ #     mkdir -p logs
+ #     sbatch slurm/grade_swebench.sh
+ #     # skip if the report already exists:
+@@ -39,7 +39,7 @@ set -euo pipefail
+ 
+ # --- knobs (env-overridable at submit time) ---------------------------------
+ FAM="${FAM:-codexlow}" # output family dir under data/
+-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
++REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
+ CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
+ CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
+ RESUME="${RESUME:-0}" # 1 = skip if report exists
+@@ -73,7 +73,7 @@ export APPTAINER_TMPDIR="${APPTAINER_TMPDIR:-/scratch/czhai/apptainer_tmp}"
+ # Put the self-installed Apptainer >= 1.5 on PATH (bundled squashfuse_ll --
+ # SIFs FUSE-mount instead of sandbox-unpacking per instance); fall back to the
+ # system module if absent. Before conda so the env's python stays first.
+-APPTAINER_BINDIR="${APPTAINER_BINDIR:-/scratch/czhai/apptainer/bin}"
++APPTAINER_BINDIR="${APPTAINER_BINDIR:-/projects/kzhou6/czhai/apptainer/bin}"
+ [ -d "$APPTAINER_BINDIR" ] && export PATH="$APPTAINER_BINDIR:$PATH"
+ if ! command -v apptainer >/dev/null 2>&1 && ! command -v singularity >/dev/null 2>&1; then
+   set +u
+diff --git a/slurm/job.sh b/slurm/job.sh
+index 7f0696f..3a91a2c 100644
+--- a/slurm/job.sh
++++ b/slurm/job.sh
+@@ -3,7 +3,7 @@
+ # with the Codex agent on Hopper (SLURM), sequentially in one job.
+ #
+ # USAGE (submit from the repo root):
+-#     cd /scratch/$USER/Agent-Bench   # your repo root
++#     cd /projects/kzhou6/czhai/Agent-Bench   # your repo root
+ #     mkdir -p logs                       # SLURM won't create --output dirs
+ #     export OPENAI_API_KEY=sk-...        # consumed by codex exec
+ #     sbatch slurm/job.sh
+@@ -30,7 +30,7 @@ set -euo pipefail
+ 
+ # --- knobs (env-overridable at submit time) ---------------------------------
+ AGENT="${AGENT:-codex}"
+-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
++REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
+ CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
+ CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
+ RESUME="${RESUME:-0}" # 1 = skip work already on disk (requeue-friendly)
+diff --git a/slurm/run_fresh.sh b/slurm/run_fresh.sh
+index 2319ac3..c925032 100644
+--- a/slurm/run_fresh.sh
++++ b/slurm/run_fresh.sh
+@@ -2,7 +2,7 @@
+ # Run ONLY the FreshQA generation harness with the Codex agent on Hopper.
+ #
+ # USAGE:
+-#     cd /scratch/$USER/Agent-Bench && mkdir -p logs   # your repo root
++#     cd /projects/kzhou6/czhai/Agent-Bench && mkdir -p logs   # your repo root
+ #     export OPENAI_API_KEY=sk-...
+ #     sbatch slurm/run_fresh.sh
+ #     # smoke test:            FRESHQA_LIMIT=5 sbatch slurm/run_fresh.sh
+@@ -26,7 +26,7 @@ set -euo pipefail
+ 
+ # --- knobs -------------------------------------------------------------------
+ AGENT="${AGENT:-codex}"
+-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
++REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
+ CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
+ CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
+ RESUME="${RESUME:-0}"
+diff --git a/slurm/run_hotpot.sh b/slurm/run_hotpot.sh
+index 8998144..7c61637 100644
+--- a/slurm/run_hotpot.sh
++++ b/slurm/run_hotpot.sh
+@@ -2,7 +2,7 @@
+ # Run ONLY the HotpotQA generation harness with the Codex agent on Hopper.
+ #
+ # USAGE:
+-#     cd /scratch/$USER/Agent-Bench && mkdir -p logs   # your repo root
++#     cd /projects/kzhou6/czhai/Agent-Bench && mkdir -p logs   # your repo root
+ #     export OPENAI_API_KEY=sk-...
+ #     sbatch slurm/run_hotpot.sh
+ #     # smoke test:            HOTPOT_LIMIT=5 sbatch slurm/run_hotpot.sh
+@@ -25,7 +25,7 @@ set -euo pipefail
+ 
+ # --- knobs -------------------------------------------------------------------
+ AGENT="${AGENT:-codex}"
+-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
++REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
+ CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
+ CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
+ RESUME="${RESUME:-0}"
+diff --git a/slurm/run_swebench.sh b/slurm/run_swebench.sh
+index 3ca4e1f..35e7d33 100644
+--- a/slurm/run_swebench.sh
++++ b/slurm/run_swebench.sh
+@@ -2,7 +2,7 @@
+ # Run ONLY the SWE-bench_Lite generation harness with the Codex agent on Hopper.
+ #
+ # USAGE:
+-#     cd /scratch/$USER/Agent-Bench && mkdir -p logs   # your repo root
++#     cd /projects/kzhou6/czhai/Agent-Bench && mkdir -p logs   # your repo root
+ #     export OPENAI_API_KEY=sk-...
+ #     sbatch slurm/run_swebench.sh
+ #     # smoke test:            SWE_N=3 sbatch slurm/run_swebench.sh
+@@ -25,7 +25,7 @@ set -euo pipefail
+ 
+ # --- knobs -------------------------------------------------------------------
+ AGENT="${AGENT:-codex}"
+-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
++REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
+ CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
+ CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
+ SWE_N="${SWE_N:-25}"
+diff --git a/slurm/run_terminalbench.sh b/slurm/run_terminalbench.sh
+index 9616a93..3cdfa51 100755
+--- a/slurm/run_terminalbench.sh
++++ b/slurm/run_terminalbench.sh
+@@ -16,7 +16,7 @@
+ #   - no squashfuse on compute nodes -> every container start unpacks the SIF
+ #     to a temp sandbox; APPTAINER_TMPDIR must point at scratch
+ #     [UPDATE 2026-07-09: superseded -- the self-installed apptainer 1.5.2
+-#     ($SCRATCH_DIR/apptainer/bin, prepended to PATH below) bundles
++#     (/projects/kzhou6/czhai/apptainer/bin, prepended to PATH below) bundles
+ #     squashfuse_ll/fuse2fs/fuse-overlayfs, so SIFs FUSE-mount directly.
+ #     Sandbox unpack only recurs if that install is absent AND no squashfuse
+ #     is on PATH. Keep APPTAINER_TMPDIR on scratch regardless.]
+@@ -61,7 +61,7 @@
+ #     API instead of the subscription.
+ #
+ # USAGE (batch):
+-#     cd /scratch/czhai/Agent-Bench && mkdir -p logs
++#     cd /projects/kzhou6/czhai/Agent-Bench && mkdir -p logs
+ #     export OPENAI_API_KEY=sk-...            # codex / openhands-sdk
+ #     export CLAUDE_CODE_OAUTH_TOKEN=...      # claude-code
+ #     sbatch run_terminalbench_harbor.sh
+@@ -99,7 +99,7 @@ MODEL="${MODEL:-gpt-5.5}"  # bare name required for LiteLLM cost lookup
+ EFFORT="${EFFORT:-medium}" # low | medium | high (codex/openhands only)
+ OPENHANDS_VERSION="${OPENHANDS_VERSION:-1.27.0}"
+ 
+-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
++REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
+ SCRATCH_DIR="${SCRATCH_DIR:-/scratch/czhai}"
+ CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
+ CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
+@@ -158,7 +158,7 @@ set -u
+ # SIFs mount instead of sandbox-unpacking on every container start). Failsafe:
+ # if the dir is missing or ships no `singularity` symlink, the module's 1.4.1
+ # still resolves; even then, 1.4.1 picks up bundled squashfuse from PATH.
+-APPTAINER_BINDIR="${APPTAINER_BINDIR:-$SCRATCH_DIR/apptainer/bin}"
++APPTAINER_BINDIR="${APPTAINER_BINDIR:-/projects/kzhou6/czhai/apptainer/bin}"
+ [ -d "${APPTAINER_BINDIR:-}" ] && export PATH="$APPTAINER_BINDIR:$PATH"
+ 
+ # conda activation LAST -- module loads prepend to PATH and would shadow the
+ 

@@ -1,14 +1,32 @@
 #!/bin/bash
-# prebake_harbor_sifs.sh (v2) -- bake Harbor's in-container runtime deps into
+# prebake_harbor_sifs.sh (v2.2) -- bake Harbor's in-container runtime deps into
 # cached SIFs so trials on Hopper don't depend on apt egress or the 64 MiB
 # --writable-tmpfs overlay at bootstrap time.
 #
 # v2 rewrite: uses `apptainer build --fakeroot` with a generated def file,
 # which requires the self-installed apptainer >= 1.5 (bundled FUSE tools) and
-# conda-forge `fakeroot` on PATH. Under the fakeroot command, dpkg's chown
-# calls succeed at build time, so v1's entire sandbox-extract -> in-sandbox
-# apt -> chgrp/setgid normalize -> repack cycle collapses into one build, and
-# the dpkg-deb -x fallback for tmux/libutempter0 is no longer needed.
+# `fakeroot` on PATH. Under the fakeroot command, dpkg's chown calls succeed
+# at build time, so v1's entire sandbox-extract -> in-sandbox apt -> chgrp/
+# setgid normalize -> repack cycle collapses into one build, and the
+# dpkg-deb -x fallback for tmux/libutempter0 is no longer needed.
+#
+# v2.2: route archive+security (both schemes) to mirrors.edge.kernel.org.
+#   Canonical's 91.189.92.x pool stalls/drops from Hopper under load ("Could
+#   not wait for server fd - select (11)") regardless of fakeroot variant;
+#   localimage rebakes carry https:// sources from prior bakes, so the
+#   rewrite must match https too. sysv tripwire made comment-aware.
+#
+# v2.1 changes:
+#   - apt: try https mirrors first (kernel.org for archive; compute-node
+#     egress may be 443-only), FALL BACK to stock http if https update fails
+#     (login nodes have http; archive.ubuntu.com https is chronically flaky).
+#   - apt: retries=5 + 30s timeouts on update/install.
+#   - fakeroot: MUST be the -tcp variant. The sysv variant's SysV IPC breaks
+#     apt's method-handler IPC inside apptainer build namespaces with
+#     "Could not wait for server fd - select (11: EAGAIN)". On Hopper use the
+#     wrapper at /projects/kzhou6/czhai/tools/bin/fakeroot (EPEL rpm2cpio
+#     extract, execs fakeroot-tcp/faked-tcp). conda-forge does NOT package
+#     fakeroot -- the old hint was wrong.
 #
 # Harbor cache contract (verified in harbor 0.15.0 + 0.16.1 source):
 #   cache file = <image with '/' and ':' -> '_'>.sif ; if the file exists it
@@ -16,7 +34,7 @@
 #   and replace the file atomically.
 #
 # Usage (run where egress works -- login node or egress-enabled compute node,
-# with the conda env active so `fakeroot` is on PATH):
+# with /projects/kzhou6/czhai/tools/bin on PATH so `fakeroot` resolves):
 #   bash setup/prebake_harbor_sifs.sh alexgshaw/adaptive-rejection-sampler:20251031
 #   bash setup/prebake_harbor_sifs.sh --all-cached          # rebake every SIF in cache
 #   bash setup/prebake_harbor_sifs.sh --from-tasks ~/.cache/harbor/tasks
@@ -25,7 +43,8 @@
 set -uo pipefail
 
 SCRATCH_DIR="${SCRATCH_DIR:-/scratch/czhai}"
-APPTAINER="${APPTAINER:-/scratch/czhai/apptainer/bin/apptainer}"
+APPTAINER="${APPTAINER:-/projects/kzhou6/czhai/apptainer/bin/apptainer}"
+TOOLS_BIN="${TOOLS_BIN:-/projects/kzhou6/czhai/tools/bin}"
 SIF_CACHE_DIR="${SIF_CACHE_DIR:-$SCRATCH_DIR/.harbor_sif_cache}"
 export APPTAINER_CACHEDIR="${APPTAINER_CACHEDIR:-$SCRATCH_DIR/.apptainer_cache}"
 export APPTAINER_TMPDIR="${APPTAINER_TMPDIR:-$SCRATCH_DIR/tmp}"
@@ -43,14 +62,30 @@ mkdir -p "$SIF_CACHE_DIR" "$APPTAINER_TMPDIR"
 # apptainer.conf should have site bind paths commented out).
 unset APPTAINER_BINDPATH SINGULARITY_BINDPATH APPTAINER_BIND SINGULARITY_BIND 2>/dev/null || true
 
+# fakeroot wrapper dir (see v2.1 note in header)
+[ -d "$TOOLS_BIN" ] && export PATH="$TOOLS_BIN:$PATH"
+
 [ -x "$APPTAINER" ] || {
   echo "ERROR: $APPTAINER not found/executable"
   exit 1
 }
 command -v fakeroot >/dev/null 2>&1 || {
-  echo "ERROR: fakeroot not on PATH (conda install -c conda-forge fakeroot; activate the env)"
+  echo "ERROR: fakeroot not on PATH."
+  echo "  On Hopper: use the wrapper at $TOOLS_BIN/fakeroot (fakeroot-tcp from"
+  echo "  EPEL rpm2cpio extract). conda-forge does NOT package fakeroot."
   exit 1
 }
+fakeroot whoami 2>/dev/null | grep -q '^root$' || {
+  echo "ERROR: 'fakeroot whoami' did not report root -- wrapper broken?"
+  echo "  ($(command -v fakeroot))"
+  exit 1
+}
+# sysv-variant tripwire: apt inside the build dies with
+# "Could not wait for server fd - select (11)" under fakeroot-sysv.
+if grep -q '^[^#]*fakeroot-sysv' "$(command -v fakeroot)" 2>/dev/null; then
+  echo "WARNING: fakeroot wrapper appears to use the -sysv variant; apt will"
+  echo "  likely fail inside the build. Switch the wrapper to fakeroot-tcp."
+fi
 
 # Host CA bundle: some TB images ship NO trust roots, and fixing that
 # in-image is a chicken-and-egg (apt over https needs certs to fetch
@@ -131,10 +166,21 @@ From: $3
         # disable. Harmless during this fakeroot build; essential later.
         mkdir -p /etc/apt/apt.conf.d
         echo 'APT::Sandbox::User "root";' > /etc/apt/apt.conf.d/99harbor-userns
-        # Mirrors default to plain http :80; compute-node egress may be 443-only.
-        sed -i "s|http://|https://|g" /etc/apt/sources.list 2>/dev/null || true
-        sed -i "s|http://|https://|g" /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
-        apt-get -o Acquire::Retries=3 update
+        # Baked-in retry/timeout defaults (apply to runtime apt too).
+        printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' \
+            > /etc/apt/apt.conf.d/99harbor-net
+        # Mirror strategy: prefer https (compute-node egress may be 443-only;
+        # archive.ubuntu.com https is chronically flaky, so archive -> kernel
+        # .org edge mirror), but FALL BACK to stock http mirrors if the https
+        # update fails (login nodes have working http).
+        sed -i -E 's#https?://(archive|security)\.ubuntu\.com/ubuntu#https://mirrors.edge.kernel.org/ubuntu#g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
+        sed -i 's|http://|https://|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
+        if ! apt-get update; then
+            echo "[prebake] https mirrors failed; reverting to stock http mirrors" >&2
+            sed -i 's|https://mirrors.edge.kernel.org/ubuntu|http://archive.ubuntu.com/ubuntu|g; s|https://archive.ubuntu.com|http://archive.ubuntu.com|g; s|https://security.ubuntu.com|http://security.ubuntu.com|g' \
+                /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
+            apt-get update
+        fi
         apt-get install -y --no-install-recommends $APT_PKGS
         update-ca-certificates 2>/dev/null || true
         rm -rf /var/lib/apt/lists/*
@@ -187,8 +233,11 @@ bake_one() { # <sif path> [image name for pull]
   echo "[$name] building (fakeroot def-file build)..."
   "$APPTAINER" build --fakeroot "$work/new.sif" "$work/bake.def" || rc=$?
   if [ "$rc" -ne 0 ]; then
-    # %post exit 42 = no python3 and no package manager -> EXCLUDE_TASKS
-    echo "[$name] build FAILED (rc=$rc) -- if the log above shows 'exit status 42', add to EXCLUDE_TASKS"
+    # %post exit 42 = no python3 and no package manager -> EXCLUDE_TASKS.
+    # "Could not wait for server fd - select (11)" during apt = fakeroot-sysv
+    # in use; switch the wrapper to the -tcp variant (see header).
+    echo "[$name] build FAILED (rc=$rc) -- 'exit status 42' => EXCLUDE_TASKS;"
+    echo "[$name]   'Could not wait for server fd' => fakeroot-tcp needed (see header)"
     return 1
   fi
 

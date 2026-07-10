@@ -3,7 +3,7 @@
 # with the Codex agent on Hopper (SLURM), sequentially in one job.
 #
 # USAGE (submit from the repo root):
-#     cd /scratch/$USER/Agent-Bench   # your repo root
+#     cd /projects/kzhou6/czhai/Agent-Bench   # your repo root
 #     mkdir -p logs                       # SLURM won't create --output dirs
 #     export OPENAI_API_KEY=sk-...        # consumed by codex exec
 #     sbatch slurm/job.sh
@@ -30,7 +30,7 @@ set -euo pipefail
 
 # --- knobs (env-overridable at submit time) ---------------------------------
 AGENT="${AGENT:-codex}"
-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
+REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
 CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
 CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
 RESUME="${RESUME:-0}" # 1 = skip work already on disk (requeue-friendly)

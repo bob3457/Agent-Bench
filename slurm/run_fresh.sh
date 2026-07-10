@@ -2,7 +2,7 @@
 # Run ONLY the FreshQA generation harness with the Codex agent on Hopper.
 #
 # USAGE:
-#     cd /scratch/$USER/Agent-Bench && mkdir -p logs   # your repo root
+#     cd /projects/kzhou6/czhai/Agent-Bench && mkdir -p logs   # your repo root
 #     export OPENAI_API_KEY=sk-...
 #     sbatch slurm/run_fresh.sh
 #     # smoke test:            FRESHQA_LIMIT=5 sbatch slurm/run_fresh.sh
@@ -26,7 +26,7 @@ set -euo pipefail
 
 # --- knobs -------------------------------------------------------------------
 AGENT="${AGENT:-codex}"
-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
+REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
 CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
 CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
 RESUME="${RESUME:-0}"

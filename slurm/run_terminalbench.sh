@@ -16,7 +16,7 @@
 #   - no squashfuse on compute nodes -> every container start unpacks the SIF
 #     to a temp sandbox; APPTAINER_TMPDIR must point at scratch
 #     [UPDATE 2026-07-09: superseded -- the self-installed apptainer 1.5.2
-#     ($SCRATCH_DIR/apptainer/bin, prepended to PATH below) bundles
+#     (/projects/kzhou6/czhai/apptainer/bin, prepended to PATH below) bundles
 #     squashfuse_ll/fuse2fs/fuse-overlayfs, so SIFs FUSE-mount directly.
 #     Sandbox unpack only recurs if that install is absent AND no squashfuse
 #     is on PATH. Keep APPTAINER_TMPDIR on scratch regardless.]
@@ -61,7 +61,7 @@
 #     API instead of the subscription.
 #
 # USAGE (batch):
-#     cd /scratch/czhai/Agent-Bench && mkdir -p logs
+#     cd /projects/kzhou6/czhai/Agent-Bench && mkdir -p logs
 #     export OPENAI_API_KEY=sk-...            # codex / openhands-sdk
 #     export CLAUDE_CODE_OAUTH_TOKEN=...      # claude-code
 #     sbatch run_terminalbench_harbor.sh
@@ -99,7 +99,7 @@ MODEL="${MODEL:-gpt-5.5}"  # bare name required for LiteLLM cost lookup
 EFFORT="${EFFORT:-medium}" # low | medium | high (codex/openhands only)
 OPENHANDS_VERSION="${OPENHANDS_VERSION:-1.27.0}"
 
-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
+REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
 SCRATCH_DIR="${SCRATCH_DIR:-/scratch/czhai}"
 CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
 CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
@@ -158,7 +158,7 @@ set -u
 # SIFs mount instead of sandbox-unpacking on every container start). Failsafe:
 # if the dir is missing or ships no `singularity` symlink, the module's 1.4.1
 # still resolves; even then, 1.4.1 picks up bundled squashfuse from PATH.
-APPTAINER_BINDIR="${APPTAINER_BINDIR:-$SCRATCH_DIR/apptainer/bin}"
+APPTAINER_BINDIR="${APPTAINER_BINDIR:-/projects/kzhou6/czhai/apptainer/bin}"
 [ -d "${APPTAINER_BINDIR:-}" ] && export PATH="$APPTAINER_BINDIR:$PATH"
 
 # conda activation LAST -- module loads prepend to PATH and would shadow the

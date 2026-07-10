@@ -5,7 +5,7 @@
 # no API key, no internet needed on the compute node.
 #
 # USAGE (submit from the repo root):
-#     cd /scratch/$USER/Agent-Bench   # your repo root
+#     cd /projects/kzhou6/czhai/Agent-Bench   # your repo root
 #     mkdir -p logs
 #     sbatch slurm/grade_hotpot.sh
 #     # cap hotpot cases scored (optional 3rd arg to the eval script):
@@ -32,7 +32,7 @@ set -euo pipefail
 
 # --- knobs (env-overridable at submit time) ---------------------------------
 FAM="${FAM:-codexlow}" # output family dir under data/
-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
+REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
 CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
 CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
 RESUME="${RESUME:-0}" # 1 = skip if metrics file exists

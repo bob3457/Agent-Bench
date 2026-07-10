@@ -1,0 +1,37 @@
+{
+    "id": "e95f3451-e45c-463a-8440-e801a14bbc52",
+    "started_at": "2026-07-10T11:04:13.183525",
+    "updated_at": "2026-07-10T11:05:24.271716",
+    "finished_at": "2026-07-10T11:05:24.271716",
+    "n_total_trials": 1,
+    "stats": {
+        "n_completed_trials": 1,
+        "n_errored_trials": 1,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "codex__gpt-5.5__terminal-bench": {
+                "n_trials": 0,
+                "n_errors": 1,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "pass_at_k": {},
+                "reward_stats": {},
+                "exception_stats": {
+                    "NonZeroAgentExitCodeError": [
+                        "adaptive-rejection-sampler__bzyQqkA"
+                    ]
+                }
+            }
+        },
+        "n_input_tokens": null,
+        "n_cache_tokens": null,
+        "n_output_tokens": null,
+        "cost_usd": null
+    }
+}

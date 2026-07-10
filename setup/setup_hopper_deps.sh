@@ -18,8 +18,8 @@ set -uo pipefail
 
 # --- knobs (match run_terminalbench_harbor.sh / prebake_harbor_sifs.sh) -------
 SCRATCH_DIR="${SCRATCH_DIR:-/scratch/czhai}"
-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
-APPTAINER_PREFIX="${APPTAINER_PREFIX:-/scratch/czhai/apptainer}" # move to /projects when relocated
+REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
+APPTAINER_PREFIX="${APPTAINER_PREFIX:-/projects/kzhou6/czhai/apptainer}"
 CONDA_ENV="${CONDA_ENV:-bench}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
 HARBOR_MIN_VERSION="${HARBOR_MIN_VERSION:-0.16.1}"

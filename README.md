@@ -43,7 +43,7 @@ A "family" (`FAM`) is one agent×effort configuration — e.g. `codexlow`,
   - **Image building/prebaking**: a self-installed Apptainer **>= 1.5** with
     bundled FUSE tools (`squashfuse_ll`/`fuse2fs`/`fuse-overlayfs`), enabling
     def-file `--fakeroot` builds. `setup/prebake_harbor_sifs.sh` picks it up
-    via `APPTAINER=` (default `/scratch/czhai/apptainer/bin/apptainer` —
+    via `APPTAINER=` (default `/projects/kzhou6/czhai/apptainer/bin/apptainer` —
     override for your own install). Rootless `--fakeroot` works via
     root-mapped user namespaces — no `/etc/subuid` entry needed.
 - **`git` comes from a module** (`git/2.27.1`, ungated). Batch scripts must
@@ -71,7 +71,7 @@ conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 ### 3. Clone the repo
 
 ```bash
-cd /scratch/$USER # Or to whatever other folder you want it
+cd /projects/kzhou6/czhai # Or to whatever other folder you want it
 git clone https://github.com/bob3457/Agent-Bench.git
 cd Agent-Bench
 ```

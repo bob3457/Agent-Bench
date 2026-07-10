@@ -12,7 +12,7 @@
 # --max_workers). Parallelize across families/jobs, not within one.
 #
 # USAGE (submit from the repo root):
-#     cd /scratch/$USER/Agent-Bench   # your repo root
+#     cd /projects/kzhou6/czhai/Agent-Bench   # your repo root
 #     mkdir -p logs
 #     sbatch slurm/grade_swebench.sh
 #     # skip if the report already exists:
@@ -39,7 +39,7 @@ set -euo pipefail
 
 # --- knobs (env-overridable at submit time) ---------------------------------
 FAM="${FAM:-codexlow}" # output family dir under data/
-REPO_DIR="${REPO_DIR:-/scratch/czhai/Agent-Bench}"
+REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
 CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
 CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
 RESUME="${RESUME:-0}" # 1 = skip if report exists
@@ -73,7 +73,7 @@ export APPTAINER_TMPDIR="${APPTAINER_TMPDIR:-/scratch/czhai/apptainer_tmp}"
 # Put the self-installed Apptainer >= 1.5 on PATH (bundled squashfuse_ll --
 # SIFs FUSE-mount instead of sandbox-unpacking per instance); fall back to the
 # system module if absent. Before conda so the env's python stays first.
-APPTAINER_BINDIR="${APPTAINER_BINDIR:-/scratch/czhai/apptainer/bin}"
+APPTAINER_BINDIR="${APPTAINER_BINDIR:-/projects/kzhou6/czhai/apptainer/bin}"
 [ -d "$APPTAINER_BINDIR" ] && export PATH="$APPTAINER_BINDIR:$PATH"
 if ! command -v apptainer >/dev/null 2>&1 && ! command -v singularity >/dev/null 2>&1; then
   set +u
