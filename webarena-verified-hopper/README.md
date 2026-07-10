@@ -201,8 +201,13 @@ Listens swept.
   `03_prepare_state.sh restore` + `wa_site.sh start` (seed stays put).
 - **`apptainer build` OOM/tmp issues**: cache and tmp are already forced to
   scratch via `APPTAINER_CACHEDIR`/`APPTAINER_TMPDIR` in `wa_common.sh`.
+- **Apptainer binary**: `wa_common.sh` prepends the self-installed
+  `>= 1.5` at `/projects/kzhou6/czhai/apptainer/bin` (override with
+  `APPTAINER_BINDIR=` / `WA_APPTAINER=`) and falls back to the retired 1.4.1
+  module only if it's missing. With 1.5.2's bundled `fusermount3`/
+  `squashfuse_ll`, SIF FUSE-mounting now WORKS on Hopper nodes — the earlier
+  "SIFs broken, run sandboxes" limitation was a 1.4.1 artifact, so
+  `04_pack_sif.sh` + SIF mode is the recommended runtime again.
 - **Wrong base URL after moving nodes**: just `wa_site.sh <site> start`
   again — every entry script re-applies the base URL with the current
   `WA_HOST` on each start.
-- **SIF FUSE mounting broken on compute nodes**: known Hopper issue; the
-  sandbox fallback in `wa_site.sh` covers it (`rm` the SIF or never build one).

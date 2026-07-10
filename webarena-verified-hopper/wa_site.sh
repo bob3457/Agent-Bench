@@ -238,8 +238,9 @@ cmd_start() {
 
   BINDS+=(--bind "$ENTRY:/$ENTRY_BASENAME:ro")
 
-  echo "[site] starting $SITE ($KIND) -> $SITE_URL"
-  exec apptainer exec \
+  wa_require_apptainer || exit 1
+  echo "[site] starting $SITE ($KIND) -> $SITE_URL ($($WA_APPTAINER --version 2>/dev/null))"
+  exec "$WA_APPTAINER" exec \
     --cleanenv \
     --writable-tmpfs \
     "${BINDS[@]}" \
@@ -256,7 +257,7 @@ cmd_stop() {
     [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
   done
   pkill -f "$ENTRY_BASENAME" 2>/dev/null || true
-  pkill -f "apptainer exec .*$(basename "$(runtime_image)")" 2>/dev/null || true
+  pkill -f "apptainer.* exec .*$(basename "$(runtime_image)")" 2>/dev/null || true
   sleep 1
   for pid_file in "$RUN/webarena"/*.pid; do
     [ -f "$pid_file" ] || continue

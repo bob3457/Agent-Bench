@@ -37,6 +37,36 @@ WA_MAP_DATA_DIR="${WA_MAP_DATA_DIR:-$WA_ROOT/mapdata}"
 export APPTAINER_CACHEDIR="${APPTAINER_CACHEDIR:-$WA_SCRATCH/apptainer-cache}"
 export APPTAINER_TMPDIR="${APPTAINER_TMPDIR:-$WA_SCRATCH/apptainer-tmp}"
 
+# --- Apptainer binary ---------------------------------------------------------
+# Self-installed apptainer >= 1.5 (Agent-Bench standard): bundled squashfuse_ll
+# /fuse2fs/fusermount3 mean SIF FUSE-mounting WORKS on Hopper nodes (it did
+# not under the retired 1.4.1 module -- the old "SIFs broken, use sandboxes"
+# note is obsolete). Conda env activation rebuilds PATH, so prepend here:
+# every toolkit script sources this file.
+APPTAINER_BINDIR="${APPTAINER_BINDIR:-/projects/kzhou6/czhai/apptainer/bin}"
+[ -d "$APPTAINER_BINDIR" ] && case ":$PATH:" in
+  *":$APPTAINER_BINDIR:"*) ;;
+  *) export PATH="$APPTAINER_BINDIR:$PATH" ;;
+esac
+WA_APPTAINER="${WA_APPTAINER:-apptainer}"
+wa_require_apptainer() {
+  command -v "$WA_APPTAINER" >/dev/null 2>&1 && return 0
+  # Failsafe: retired system module (slow: no bundled FUSE -> sandbox unpacks)
+  if command -v module >/dev/null 2>&1 || [ -f /etc/profile.d/lmod.sh ]; then
+    set +u
+    [ -f /etc/profile.d/lmod.sh ] && source /etc/profile.d/lmod.sh
+    module load hosts/hopper apptainer/1.4.1 2>/dev/null || true
+    set -u
+  fi
+  command -v "$WA_APPTAINER" >/dev/null 2>&1 && {
+    echo "[wa] WARNING: using fallback $($WA_APPTAINER --version 2>/dev/null); self-install missing at $APPTAINER_BINDIR" >&2
+    return 0
+  }
+  echo "[wa] ERROR: apptainer not found (checked $APPTAINER_BINDIR and the 1.4.1 module)." >&2
+  echo "[wa]   Fix: install-unprivileged.sh $APPTAINER_BINDIR/.. or set APPTAINER_BINDIR=" >&2
+  return 1
+}
+
 # --- Sites ------------------------------------------------------------------
 # All supported sites (wikipedia intentionally excluded).
 WA_ALL_SITES="shopping shopping_admin reddit gitlab map"

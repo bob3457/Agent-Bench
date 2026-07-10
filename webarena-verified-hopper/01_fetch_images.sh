@@ -36,7 +36,8 @@ fetch_one() {
 
   echo "[fetch] $src -> $sandbox"
   # --fix-perms makes all dirs user-writable so the patch step can edit configs.
-  apptainer build --fix-perms --sandbox "$sandbox" "$src"
+  wa_require_apptainer || exit 1
+  "$WA_APPTAINER" build --fix-perms --sandbox "$sandbox" "$src"
   echo "[fetch] done: $sandbox"
 }
 

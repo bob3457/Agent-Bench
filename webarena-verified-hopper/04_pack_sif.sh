@@ -36,5 +36,6 @@ export APPTAINER_MKSQUASHFS_OPTS="${APPTAINER_MKSQUASHFS_OPTS:--processors $CPUS
 export SINGULARITY_MKSQUASHFS_OPTS="${SINGULARITY_MKSQUASHFS_OPTS:--processors $CPUS}"
 
 echo "[pack] $SANDBOX -> $SIF (cpus=$CPUS)"
-apptainer build --force "$SIF" "$SANDBOX"
+wa_require_apptainer || exit 1
+"$WA_APPTAINER" build --force "$SIF" "$SANDBOX"
 echo "[pack] done: $SIF"
