@@ -1,7 +1,23 @@
 #!/bin/bash
-# prebake_harbor_sifs.sh (v2.2) -- bake Harbor's in-container runtime deps into
+# prebake_harbor_sifs.sh (v2.3) -- bake Harbor's in-container runtime deps into
 # cached SIFs so trials on Hopper don't depend on apt egress or the 64 MiB
 # --writable-tmpfs overlay at bootstrap time.
+#
+# v2.3: bake AGENT runtimes too (node + @openai/codex + claude-code).
+#   Verified failure without this (job 8882353, 2026-07-10): no npm in the
+#   image -> harbor's codex installer falls back to the nvm curl|bash
+#   bootstrap, which dies in-container ("Error: NVM failed to load") -- and
+#   even with node baked, the stock path would re-`npm install -g` at trial
+#   time (registry egress + un-pins the version). With the BINARIES baked,
+#   harbor's own _installed_*_satisfies_version() check (verified in 0.16.1
+#   agents/installed/codex.py: install() returns early when `codex --version`
+#   exits 0) makes trial-time install a zero-network no-op. The node dist
+#   tarball is staged once on the host and extracted into the rootfs at
+#   %setup, so builds need npmjs egress only (for the agent packages).
+#   Knobs: BAKE_AGENTS=0 to disable; NODE_VERSION / CODEX_VERSION /
+#   CLAUDE_CODE_VERSION to pin (PIN for benchmark runs -- 'latest' drifts).
+#   NOTE: v2.3's is_baked also checks the agent binaries, so every pre-v2.3
+#   SIF reports "not baked" until a --all-cached pass rebakes it.
 #
 # v2 rewrite: uses `apptainer build --fakeroot` with a generated def file,
 # which requires the self-installed apptainer >= 1.5 (bundled FUSE tools) and
@@ -49,6 +65,16 @@ SIF_CACHE_DIR="${SIF_CACHE_DIR:-$SCRATCH_DIR/.harbor_sif_cache}"
 export APPTAINER_CACHEDIR="${APPTAINER_CACHEDIR:-$SCRATCH_DIR/.apptainer_cache}"
 export APPTAINER_TMPDIR="${APPTAINER_TMPDIR:-$SCRATCH_DIR/tmp}"
 FORCE="${FORCE:-0}"
+
+# --- v2.3: agent runtime baking ----------------------------------------------
+BAKE_AGENTS="${BAKE_AGENTS:-1}"
+NODE_VERSION="${NODE_VERSION:-22.14.0}"                            # needs glibc >= 2.28 (Ubuntu 20.04+)
+NODE_DIST_DIR="${NODE_DIST_DIR:-/projects/kzhou6/czhai/node_dist}" # NOT scratch
+NODE_TARBALL="$NODE_DIST_DIR/node-v$NODE_VERSION-linux-x64.tar.gz"
+# PIN these for benchmark sweeps: 'latest' resolves at BAKE time, so SIFs
+# baked on different days can carry different agent versions.
+CODEX_VERSION="${CODEX_VERSION:-latest}"
+CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-latest}"
 
 # All deps in one list now -- fakeroot builds install libutempter0/tmux
 # cleanly (verified 2026-07-08), so nothing is "best-effort" anymore.
@@ -102,6 +128,23 @@ done
   exit 1
 }
 
+# Node dist tarball: staged ONCE on the host, then host-extracted into every
+# rootfs at %setup -- no in-container tooling or network needed for node
+# itself. Lives under /projects (scratch is purge-eligible).
+if [ "$BAKE_AGENTS" = "1" ] && [ ! -f "$NODE_TARBALL" ]; then
+  mkdir -p "$NODE_DIST_DIR"
+  echo "staging node v$NODE_VERSION -> $NODE_TARBALL"
+  curl -fL --retry 3 -o "$NODE_TARBALL.part" \
+    "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz" &&
+    mv "$NODE_TARBALL.part" "$NODE_TARBALL" || {
+    rm -f "$NODE_TARBALL.part"
+    echo "FATAL: node tarball download failed (needs nodejs.org egress ONCE;"
+    echo "  run from a login node, or pre-place the tarball at $NODE_TARBALL,"
+    echo "  or BAKE_AGENTS=0 to skip agent baking)"
+    exit 1
+  }
+fi
+
 # --- collect target images -------------------------------------------------
 declare -a IMAGES=()
 mode="${1:-}"
@@ -138,14 +181,50 @@ sif_path_for() { # image -> cache path (harbor's safe_name scheme)
 }
 
 is_baked() { # sif -> 0 if all runtime deps present
-  "$APPTAINER" exec --no-mount bind-paths --containall "$1" bash -c '
-        command -v python3 >/dev/null 2>&1 &&
+  local checks='command -v python3 >/dev/null 2>&1 &&
         [ -x /opt/harbor-server/bin/python3 ] &&
         /opt/harbor-server/bin/python3 -c "import uvicorn, fastapi" 2>/dev/null &&
-        command -v curl >/dev/null 2>&1' >/dev/null 2>&1
+        command -v curl >/dev/null 2>&1'
+  if [ "$BAKE_AGENTS" = "1" ]; then
+    # v2.3: agent runtimes too. Pre-v2.3 SIFs fail this -> get rebaked.
+    checks="$checks &&
+        command -v node >/dev/null 2>&1 &&
+        command -v npm >/dev/null 2>&1 &&
+        command -v codex >/dev/null 2>&1 &&
+        command -v claude >/dev/null 2>&1"
+  fi
+  "$APPTAINER" exec --no-mount bind-paths --containall "$1" bash -c "$checks" >/dev/null 2>&1
 }
 
 write_def() { # <def path> <bootstrap: localimage|docker> <from>
+  # v2.3 conditional sections. Escaping convention matches the heredoc below:
+  # values expanded NOW are unescaped; text that must survive into the def
+  # for build-time execution escapes its \$ (and \${APPTAINER_ROOTFS}).
+  local NODE_SETUP="" AGENT_POST=""
+  if [ "$BAKE_AGENTS" = "1" ]; then
+    NODE_SETUP="
+    # v2.3: node v$NODE_VERSION host-extracted into /usr/local (npm -g's
+    # default prefix), zero in-build egress. musl images swap it in %post.
+    mkdir -p \${APPTAINER_ROOTFS}/usr/local
+    tar -xzf \"$NODE_TARBALL\" --strip-components=1 -C \${APPTAINER_ROOTFS}/usr/local"
+    AGENT_POST="
+    # --- v2.3: bake agent runtimes. With the binaries present, harbor's
+    # _installed_*_satisfies_version() short-circuits install() at trial
+    # time -> no nvm bootstrap, no npm registry egress from compute nodes.
+    if ldd --version 2>&1 | grep -qi musl || [ -f /etc/alpine-release ]; then
+        # glibc node tarball can't run on musl -- swap for apk's nodejs
+        rm -f /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+        rm -rf /usr/local/lib/node_modules /usr/local/include/node
+        apk add --no-cache nodejs npm
+    fi
+    export PATH=\"/usr/local/bin:\$PATH\"
+    if ! node --version >/dev/null 2>&1; then
+        echo '[prebake] WARNING: node not runnable (glibc < 2.28?) -- agents will need network installs at trial time' >&2
+    else
+        npm install -g --prefix /usr/local \"@openai/codex@$CODEX_VERSION\" \"@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION\"
+        codex --version && claude --version
+    fi"
+  fi
   cat >"$1" <<EOF
 Bootstrap: $2
 From: $3
@@ -156,6 +235,7 @@ From: $3
     mkdir -p \${APPTAINER_ROOTFS}/etc/ssl/certs \${APPTAINER_ROOTFS}/usr/lib/ssl \${APPTAINER_ROOTFS}/groups
     cat "$HOST_BUNDLE" > \${APPTAINER_ROOTFS}/etc/ssl/certs/ca-certificates.crt
     [ -e \${APPTAINER_ROOTFS}/usr/lib/ssl/certs ] || ln -sfn /etc/ssl/certs \${APPTAINER_ROOTFS}/usr/lib/ssl/certs
+$NODE_SETUP
 
 %post
     set -e
@@ -202,6 +282,7 @@ From: $3
     /opt/harbor-server/bin/python3 -c "import uvicorn, fastapi"
     command -v asciinema >/dev/null 2>&1 \\
         || /opt/harbor-server/bin/python3 -m pip install --quiet asciinema || true
+$AGENT_POST
 EOF
 }
 
