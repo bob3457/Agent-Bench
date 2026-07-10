@@ -130,6 +130,18 @@ while true; do
     pid="$(cat "$pid_file" 2>/dev/null || true)"
     [ -n "$pid" ] || continue
     if ! kill -0 "$pid" 2>/dev/null; then
+      # Elasticsearch is best-effort: storefront browsing works without it
+      # (only catalog search degrades). Everything else is load-bearing.
+      case "$pid_file" in
+        */elasticsearch.pid)
+          if [ "${WA_ES_FATAL:-0}" != "1" ]; then
+            echo "[entry] WARNING: elasticsearch exited; continuing without it (WA_ES_FATAL=1 to make fatal)" >&2
+            tail -n 40 "$LOG_DIR/elasticsearch.log" >&2 || true
+            rm -f "$pid_file"
+            continue
+          fi
+          ;;
+      esac
       echo "[entry] service exited: $pid_file" >&2
       tail -n 80 "$LOG_DIR"/*.log >&2 || true
       exit 1

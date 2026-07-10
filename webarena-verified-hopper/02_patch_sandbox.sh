@@ -150,6 +150,17 @@ EOF_MYSQL
 
   echo "[patch] env.php endpoints now:"
   grep -n "host' =>\|port' =>" "$ENV_PHP" | head -12 || true
+
+  # --- elasticsearch jvm.options (shopping image only) ---------------------------
+  # The JVM's GC log (-Xlog:gc*...file=logs/gc.log...filecount=...) dies with
+  # EOVERFLOW on Hopper's overlay fs -- same failure class as the nginx pid
+  # file. GC logs are useless here; comment out every gc.log line. Idempotent.
+  local JVM_OPTS="$ROOT/usr/share/java/elasticsearch/config/jvm.options"
+  if [ -f "$JVM_OPTS" ]; then
+    sed -i '/gc\.log/ { /hopper-disabled/! s/^/# hopper-disabled (EOVERFLOW): / }' "$JVM_OPTS"
+    echo "[patch] jvm.options gc.log lines disabled:"
+    grep -n "gc\.log" "$JVM_OPTS" || echo "  (none present)"
+  fi
 }
 
 # ==============================================================================
