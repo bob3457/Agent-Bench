@@ -1,0 +1,37 @@
+{
+    "id": "229c8eb7-f86c-47e5-b180-d4f60b13640d",
+    "started_at": "2026-07-10T14:35:27.248707",
+    "updated_at": "2026-07-10T14:35:50.029522",
+    "finished_at": "2026-07-10T14:35:50.029522",
+    "n_total_trials": 1,
+    "stats": {
+        "n_completed_trials": 1,
+        "n_errored_trials": 1,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "codex__gpt-5.5__terminal-bench": {
+                "n_trials": 0,
+                "n_errors": 1,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "pass_at_k": {},
+                "reward_stats": {},
+                "exception_stats": {
+                    "NonZeroAgentExitCodeError": [
+                        "configure-git-webserver__8m5cHdc"
+                    ]
+                }
+            }
+        },
+        "n_input_tokens": null,
+        "n_cache_tokens": null,
+        "n_output_tokens": null,
+        "cost_usd": null
+    }
+}
