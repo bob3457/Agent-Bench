@@ -36,17 +36,25 @@ A "family" (`FAM`) is one agent×effort configuration — e.g. `codexlow`,
 ### 0. Hopper notes
 
 - **No Docker, no root.** All container workloads run via rootless Apptainer.
-  Two installs are in play:
-  - **Runtime** (executing SIFs): the system module
-    (`module load hosts/hopper apptainer/1.4.1`), which ships the
-    `singularity` symlink Harbor's singularity backend shells out to.
-  - **Image building/prebaking**: a self-installed Apptainer **>= 1.5** with
-    bundled FUSE tools (`squashfuse_ll`/`fuse2fs`/`fuse-overlayfs`), enabling
-    def-file `--fakeroot` builds. `setup/prebake_harbor_sifs.sh` picks it up
+  One install serves both roles: a self-installed Apptainer **>= 1.5** with
+  bundled FUSE tools (`squashfuse_ll`/`fuse2fs`/`fuse-overlayfs`).
+  - **Runtime** (executing SIFs): `install-unprivileged.sh` creates a
+    `bin/singularity -> apptainer` symlink, so Harbor's singularity backend
+    resolves this install once its `bin/` leads `PATH` (the SLURM scripts
+    prepend it). SIFs FUSE-mount directly instead of sandbox-unpacking per
+    container start. The retired system module
+    (`module load hosts/hopper apptainer/1.4.1`) is only a failsafe when the
+    self-install is absent — expect slow, tmp-heavy starts under it.
+  - **Image building/prebaking**: the same install enables def-file
+    `--fakeroot` builds. `setup/prebake_harbor_sifs.sh` picks it up
     via `APPTAINER=` (default `/projects/kzhou6/czhai/apptainer/bin/apptainer` —
     override for your own install). Rootless `--fakeroot` works via
     root-mapped user namespaces — no `/etc/subuid` entry needed.
-- **`git` comes from a module** (`git/2.27.1`, ungated). Batch scripts must
+- **`git` comes from a module** (`git/2.39.1-vd` via the `gnu10/10.3.0-ya`
+  chain — Harbor's `--filter=blob:none` clones need git >= 2.19, so the
+  ungated `git/2.27.1` is NOT sufficient; also never reload `hosts/hopper`
+  after the git chain, or the compiler flips to gnu9 and inactivates it).
+  Batch scripts must
   source `/etc/profile.d/lmod.sh` before `module load` — login init doesn't
   run in batch shells. The provided SLURM scripts handle this.
 
@@ -201,7 +209,7 @@ steps are required before any run.
 **1. Patch Harbor** (re-run after every `pip install --upgrade harbor` — upgrades revert it):
 
 ```bash
-bash /projects/kzhou6/czhai/patch_harbor_hopper.sh
+bash setup/patch_harbor_hopper.sh
 ```
 
 **2. Pre-bake the task images** (runtime package installs fail on Hopper; baking installs everything ahead of time). The v2 prebaker builds via `apptainer build --fakeroot` from a generated def file and needs the self-installed Apptainer >= 1.5 (set `APPTAINER=` if yours isn't at the default path):

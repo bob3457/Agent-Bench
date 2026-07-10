@@ -8,18 +8,24 @@
 # harness; the framework this script drives lives at laude-institute/harbor,
 # and terminal-bench@2.0 resolves to laude-institute/terminal-bench-2.
 #
-# Verified on Hopper (2026-07-02):
-#   - apptainer/1.4.1 gated behind hosts/hopper; ships a `singularity` symlink
-#     (harbor's backend execs the `singularity` binary by name)
+# Verified on Hopper (2026-07-02; apptainer notes updated 2026-07-10):
+#   - the apptainer/1.4.1 MODULE IS RETIRED (setup_hopper_deps.sh v2). The
+#     self-installed apptainer >= 1.5 at /projects/kzhou6/czhai/apptainer/bin
+#     is BOTH the build and the runtime install: install-unprivileged.sh
+#     creates bin/singularity -> apptainer (verified in the installer:
+#     "Creating bin/apptainer and bin/singularity"), so harbor's backend --
+#     which execs the `singularity` binary by name -- resolves 1.5.2 once
+#     that dir is on PATH. The 1.4.1 module is loaded ONLY as a failsafe
+#     when the self-install is missing.
 #   - rootless --fakeroot works via root-mapped userns (no /etc/subuid entry
 #     needed; /proc/sys/user/max_user_namespaces > 0)
-#   - no squashfuse on compute nodes -> every container start unpacks the SIF
-#     to a temp sandbox; APPTAINER_TMPDIR must point at scratch
-#     [UPDATE 2026-07-09: superseded -- the self-installed apptainer 1.5.2
-#     (/projects/kzhou6/czhai/apptainer/bin, prepended to PATH below) bundles
-#     squashfuse_ll/fuse2fs/fuse-overlayfs, so SIFs FUSE-mount directly.
-#     Sandbox unpack only recurs if that install is absent AND no squashfuse
-#     is on PATH. Keep APPTAINER_TMPDIR on scratch regardless.]
+#   - apptainer >= 1.5 bundles squashfuse_ll/fuse2fs/fuse-overlayfs, so SIFs
+#     FUSE-mount directly. Under the 1.4.1 failsafe (no squashfuse on compute
+#     nodes) every container start unpacks the SIF to a temp sandbox instead.
+#     Keep APPTAINER_TMPDIR on scratch regardless.
+#   - site modules export APPTAINER_BINDPATH (/groups etc.), which fails
+#     under --containall/--fakeroot. Harbor patch P1 scrubs it in-process;
+#     this script also unsets it (covers an unpatched harbor).
 #   - Harbor's singularity backend defaults its SIF cache to a throwaway
 #     tempfile.mkdtemp(); persist it via --ek singularity_image_cache_dir
 #     (kwarg confirmed in SingularityEnvironment.__init__; cache is flock-
@@ -64,19 +70,19 @@
 #     cd /projects/kzhou6/czhai/Agent-Bench && mkdir -p logs
 #     export OPENAI_API_KEY=sk-...            # codex / openhands-sdk
 #     export CLAUDE_CODE_OAUTH_TOKEN=...      # claude-code
-#     sbatch run_terminalbench_harbor.sh
-#     # smoke test (1 task):   N_TASKS=1 sbatch run_terminalbench_harbor.sh
-#     # pick agent/effort:     AGENT=codex EFFORT=high N_TASKS=25 sbatch run_terminalbench_harbor.sh
-#     #                        AGENT=openhands-sdk EFFORT=medium sbatch run_terminalbench_harbor.sh
-#     #                        AGENT=claude-code sbatch run_terminalbench_harbor.sh
-#     # run one named task:    EXTRA_ARGS="-i hello-world" N_TASKS=1 sbatch run_terminalbench_harbor.sh
-#     # extra exclusions:      EXCLUDE_TASKS="gpt2-codegolf some-other-task" sbatch run_terminalbench_harbor.sh
+#     sbatch slurm/run_terminalbench.sh
+#     # smoke test (1 task):   N_TASKS=1 sbatch slurm/run_terminalbench.sh
+#     # pick agent/effort:     AGENT=codex EFFORT=high N_TASKS=25 sbatch slurm/run_terminalbench.sh
+#     #                        AGENT=openhands-sdk EFFORT=medium sbatch slurm/run_terminalbench.sh
+#     #                        AGENT=claude-code sbatch slurm/run_terminalbench.sh
+#     # run one named task:    EXTRA_ARGS="-i hello-world" N_TASKS=1 sbatch slurm/run_terminalbench.sh
+#     # extra exclusions:      EXCLUDE_TASKS="gpt2-codegolf some-other-task" sbatch slurm/run_terminalbench.sh
 #
 # USAGE (interactive, on an salloc'd compute node):
 #     N_TASKS=1 N_CONCURRENT=1 AGENT=claude-code \
-#         bash run_terminalbench_harbor.sh 2>&1 | tee logs/tbench-pilot-$(date +%s).log
+#         bash slurm/run_terminalbench.sh 2>&1 | tee logs/tbench-pilot-$(date +%s).log
 #
-#     # local machine (Docker): ENV_TYPE=docker bash run_terminalbench_harbor.sh
+#     # local machine (Docker): ENV_TYPE=docker bash slurm/run_terminalbench.sh
 #
 #SBATCH --job-name=agentbench-tbench
 #SBATCH --output=logs/agentbench-tbench-%j.out
@@ -141,25 +147,36 @@ cd "$REPO_DIR"
 mkdir -p "$REPO_DIR/logs" "$JOBS_DIR"
 
 # --- module handling (batch shells don't source login init; not nounset-clean)
-# ORDER MATTERS (see header): hosts/hopper ONCE, apptainer first, git chain
-# LAST -- a later hosts/hopper reload flips gnu10 -> gnu9 and inactivates git.
+# ORDER MATTERS (see header): hosts/hopper ONCE, git chain LAST -- a later
+# hosts/hopper reload flips gnu10 -> gnu9 and inactivates git. The apptainer
+# module is NOT loaded here anymore: the self-installed >= 1.5 (prepended to
+# PATH below) is the runtime too -- its bin/ ships the `singularity` symlink
+# harbor shells out to. 1.4.1 remains a last-ditch failsafe further down.
 set +u
 [ -f /etc/profile.d/lmod.sh ] && source /etc/profile.d/lmod.sh
 [ -n "${MODULESHOME:-}" ] && [ -f "$MODULESHOME/init/bash" ] && source "$MODULESHOME/init/bash"
-if [ "$ENV_TYPE" = "singularity" ]; then
-  module load hosts/hopper apptainer/1.4.1 || echo "WARNING: apptainer module load failed"
-  module load gnu10/10.3.0-ya git/2.39.1-vd || echo "WARNING: git module load failed"
-else
-  module load hosts/hopper gnu10/10.3.0-ya git/2.39.1-vd || echo "WARNING: git module load failed"
-fi
+module load hosts/hopper gnu10/10.3.0-ya git/2.39.1-vd || echo "WARNING: module load failed"
 set -u
 [ -n "${GIT_BINDIR:-}" ] && export PATH="$GIT_BINDIR:$PATH"
-# Prefer the self-installed apptainer >= 1.5 (bundled squashfuse_ll et al. --
-# SIFs mount instead of sandbox-unpacking on every container start). Failsafe:
-# if the dir is missing or ships no `singularity` symlink, the module's 1.4.1
-# still resolves; even then, 1.4.1 picks up bundled squashfuse from PATH.
+# Self-installed apptainer >= 1.5: bundled squashfuse_ll/fuse2fs/fuse-overlayfs
+# (SIFs FUSE-mount instead of sandbox-unpacking on every container start) AND
+# a bin/singularity -> apptainer symlink (created by install-unprivileged.sh),
+# so harbor resolves this install by name once the dir leads PATH.
 APPTAINER_BINDIR="${APPTAINER_BINDIR:-/projects/kzhou6/czhai/apptainer/bin}"
 [ -d "${APPTAINER_BINDIR:-}" ] && export PATH="$APPTAINER_BINDIR:$PATH"
+# FAILSAFE ONLY: no self-install -> fall back to the retired 1.4.1 module
+# (expect slow starts: no bundled squashfuse -> per-start sandbox unpacks).
+# hosts/hopper is already loaded; do NOT reload it (gnu9/git hazard above).
+if [ "$ENV_TYPE" = "singularity" ] && ! command -v singularity >/dev/null 2>&1; then
+  echo "WARNING: self-install missing at $APPTAINER_BINDIR -- falling back to apptainer/1.4.1 module"
+  set +u
+  module load apptainer/1.4.1 || echo "WARNING: apptainer module load failed"
+  set -u
+fi
+# Site modules export APPTAINER_BINDPATH (/groups etc.); those binds fail
+# under --containall/--fakeroot. Harbor patch P1 scrubs them in-process --
+# unset here too so an UNPATCHED harbor doesn't inherit them.
+unset APPTAINER_BINDPATH SINGULARITY_BINDPATH APPTAINER_BIND SINGULARITY_BIND 2>/dev/null || true
 
 # conda activation LAST -- module loads prepend to PATH and would shadow the
 # env's python if activation ran first. NEVER `conda info --base` in batch
@@ -191,14 +208,40 @@ command -v git >/dev/null 2>&1 ||
     exit 1
   }
 if [ "$ENV_TYPE" = "singularity" ]; then
-  # Harbor shells out to `singularity`; resolved from the self-installed
-  # 1.5.2 bin dir if it ships the compat symlink, else the module's 1.4.1.
+  # Harbor shells out to `singularity`; must resolve to the self-installed
+  # >= 1.5 (bin/singularity -> apptainer symlink) unless we fell back above.
   command -v singularity >/dev/null 2>&1 ||
     {
-      echo "ERROR: singularity not on PATH (module load failed? set APPTAINER_BINDIR=)"
+      echo "ERROR: singularity not on PATH (self-install AND module fallback failed? set APPTAINER_BINDIR=)"
       exit 1
     }
-  echo "[tbench] singularity: $(command -v singularity) ($(singularity --version 2>/dev/null || true))"
+  sing_path="$(command -v singularity)"
+  sing_ver="$(singularity --version 2>/dev/null | awk '{print $NF}')"
+  echo "[tbench] singularity: $sing_path ($sing_ver)"
+  if [ -x "$APPTAINER_BINDIR/singularity" ] && [ "$sing_path" != "$APPTAINER_BINDIR/singularity" ]; then
+    echo "WARNING: singularity resolves OUTSIDE the self-install ($sing_path)"
+    echo "  -- something later on PATH shadows $APPTAINER_BINDIR (module order regression?)"
+  fi
+  case "$sing_ver" in
+    1.[0-4].*)
+      echo "WARNING: apptainer $sing_ver < 1.5 -- no bundled FUSE tools; every"
+      echo "  container start will sandbox-unpack its SIF (slow, tmp-heavy)."
+      ;;
+  esac
+  # Harbor's Hopper patches revert on EVERY pip reinstall/upgrade of harbor;
+  # catch that before burning trial budget. SKIP_PATCH_CHECK=1 to override.
+  PATCH_SCRIPT="${PATCH_SCRIPT:-$REPO_DIR/setup/patch_harbor_hopper.sh}"
+  if [ "${SKIP_PATCH_CHECK:-0}" != "1" ] && [ -f "$PATCH_SCRIPT" ]; then
+    if CONDA_ROOT="$CONDA_ROOT" CONDA_ENV="$CONDA_ENV" bash "$PATCH_SCRIPT" --check >/dev/null 2>&1; then
+      echo "[tbench] harbor Hopper patches: applied"
+    else
+      echo "ERROR: harbor is missing Hopper patches (P1-P3) -- a pip"
+      echo "  reinstall/upgrade reverted them. Fix:"
+      echo "    bash $PATCH_SCRIPT"
+      echo "  (or SKIP_PATCH_CHECK=1 to run anyway)"
+      exit 1
+    fi
+  fi
   # rootless fakeroot must work (root-mapped userns). Cheap sanity check:
   ns_max="$(cat /proc/sys/user/max_user_namespaces 2>/dev/null || echo 0)"
   [ "$ns_max" -gt 0 ] || {
