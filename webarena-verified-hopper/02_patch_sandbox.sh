@@ -336,6 +336,15 @@ patch_map() {
   # above it win first-match and demand passwords on 127.0.0.1. Docker's
   # entrypoint dodged this via 'su - postgres' + unix-socket peer auth, which
   # rootless can't do. Blanket trust is fine for a loopback-only benchmark pg.
+  # sweep any leftover port-80 Listen/vhost anywhere in the apache tree:
+  # binding <1024 is EPERM rootless (apache exits "no listening sockets").
+  grep -rl -E '^[[:space:]]*Listen[[:space:]]+(0\.0\.0\.0:|\[::\]:)?80[[:space:]]*$' "$ROOT/etc/apache2" 2>/dev/null \
+    | xargs -r sed -i -E 's/^([[:space:]]*)Listen[[:space:]]+(0\.0\.0\.0:|\[::\]:)?80[[:space:]]*$/\1# Listen 80 disabled (rootless, unprivileged ports only)/'
+  grep -rl 'VirtualHost \*:80>' "$ROOT/etc/apache2/sites-enabled" 2>/dev/null \
+    | xargs -r sed -i 's/VirtualHost \*:80>/VirtualHost 127.0.0.1:8080>/'
+  echo "[patch] apache Listen lines now:"
+  grep -rn '^[[:space:]]*Listen' "$ROOT/etc/apache2" | grep -v '#' || true
+
   local pghba
   for pghba in "$ROOT"/etc/postgresql/*/*/pg_hba.conf; do
     [ -f "$pghba" ] || continue
