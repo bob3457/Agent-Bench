@@ -1,25 +1,48 @@
 # webarena-verified on Hopper (rootless Apptainer + SLURM)
 
-Runs the ServiceNow **webarena-verified** `shopping` and `shopping_admin`
-environments on GMU Hopper: no root, no `/etc/subuid` (single-uid user
-namespaces), no privileged ports, no Docker.
+Runs the ServiceNow **webarena-verified** environments — everything in
+WebArena **except wikipedia** — on GMU Hopper: no root, no `/etc/subuid`
+(single-uid user namespaces), no privileged ports, no Docker.
+
+| Site | Kind | External port | URL placeholder | Credentials |
+|---|---|---|---|---|
+| `shopping` | Magento storefront | 7770 | `__SHOPPING__` | `emma.lopez@gmail.com` / `Password.123` |
+| `shopping_admin` | Magento admin | 7780 (`/admin`) | `__SHOPPING_ADMIN__` | `admin` / `admin1234` |
+| `reddit` | Postmill (nginx + php-fpm + postgres) | 9999 | `__REDDIT__` | `MarvelsGrantMan136` / `test1234` |
+| `gitlab` | GitLab omnibus (runit) | 8023 | `__GITLAB__` | `byteblaze` / `hello1234` |
+| `map` | OSM website (rails + apache/mod_tile + renderd + 3× postgres + 3× osrm) | 3030 | `__MAP__` | — |
 
 The approach is the PoloWitty `webarena-lite-for-rootless-slurm` recipe ported
-to the webarena-verified images. That works because the verified images are
-squashed from the same CMU Alpine/Magento images PoloWitty patched, so the
-config layout (`/etc/supervisor.d`, `/usr/local/etc/php-fpm.d`,
-`/etc/my.cnf.d`, `/var/www/magento2`) is identical — while keeping the
-verified extras you actually want: ~90% smaller images, the
-`X-M2-Customer-Auto-Login` / `X-M2-Admin-Auto-Login` header-auth plugins baked
-in, and offline HAR-based evaluation (so containers are only needed while the
-agent browses, never for scoring).
+to the webarena-verified images and extended per service stack. Instead of
+each image's supervisord/runit + env-ctrl (which need `su` and multiple uids),
+`02_patch_sandbox.sh` strips every user-switch from the configs and a per-kind
+entry script in `container/` starts the services directly as your uid, then
+applies exactly what `env-ctrl init` would (base-URL rewrite, cache flush).
 
-Instead of the image's supervisord + env-ctrl stack (which needs `su` and
-multiple uids), `container/wa_magento_entry.sh` starts redis, mariadb,
-php-fpm, nginx (+ mailcatcher, and elasticsearch for shopping) directly as
-your uid, then applies exactly what `env-ctrl init` would: set the Magento
-base URL, patch `web/secure/base_url` in MySQL, disable the admin password
-expiry policies (admin site), and flush caches.
+- **magento** (`wa_magento_entry.sh`): redis, mariadb, php-fpm, nginx
+  (+ mailcatcher, + elasticsearch for shopping), Magento base-URL set per start.
+- **reddit** (`wa_reddit_entry.sh`): postgres (moved to 19991), php-fpm
+  (19992), nginx; rewrites `APP_SITE_NAME` in `.env` and clears the Symfony
+  cache per start. Header auto-login: `X-Postmill-Auto-Login`.
+- **gitlab** (`wa_gitlab_entry.sh`): keeps omnibus runit but with
+  `chpst -u`/`su` stripped from all `sv` run scripts; **never runs
+  `gitlab-ctl reconfigure`** (would restore root-isms) — instead seds the
+  `host:`/`port:` in `gitlab-rails/etc/gitlab.yml` per start. Puma pins
+  `127.0.0.1:8080` internally.
+- **map** (`wa_map_entry.sh`): starts the three postgres clusters (website
+  5433, tiles 5432, nominatim 5434), rails (3000), apache (external
+  `MAP_HTTP_PORT`, internal 8080/8085 restricted to loopback), renderd, and
+  the three osrm-routed instances. Internal ports are **not** remapped —
+  `localhost:8080` URLs are baked into the rails settings and precompiled
+  assets — so map wants its own node.
+
+**Node placement rules**
+
+- `gitlab` and `map` must **not** share a node (both use internal port 8080).
+- `map` also needs 3000, 5000–5002, 5432–5434 free; give it its own node.
+- Everything else has internal services moved to >1024 unique ports and can
+  share: `shopping shopping_admin reddit gitlab` fit on one ~48G node.
+- Rough memory: magento pair ~20G, reddit ~4G, gitlab ~16G, map ~32G.
 
 ## Layout
 
@@ -29,13 +52,12 @@ later by setting `WA_ROOT`):
 
 | Piece | Default location |
 |---|---|
-| Patched sandboxes / SIFs / seed state | `$WA_ROOT` = `/scratch/czhai/webarena-verified/persist` |
-| Live state, run dirs, logs, apptainer cache | `$WA_SCRATCH` = `/scratch/czhai/webarena-verified/runtime` |
-| Conda env, harness source, playwright browsers | `/scratch/czhai/webarena-verified/{conda-env,src,ms-playwright}` |
+| Patched sandboxes / SIFs / seed state | `$WA_ROOT` = `.../persist` |
+| Map external data (tiles, nominatim, osrm) | `$WA_MAP_DATA_DIR` = `.../persist/mapdata` |
+| Live state, run dirs, logs, URL fragments, apptainer cache | `$WA_SCRATCH` = `.../runtime` |
+| Conda env, harness source, playwright browsers | `.../{conda-env,src,ms-playwright}` |
 
-All ports and paths are overridable env vars in `wa_common.sh`. Defaults keep
-the webarena-verified external ports (`7770` shopping, `7780` admin) and move
-internal services to `1777x` / `1778x` so both sites share one node.
+All ports and paths are overridable env vars in `wa_common.sh`.
 
 ## Step 0: Python env (harness only — hosting needs no Python)
 
@@ -45,46 +67,56 @@ source /scratch/czhai/webarena-verified/activate_wa.sh
 webarena-verified --help
 ```
 
-This reuses your miniconda at `/projects/kzhou6/czhai/miniconda3` if found
-(else bootstraps one into scratch), creates a prefix env
-(`conda-env/`, python 3.12), clones + `pip install -e`'s webarena-verified
-with the `examples` extra (Playwright), installs the chromium browser into
-scratch, and keeps every cache (pip, conda pkgs, browsers) off `$HOME`.
-`WA_INSTALL_EXAMPLES=0` skips Playwright if you only need offline evaluation.
-
 ## One-time setup
 
 ```bash
-# 1. Pull images into user-owned sandboxes (needs network — login node is fine)
-./01_fetch_images.sh
+# 1. Pull images into user-owned sandboxes (LOGIN NODE — compute nodes
+#    throttle egress; gitlab is ~15-25GB, map ~10-15GB)
+./01_fetch_images.sh                       # all sites, or list them:
+./01_fetch_images.sh reddit gitlab map
 
-# 2. Apply the rootless patches
-./02_patch_sandbox.sh shopping
-./02_patch_sandbox.sh shopping_admin
+# 2. Apply the rootless patches (per site)
+for s in shopping shopping_admin reddit gitlab map; do ./02_patch_sandbox.sh $s; done
 
-# 3. Extract writable state (mysql, magento var/, nginx lib, ES data) + seed it
-./03_prepare_state.sh prepare shopping
-./03_prepare_state.sh prepare shopping_admin
+# 3. Map only: download + extract external data (LOGIN NODE, huge — check first)
+./05_fetch_map_data.sh sizes
+./05_fetch_map_data.sh                     # download + extract into $WA_MAP_DATA_DIR
 
-# 4. (Recommended) pack to SIF on a compute node
+# 4. Extract writable state + snapshot seed (per site)
+for s in shopping shopping_admin reddit map; do ./03_prepare_state.sh prepare $s; done
+WA_SKIP_SEED=1 ./03_prepare_state.sh prepare gitlab   # gitlab seed is tens of GB;
+                                                      # skip it, or budget the space
+
+# 5. (Optional) pack to SIF on a compute node — skip for gitlab (huge; the
+#    sandbox runs fine and wa_site.sh falls back to it automatically)
 srun -c 16 --mem=16G ./04_pack_sif.sh shopping
 srun -c 16 --mem=16G ./04_pack_sif.sh shopping_admin
+srun -c 16 --mem=16G ./04_pack_sif.sh reddit
 
-# 5. Smoke test on a compute node
-srun -c 8 --mem=16G ./wa_site.sh shopping smoke
-srun -c 8 --mem=16G ./wa_site.sh shopping_admin smoke
+# 6. Smoke test on a compute node (gitlab needs ~10-15 min, map ~5-10)
+srun -c 8  --mem=16G ./wa_site.sh shopping smoke
+srun -c 8  --mem=8G  ./wa_site.sh reddit smoke
+srun -c 8  --mem=24G --time=00:40:00 ./wa_site.sh gitlab smoke
+srun -c 16 --mem=40G --time=00:40:00 ./wa_site.sh map smoke
 ```
 
 ## Serving for a benchmark run
 
 ```bash
-sbatch slurm/webarena_sites.sbatch
+# four light sites on one node:
+sbatch slurm/webarena_sites.sbatch shopping shopping_admin reddit gitlab
+# map on its own node:
+sbatch --mem=64G slurm/webarena_sites.sbatch map
+
 # once running:
 source /scratch/czhai/webarena-verified/runtime/urls.env
-echo $SHOPPING $SHOPPING_ADMIN
+echo $SHOPPING $SHOPPING_ADMIN $REDDIT $GITLAB $MAP
 ```
 
-The job also writes `$WA_SCRATCH/config.hopper.json`, ready for the harness:
+Each hosting job writes `$WA_URLS_DIR/<site>.env` and regenerates the merged
+`$WA_SCRATCH/urls.env` + `$WA_SCRATCH/config.hopper.json`, so multi-node
+hosting composes automatically — whichever job finishes last produces a config
+containing every live URL:
 
 ```bash
 webarena-verified evaluate ... \
@@ -94,47 +126,73 @@ webarena-verified evaluate ... \
 Reset an environment to pristine state between runs:
 
 ```bash
-./wa_site.sh shopping_admin reset     # stop + restore seed + start
+./wa_site.sh reddit reset        # stop + restore seed + start
 ```
+
+(For gitlab prepared with `WA_SKIP_SEED=1` there is no seed — `reset` will
+fail at restore; re-run `03_prepare_state.sh prepare gitlab` from the sandbox
+instead, or accept state drift across runs.)
 
 ## Agent-side notes
 
 - Header auto-login (skips slow UI login):
   `X-M2-Customer-Auto-Login: emma.lopez@gmail.com:Password.123` (shopping),
-  `X-M2-Admin-Auto-Login: admin:admin1234` (admin). Set via Playwright
-  `extra_http_headers`, or use `use_header_login: true` in the config (already
-  emitted by `make_config.sh`).
+  `X-M2-Admin-Auto-Login: admin:admin1234` (admin),
+  `X-Postmill-Auto-Login: MarvelsGrantMan136:test1234` (reddit).
+  GitLab has no header plugin — agents log in via the UI form.
 - `__SHOPPING_ADMIN__` maps to `http://<node>:7780/admin` (includes `/admin`).
-- Agents on other compute nodes reach the site via the node IP written to
+- Agents on other compute nodes reach the sites via the node IPs written to
   `urls.env`; Hopper's internal network routes compute-node ports.
+- The webarena-verified dataset has **369 usable tasks** for the original
+  two-site setup; adding reddit/gitlab/map unlocks the rest except
+  wikipedia-dependent and `__HOMEPAGE__`-dependent tasks.
 
 ## Things to verify on first bring-up (known unknowns)
 
-Written blind against the published images; the layout is confirmed from the
-webarena-verified build scripts, but three spots are worth an eyeball on the
+Written blind against the published images; layouts are confirmed from the
+webarena-verified build scripts, but per site the spots worth an eyeball on
 first `smoke`:
 
-1. **`env.php` endpoints** — `02_patch_sandbox.sh` prints the `host`/`port`
-   entries after patching. The db entry should read `127.0.0.1:<mysql_port>`
-   and redis entries `<redis_port>`. If a *session* redis block uses
-   `'host' => '127.0.0.1'` and got the mysql port appended, fix that line to
-   plain `127.0.0.1` (redis port is a separate key).
-2. **php-fpm as non-root** — user/group directives are commented out; if
-   php-fpm still complains, check `$WA_LOG_DIR/<site>/php_fpm.log`.
-3. **Elasticsearch (shopping only)** — first start may try to create a
-   keystore in its config dir. `--writable-tmpfs` should absorb that (sandbox
-   was built `--fix-perms`, so files are user-owned). If ES loops, storefront
-   *browsing* still works; only catalog search breaks. Check
-   `elasticsearch.log`.
+**magento** (unchanged from the two-site setup)
+1. `env.php` endpoints — db `127.0.0.1:<mysql_port>`, redis `<redis_port>`.
+2. php-fpm non-root — check `php_fpm.log` if it complains.
+3. Elasticsearch keystore on first start (shopping) — absorbed by
+   `--writable-tmpfs`; only catalog search breaks if ES loops.
+
+**reddit**
+1. `02_patch_sandbox.sh` auto-detects the php-fpm pool dir and postgres data
+   dir (records the latter in `sandbox/.wa_pgdata_path`); check its output.
+2. `DATABASE_URL` in `.env` should read `...@127.0.0.1:19991/postmill`.
+
+**gitlab**
+1. The `chpst -u` strip covers `/opt/gitlab/sv/*/run` and `*/log/run`; if a
+   service loops in `runsvdir`, check `$STATE/gitlab-log/<svc>/current` for a
+   remaining user-switch or a chown failure.
+2. Startup is legitimately slow (5–15 min). The entry script waits up to 900 s
+   for `/users/sign_in`.
+3. Never run `gitlab-ctl reconfigure` inside the container.
+
+**map**
+1. Tile db / nominatim db / osrm data missing ⇒ entry logs a WARNING and
+   keeps going: the website works, but tiles/geocoding/routing don't. Check
+   the binds against `$WA_MAP_DATA_DIR`.
+2. First start runs rails `db:migrate` + possibly `nominatim refresh` and a
+   carto style build — allow the full 600 s budget.
+3. Postgres data dirs must be mode 700 and owned by you (the scripts
+   `chmod` them, but verify if a cluster refuses to start).
 
 ## Troubleshooting
 
 - **Port already in use**: another user on the node, or a stale run. Override
-  e.g. `SHOPPING_HTTP_PORT=27770` (then regenerate the config).
-- **MySQL slow / flaky on scratch**: point live state at node-local disk for
-  the job: `WA_STATE_DIR=$TMPDIR/wa-state` before `03_prepare_state.sh restore`
-  + `wa_site.sh start` (seed stays on `/projects`).
+  e.g. `SHOPPING_HTTP_PORT=27770` (then regenerate the config). For map the
+  internal ports are not overridable — pick another node.
+- **MySQL/postgres slow or flaky on scratch**: point live state at node-local
+  disk for the job: `WA_STATE_DIR=$TMPDIR/wa-state` before
+  `03_prepare_state.sh restore` + `wa_site.sh start` (seed stays put).
 - **`apptainer build` OOM/tmp issues**: cache and tmp are already forced to
   scratch via `APPTAINER_CACHEDIR`/`APPTAINER_TMPDIR` in `wa_common.sh`.
-- **Wrong base URL after moving nodes**: just `wa_site.sh <site> start` again —
-  init re-runs `setup:store-config:set` with the current `WA_HOST` every start.
+- **Wrong base URL after moving nodes**: just `wa_site.sh <site> start`
+  again — every entry script re-applies the base URL with the current
+  `WA_HOST` on each start.
+- **SIF FUSE mounting broken on compute nodes**: known Hopper issue; the
+  sandbox fallback in `wa_site.sh` covers it (`rm` the SIF or never build one).

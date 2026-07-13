@@ -4,7 +4,15 @@
 #
 # Run on a compute node (srun -c 16 ...) — mksquashfs is CPU hungry.
 #
-# Usage: ./04_pack_sif.sh {shopping|shopping_admin}
+# Usage: ./04_pack_sif.sh <site>   (any of the sites in wa_common.sh)
+#
+# Notes:
+#   - gitlab's sandbox is very large (tens of GB); packing takes a while and
+#     the resulting SIF is still big. Since SIF FUSE mounting is broken on
+#     Hopper compute nodes, running the sandbox directly is a fine choice —
+#     wa_site.sh falls back to the sandbox automatically if no SIF exists.
+#   - Do NOT pack the writable state (mysql/pg data etc.) — that lives in
+#     $WA_STATE_DIR and is bind-mounted; 03_prepare_state.sh moved it out.
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

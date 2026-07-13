@@ -2,14 +2,18 @@
 # 01_fetch_images.sh - pull the webarena-verified docker images from Docker Hub
 # into user-owned Apptainer sandboxes.
 #
-# Run this somewhere with outbound network access (Hopper login node, or a
-# compute node if egress is allowed). No root / no subuid needed: building a
+# Run this somewhere with outbound network access (Hopper login node — compute
+# nodes throttle egress to ~50 KiB/s). No root / no subuid needed: building a
 # sandbox as a normal user makes every file user-owned, which is exactly what
 # the rootless runtime wants.
 #
+# Approx compressed pull sizes (verified images are squashed): shopping /
+# shopping_admin a few GB each, reddit a few GB, gitlab ~15-25 GB,
+# map ~10-15 GB. Fetch gitlab and map one at a time.
+#
 # Usage:
-#   ./01_fetch_images.sh                # both sites
-#   ./01_fetch_images.sh shopping_admin # one site
+#   ./01_fetch_images.sh                 # all sites (shopping shopping_admin reddit gitlab map)
+#   ./01_fetch_images.sh reddit gitlab   # a subset
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,14 +24,8 @@ wa_ensure_dirs
 
 fetch_one() {
   local site="$1" src sandbox
-  case "$site" in
-    shopping) src="$WA_SHOPPING_DOCKER" ;;
-    shopping_admin) src="$WA_SHOPPING_ADMIN_DOCKER" ;;
-    *)
-      echo "unknown site: $site" >&2
-      exit 1
-      ;;
-  esac
+  wa_check_site "$site"
+  src="$(wa_site_docker "$site")"
   sandbox="$(wa_sandbox "$site")"
 
   if [ -d "$sandbox" ]; then
@@ -43,8 +41,7 @@ fetch_one() {
 }
 
 if [ "$#" -eq 0 ]; then
-  fetch_one shopping
-  fetch_one shopping_admin
+  for s in $WA_ALL_SITES; do fetch_one "$s"; done
 else
   for s in "$@"; do fetch_one "$s"; done
 fi
