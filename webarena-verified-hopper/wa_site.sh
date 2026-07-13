@@ -274,6 +274,12 @@ cmd_smoke() {
   local runner=$!
   local ok=0 i=0 code=""
   while [ "$i" -lt "$tries" ]; do
+    # if our launcher already died (e.g. port-in-use abort), any HTTP answer
+    # is from a FOREIGN listener — do not let it produce a false OK
+    if ! kill -0 "$runner" 2>/dev/null; then
+      echo "[smoke] launcher exited before the site came up" >&2
+      break
+    fi
     code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${HTTP_PORT}${HEALTH_PATH}" || true)"
     case "$code" in 200 | 302)
       ok=1
