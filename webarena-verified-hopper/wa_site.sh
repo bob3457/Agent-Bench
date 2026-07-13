@@ -154,7 +154,9 @@ setup_reddit() {
     --bind "$STATE/dot-env/.env:/var/www/html/.env"
   )
   # nginx-lib only exists if the image had /var/lib/nginx
-  [ -d "$STATE/nginx-lib" ] && BINDS+=(--bind "$STATE/nginx-lib:/var/lib/nginx")
+  if [ -d "$STATE/nginx-lib" ]; then
+    BINDS+=(--bind "$STATE/nginx-lib:/var/lib/nginx")
+  fi
   ENVS+=(
     --env "WA_PG_PORT=$REDDIT_PG_PORT"
     --env "WA_FPM_PORT=$REDDIT_FPM_PORT"
@@ -195,17 +197,23 @@ setup_map() {
     --bind "$STATE/style:/data/style"
     --bind "$STATE/nominatim:/nominatim"
   )
-  [ -d "$WA_MAP_DATA_DIR/tile-db" ] &&
+  # NB: if-form, not '[ ] &&' — a false test as a function's last statement
+  # makes the function return nonzero, which set -e turns into a silent exit.
+  if [ -d "$WA_MAP_DATA_DIR/tile-db" ]; then
     BINDS+=(--bind "$WA_MAP_DATA_DIR/tile-db:/data/database")
+  fi
   local prof
   for prof in car bike foot; do
-    [ -d "$WA_MAP_DATA_DIR/routing/$prof" ] &&
+    if [ -d "$WA_MAP_DATA_DIR/routing/$prof" ]; then
       BINDS+=(--bind "$WA_MAP_DATA_DIR/routing/$prof:/data/routing/$prof:ro")
+    fi
   done
-  [ -d "$WA_MAP_DATA_DIR/nominatim-db" ] &&
+  if [ -d "$WA_MAP_DATA_DIR/nominatim-db" ]; then
     BINDS+=(--bind "$WA_MAP_DATA_DIR/nominatim-db:/data/nominatim/postgres")
-  [ -d "$WA_MAP_DATA_DIR/nominatim-flatnode" ] &&
+  fi
+  if [ -d "$WA_MAP_DATA_DIR/nominatim-flatnode" ]; then
     BINDS+=(--bind "$WA_MAP_DATA_DIR/nominatim-flatnode:/data/nominatim/flatnode")
+  fi
 }
 
 cmd_start() {
@@ -224,8 +232,8 @@ cmd_start() {
   "setup_$KIND"
   chmod -R u+rwX "$STATE" "$RUN" "$LOGS" 2>/dev/null || true
   # postgres insists on 0700 data dirs
-  [ -d "$STATE/pgdata" ] && chmod 700 "$STATE/pgdata"
-  [ -d "$STATE/website-pg" ] && chmod 700 "$STATE/website-pg"
+  if [ -d "$STATE/pgdata" ]; then chmod 700 "$STATE/pgdata"; fi
+  if [ -d "$STATE/website-pg" ]; then chmod 700 "$STATE/website-pg"; fi
   check_ports_free
 
   BINDS+=(--bind "$ENTRY:/$ENTRY_BASENAME:ro")
