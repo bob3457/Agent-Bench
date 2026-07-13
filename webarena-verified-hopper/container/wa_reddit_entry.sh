@@ -83,7 +83,12 @@ echo "[entry] core services up"
 
 # --- postmill init (== env-ctrl init) -------------------------------------------
 if [ "$WA_SKIP_INIT" != "1" ]; then
-  sed -i "s/^APP_SITE_NAME=.*/APP_SITE_NAME=${WA_HOST}:${WA_HTTP_PORT}/" "$APP/.env"
+  # truncate-write: sed -i renames its temp file over the target, which fails
+  # with EBUSY on a single-file bind mount (.env is bound from state)
+  _tmp="$(mktemp)"
+  sed "s|^APP_SITE_NAME=.*|APP_SITE_NAME=${WA_HOST}:${WA_HTTP_PORT}|" "$APP/.env" >"$_tmp"
+  cat "$_tmp" >"$APP/.env"
+  rm -f "$_tmp"
   rm -rf "$APP"/var/cache/* 2>/dev/null || true
   echo "[entry] APP_SITE_NAME=${WA_HOST}:${WA_HTTP_PORT}; symfony cache cleared"
   echo "[entry] (first request rebuilds the prod cache and is slow — that's normal)"

@@ -159,10 +159,16 @@ first `smoke`:
 3. Elasticsearch keystore on first start (shopping) — absorbed by
    `--writable-tmpfs`; only catalog search breaks if ES loops.
 
-**reddit**
-1. `02_patch_sandbox.sh` auto-detects the php-fpm pool dir and postgres data
+**reddit** — *verified end-to-end locally (WSL2, non-suid Apptainer 1.5.2,
+no subuid) on 2026-07-13: full request path nginx→php-fpm→Symfony→postgres
+returns 200.* Notes from that bring-up, now handled by the scripts:
+1. The app's real DB config is the `fastcgi_param DATABASE_URL` in
+   `etc/nginx/conf.d/default.conf` (Symfony Dotenv never overrides real env);
+   `02_patch_sandbox.sh` patches it to `127.0.0.1:19991`.
+2. The image's `daemon off;` and v4+v6 `listen` pairs in the nginx confs are
+   stripped/deduped at patch time (fatal duplicates otherwise).
+3. `02_patch_sandbox.sh` auto-detects the php-fpm pool dir and postgres data
    dir (records the latter in `sandbox/.wa_pgdata_path`); check its output.
-2. `DATABASE_URL` in `.env` should read `...@127.0.0.1:19991/postmill`.
 
 **gitlab**
 1. The `chpst -u` strip covers `/opt/gitlab/sv/*/run` and `*/log/run`; if a

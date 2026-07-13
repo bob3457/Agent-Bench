@@ -186,11 +186,31 @@ patch_reddit() {
     "$ROOT"/etc/nginx/http.d/*.conf "$ROOT"/etc/nginx/sites-enabled/*; do
     [ -f "$nconf" ] || continue
     sed -i 's/^user[[:space:]].*/# user disabled for rootless apptainer runtime/' "$nconf"
-    sed -i -E "s/listen[[:space:]]+(\[::\]:)?80([; ])/listen ${HTTP_PORT}\2/g" "$nconf"
-    sed -i -E "s|fastcgi_pass[[:space:]]+[^;]+;|fastcgi_pass 127.0.0.1:${FPM_PORT};|g" "$nconf"
+    # the entry script runs nginx with -g 'daemon off;'; a daemon directive in
+    # the conf (typical for docker images) would be a fatal duplicate
+    sed -i -E 's/^[[:space:]]*daemon[[:space:]]+[a-z]+;.*/# daemon directive removed (entry passes -g)/' "$nconf"
     # keep pid/log paths off the read-only overlay (lesson from wa_common EOVERFLOW)
     sed -i -E "s|^([[:space:]]*)pid[[:space:]]+[^;]+;|\1pid /run/nginx/nginx.pid;|" "$nconf"
+    sed -i -E "s|fastcgi_pass[[:space:]]+[^;]+;|fastcgi_pass 127.0.0.1:${FPM_PORT};|g" "$nconf"
+    # Postmill's REAL db config is a fastcgi_param injected into $_SERVER —
+    # Symfony's Dotenv never overrides it, so this (not .env) is authoritative.
+    # Rewrite host -> 127.0.0.1 (localhost may resolve ::1; postgres is v4-only)
+    # and port -> moved PG_PORT, keeping credentials/dbname/serverVersion as shipped.
+    sed -i -E "s|(fastcgi_param[[:space:]]+DATABASE_URL[[:space:]]+\"pgsql://[^@\"]+@)(localhost\|127\.0\.0\.1)(:[0-9]+)?/|\1127.0.0.1:${PG_PORT}/|" "$nconf"
+    # Collapse ALL listen directives per server block to exactly one on
+    # HTTP_PORT. The image ships v4+v6 pairs (listen 80; listen [::]:80 ...);
+    # naive port rewriting turns those into fatal duplicates.
+    awk -v port="$HTTP_PORT" '
+      /^[[:space:]]*server[[:space:]]*\{/ { seen = 0 }
+      /^[[:space:]]*listen[[:space:]]/ {
+        if (!seen) { print "    listen " port ";"; seen = 1 }
+        next
+      }
+      { print }
+    ' "$nconf" >"$nconf.wa_tmp" && mv "$nconf.wa_tmp" "$nconf"
   done
+  echo "[patch] nginx listen/fastcgi now:"
+  grep -hnE 'listen |DATABASE_URL' "$ROOT"/etc/nginx/conf.d/*.conf 2>/dev/null || true
 
   # --- php-fpm ------------------------------------------------------------------
   local f found_fpm=0
@@ -206,13 +226,10 @@ patch_reddit() {
   done
   [ "$found_fpm" = "1" ] || echo "[patch] WARNING: no php-fpm pool config matched; check image layout" >&2
 
-  # --- symfony .env: point Postmill at the moved postgres port -------------------
+  # --- symfony .env: secondary — the nginx fastcgi_param above is what the web
+  # app actually sees; this covers `bin/console` CLI use inside the container.
   if [ -f "$APP/.env" ]; then
-    if grep -qE 'DATABASE_URL=.*@(localhost|127\.0\.0\.1):[0-9]+' "$APP/.env"; then
-      sed -i -E "s|(DATABASE_URL=.*@(localhost\|127\.0\.0\.1)):[0-9]+|\1:${PG_PORT}|" "$APP/.env"
-    else
-      sed -i -E "s|(DATABASE_URL=.*@)(localhost\|127\.0\.0\.1)(/)|\1127.0.0.1:${PG_PORT}\3|" "$APP/.env"
-    fi
+    sed -i -E "s|(DATABASE_URL=pgsql://[^@]+@)(localhost\|127\.0\.0\.1)(:[0-9]+)?/|\1127.0.0.1:${PG_PORT}/|" "$APP/.env"
     echo "[patch] .env now:"
     grep -nE 'DATABASE_URL|APP_SITE_NAME' "$APP/.env" || true
   else
