@@ -332,6 +332,21 @@ patch_map() {
     [ -f "$pgconf" ] || continue
     sed -i -E 's/^([[:space:]]*)ssl[[:space:]]*=[[:space:]]*on/\1ssl = off/' "$pgconf"
   done
+  # pg_hba: the image appends a 0.0.0.0/0 trust line, but stock Debian rules
+  # above it win first-match and demand passwords on 127.0.0.1. Docker's
+  # entrypoint dodged this via 'su - postgres' + unix-socket peer auth, which
+  # rootless can't do. Blanket trust is fine for a loopback-only benchmark pg.
+  local pghba
+  for pghba in "$ROOT"/etc/postgresql/*/*/pg_hba.conf; do
+    [ -f "$pghba" ] || continue
+    cat >"$pghba" <<'EOF_HBA'
+# rewritten for rootless apptainer runtime (single uid, TCP-only psql)
+local   all   all                 trust
+host    all   all   127.0.0.1/32  trust
+host    all   all   ::1/128       trust
+host    all   all   0.0.0.0/0     trust
+EOF_HBA
+  done
   local pg15="$ROOT/etc/postgresql/15/main"
   if [ -d "$pg15" ]; then
     sed -i "s|data_directory = '.*'|data_directory = '/data/database/postgres'|" \
