@@ -35,6 +35,7 @@ BASE_URL="http://${WA_HOST}:${WA_HTTP_PORT}/"
 LOG_DIR=/var/log/webarena
 PID_DIR=/run/webarena
 mkdir -p "$LOG_DIR" "$PID_DIR" /run/nginx /run/mysqld /run/redis
+rm -f /run/webarena/ready 2>/dev/null || true
 
 cleanup() {
   for pid_file in "$PID_DIR"/*.pid; do
@@ -114,6 +115,7 @@ if [ "$WA_SKIP_INIT" != "1" ]; then
 fi
 
 echo "[entry] READY: ${BASE_URL}$([ "$WA_SITE" = shopping_admin ] && echo admin)"
+touch /run/webarena/ready  # signals launcher/smoke that init is complete
 echo "[entry] internal ports: mysql=$WA_MYSQL_PORT redis=$WA_REDIS_PORT fpm=$WA_FPM_PORT"
 
 if [ "$WA_RUN_SECONDS" != "0" ]; then

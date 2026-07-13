@@ -23,6 +23,7 @@ APP=/var/www/html
 LOG_DIR=/var/log/webarena
 PID_DIR=/run/webarena
 mkdir -p "$LOG_DIR" "$PID_DIR" /run/nginx /run/postgresql
+rm -f /run/webarena/ready 2>/dev/null || true
 
 cleanup() {
   for pid_file in "$PID_DIR"/*.pid; do
@@ -95,6 +96,7 @@ if [ "$WA_SKIP_INIT" != "1" ]; then
 fi
 
 echo "[entry] READY: http://${WA_HOST}:${WA_HTTP_PORT}/"
+touch /run/webarena/ready  # signals launcher/smoke that init is complete
 echo "[entry] internal ports: postgres=$WA_PG_PORT fpm=$WA_FPM_PORT"
 
 if [ "$WA_RUN_SECONDS" != "0" ]; then

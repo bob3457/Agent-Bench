@@ -282,8 +282,13 @@ cmd_smoke() {
     fi
     code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${HTTP_PORT}${HEALTH_PATH}" || true)"
     case "$code" in 200 | 302)
-      ok=1
-      break
+      # HTTP answering is necessary but not sufficient: the entry may still be
+      # running init (magento's setup:store-config:set answered 302 mid-init).
+      # Require the ready marker so we never tear down a half-configured site.
+      if [ -f "$RUN/webarena/ready" ]; then
+        ok=1
+        break
+      fi
       ;;
     esac
     i=$((i + 1))

@@ -21,6 +21,7 @@ LOG_DIR=/var/log/webarena
 PID_DIR=/run/webarena
 GITLAB_YML=/var/opt/gitlab/gitlab-rails/etc/gitlab.yml
 mkdir -p "$LOG_DIR" "$PID_DIR"
+rm -f /run/webarena/ready 2>/dev/null || true
 
 echo "[entry] site=gitlab base_url=http://${WA_HOST}:${WA_HTTP_PORT}/"
 
@@ -78,6 +79,7 @@ if [ "$ready" != "1" ]; then
 fi
 
 echo "[entry] READY: http://${WA_HOST}:${WA_HTTP_PORT}/"
+touch /run/webarena/ready  # signals launcher/smoke that init is complete
 echo "[entry] login: byteblaze / hello1234"
 
 if [ "$WA_RUN_SECONDS" != "0" ]; then

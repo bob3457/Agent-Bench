@@ -92,8 +92,10 @@ wait_http() { # wait_http <site>
   while [ "$i" -lt "$tries" ]; do
     code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${port}${path}" || true)"
     case "$code" in 200 | 302)
-      echo "[job] $1 ready ($code)"
-      return 0
+      if [ -f "$WA_RUN_DIR/$1/webarena/ready" ]; then
+        echo "[job] $1 ready ($code)"
+        return 0
+      fi
       ;;
     esac
     i=$((i + 1))

@@ -24,6 +24,7 @@ WA_RUN_SECONDS="${WA_RUN_SECONDS:-0}"
 LOG_DIR=/var/log/webarena
 PID_DIR=/run/webarena
 mkdir -p "$LOG_DIR" "$PID_DIR" /run/postgresql /run/renderd /run/apache2
+rm -f /run/webarena/ready 2>/dev/null || true
 
 PG14=/usr/lib/postgresql/14/bin
 PG15=/usr/lib/postgresql/15/bin
@@ -157,6 +158,7 @@ if [ "$ready" != "1" ]; then
 fi
 
 echo "[entry] READY: http://${WA_HOST}:${WA_HTTP_PORT}/"
+touch /run/webarena/ready  # signals launcher/smoke that init is complete
 echo "[entry] internal: rails=3000 apache=8080/8085(loopback) osrm=5000-5002 pg=5432/5433/5434"
 
 if [ "$WA_RUN_SECONDS" != "0" ]; then
