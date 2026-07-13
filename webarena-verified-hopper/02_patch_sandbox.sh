@@ -325,6 +325,13 @@ patch_map() {
 
   # --- postgres clusters: data dirs at their runtime bind locations --------------
   # /etc is read-only at runtime (SIF), so all config edits happen now.
+  # ssl=off in every cluster: --fix-perms leaves the snakeoil key group-readable
+  # and postgres refuses to boot; TLS is pointless for a benchmark-local pg.
+  local pgconf
+  for pgconf in "$ROOT"/etc/postgresql/*/*/postgresql.conf; do
+    [ -f "$pgconf" ] || continue
+    sed -i -E 's/^([[:space:]]*)ssl[[:space:]]*=[[:space:]]*on/\1ssl = off/' "$pgconf"
+  done
   local pg15="$ROOT/etc/postgresql/15/main"
   if [ -d "$pg15" ]; then
     sed -i "s|data_directory = '.*'|data_directory = '/data/database/postgres'|" \

@@ -24,6 +24,10 @@ WA_RUN_SECONDS="${WA_RUN_SECONDS:-0}"
 LOG_DIR=/var/log/webarena
 PID_DIR=/run/webarena
 mkdir -p "$LOG_DIR" "$PID_DIR" /run/postgresql /run/renderd /run/apache2
+# debian cluster confs point stats_temp_directory at /var/run/postgresql/<c>.pg_stat_tmp;
+# pg_ctlcluster would create these, raw pg_ctl does not
+mkdir -p /run/postgresql/14-main.pg_stat_tmp /run/postgresql/14-nominatim.pg_stat_tmp \
+  /run/postgresql/15-main.pg_stat_tmp
 rm -f /run/webarena/ready 2>/dev/null || true
 
 PG14=/usr/lib/postgresql/14/bin
