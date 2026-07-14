@@ -294,6 +294,13 @@ patch_gitlab() {
   [ -d "$ROOT/var/opt/gitlab/postgresql/data" ] &&
     chmod 700 "$ROOT/var/opt/gitlab/postgresql/data" || true
 
+  # pg peer auth maps OS user 'gitlab' -> db users; rootless we are one
+  # arbitrary uid, so the unix-socket map can never match. Trust the socket.
+  local ghba="$ROOT/var/opt/gitlab/postgresql/data/pg_hba.conf"
+  if [ -f "$ghba" ]; then
+    sed -i -E 's/^(local[[:space:]]+all[[:space:]]+all[[:space:]]+)peer([[:space:]]+map=gitlab)?/\1trust/' "$ghba"
+  fi
+
   echo "[patch] gitlab: user-switching stripped, sshd/monitoring disabled"
   echo "[patch] NOTE: external_url is fixed per-start by container/wa_gitlab_entry.sh"
   echo "[patch]       (edits gitlab.yml directly; gitlab-ctl reconfigure is never run)"

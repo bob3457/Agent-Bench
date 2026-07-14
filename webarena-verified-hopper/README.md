@@ -170,22 +170,28 @@ returns 200.* Notes from that bring-up, now handled by the scripts:
 3. `02_patch_sandbox.sh` auto-detects the php-fpm pool dir and postgres data
    dir (records the latter in `sandbox/.wa_pgdata_path`); check its output.
 
-**gitlab**
-1. The `chpst -u` strip covers `/opt/gitlab/sv/*/run` and `*/log/run`; if a
-   service loops in `runsvdir`, check `$STATE/gitlab-log/<svc>/current` for a
-   remaining user-switch or a chown failure.
+**gitlab** — *verified end-to-end locally (WSL2 Hopper sim, 24G RAM): full
+omnibus stack under runit, `/users/sign_in` -> 200.* Fixes baked in from that
+bring-up: pg_hba `local peer map=gitlab` -> `trust` (single-uid peer auth can
+never match the map), and the entry rewrites the nginx listen port per start.
+1. If a service loops in `runsvdir`, check `$STATE/gitlab-log/<svc>/current`.
 2. Startup is legitimately slow (5–15 min). The entry script waits up to 900 s
    for `/users/sign_in`.
 3. Never run `gitlab-ctl reconfigure` inside the container.
 
-**map**
-1. Tile db / nominatim db / osrm data missing ⇒ entry logs a WARNING and
-   keeps going: the website works, but tiles/geocoding/routing don't. Check
-   the binds against `$WA_MAP_DATA_DIR`.
-2. First start runs rails `db:migrate` + possibly `nominatim refresh` and a
-   carto style build — allow the full 600 s budget.
-3. Postgres data dirs must be mode 700 and owned by you (the scripts
-   `chmod` them, but verify if a cluster refuses to start).
+**map** — *structure verified locally without external data: three pg
+clusters, role/db init, full rails db:migrate, puma, apache on 3030 all come
+up rootless; /api/0.6/* returns 200.* Fixes baked in: ssl=off + trust hba in
+all cluster confs, pg_stat_tmp dirs pre-created, leftover apache port-80
+Listens swept.
+1. KNOWN ISSUE: `/` (homepage) returned 500 locally — Sprockets claims
+   "index.js not present in the asset pipeline" although the compiled bundle
+   and manifest exist in public/assets. Not containment-related. Retest on
+   Hopper with real data; if it persists, a `rails assets:precompile` inside
+   the sandbox (RAILS_ENV=production, any SECRET_KEY_BASE) is the lever.
+2. Tile db / nominatim db / osrm data missing ⇒ entry logs a WARNING and
+   keeps going: the API works, but tiles/geocoding/routing don't.
+3. First start runs rails `db:migrate` — allow the full 600 s budget.
 
 ## Troubleshooting
 

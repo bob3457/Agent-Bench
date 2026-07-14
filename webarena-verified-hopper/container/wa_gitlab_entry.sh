@@ -44,6 +44,13 @@ cleanup() {
 trap cleanup INT TERM EXIT
 
 # --- start runit ----------------------------------------------------------------
+# nginx listen port is baked by the image's reconfigure; rewrite per start
+NGX=/var/opt/gitlab/nginx/conf/gitlab-http.conf
+if [ -f "$NGX" ]; then
+  sed -i -E "s/^([[:space:]]*listen[[:space:]]+[^:;]*:)[0-9]+/\1${WA_HTTP_PORT}/; s/^([[:space:]]*listen[[:space:]]+)[0-9]+([; ])/\1${WA_HTTP_PORT}\2/" "$NGX"
+  grep -n "listen" "$NGX" | head -4
+fi
+
 echo "[entry] starting runsvdir..."
 /opt/gitlab/embedded/bin/runsvdir-start >"$LOG_DIR/runsvdir.log" 2>&1 &
 RUNSVDIR_PID=$!
