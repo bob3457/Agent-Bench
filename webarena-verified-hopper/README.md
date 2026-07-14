@@ -184,11 +184,9 @@ clusters, role/db init, full rails db:migrate, puma, apache on 3030 all come
 up rootless; /api/0.6/* returns 200.* Fixes baked in: ssl=off + trust hba in
 all cluster confs, pg_stat_tmp dirs pre-created, leftover apache port-80
 Listens swept.
-1. KNOWN ISSUE: `/` (homepage) returned 500 locally — Sprockets claims
-   "index.js not present in the asset pipeline" although the compiled bundle
-   and manifest exist in public/assets. Not containment-related. Retest on
-   Hopper with real data; if it persists, a `rails assets:precompile` inside
-   the sandbox (RAILS_ENV=production, any SECRET_KEY_BASE) is the lever.
+1. The image ships public/assets whose manifest doesn't resolve "index.js"
+   (homepage 500s). `02_patch_sandbox.sh` now runs a guarded one-time
+   `rails assets:precompile` in the sandbox — verified to fix `/` locally.
 2. Tile db / nominatim db / osrm data missing ⇒ entry logs a WARNING and
    keeps going: the API works, but tiles/geocoding/routing don't.
 3. First start runs rails `db:migrate` — allow the full 600 s budget.

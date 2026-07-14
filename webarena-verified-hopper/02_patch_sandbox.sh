@@ -378,6 +378,20 @@ EOF_HBA
     sed -i "s|data_directory = '.*'|data_directory = '/data/nominatim/postgres'|" \
       "$pgnom/postgresql.conf"
 
+  # Regenerate the sprockets manifest: the image ships public/assets whose
+  # manifest doesn't resolve "index.js" at runtime (homepage 500s with
+  # "not present in the asset pipeline"). A one-time precompile inside the
+  # sandbox fixes it; verified locally 2026-07-13. SECRET_KEY_BASE content
+  # is irrelevant for precompile. Takes a few minutes.
+  if ! grep -q '"index.js"' "$ROOT"/app/public/assets/.sprockets-manifest-*.json \
+       "$ROOT"/app/public/assets/manifest-*.json 2>/dev/null; then
+    echo "[patch] map: running one-time rails assets:precompile (few minutes)..."
+    apptainer exec --cleanenv --writable-tmpfs "$ROOT" /bin/bash -c \
+      'cd /app && RAILS_ENV=production SECRET_KEY_BASE=wa-precompile \
+       bundle exec rails assets:precompile' \
+      || echo "[patch] WARNING: assets:precompile failed; homepage may 500" >&2
+  fi
+
   echo "[patch] map: apache external port ${MAP_HTTP_PORT} added, pg data dirs pinned"
   echo "[patch] NOTE: map needs external data — run ./05_fetch_map_data.sh (login node)"
 }
