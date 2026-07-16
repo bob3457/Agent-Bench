@@ -25,6 +25,19 @@ claude:
   required_env: []          # OAuth (CLAUDE_CODE_OAUTH_TOKEN) or ANTHROPIC_API_KEY already in env
   telemetry: claude_json
 
+# Open-book row for retrieval benchmarks (HotpotQA --mode fullwiki, FreshQA).
+# Web tools only: the agent may search/fetch but not touch the filesystem or
+# shell, keeping the run comparable to codex*-search's web_search-only posture.
+claude-search:
+  type: shell
+  command: ["claude", "-p", "--output-format", "json",
+            "--allowedTools", "WebSearch", "WebFetch",
+            "--disallowedTools", "Bash", "Edit", "Write"]
+  prompt_via: stdin
+  model_flag: "--model"
+  required_env: []
+  telemetry: claude_json
+
 codexlow:
   type: shell
   command: ["codex", "exec", "--skip-git-repo-check",

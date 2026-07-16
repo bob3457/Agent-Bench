@@ -1,0 +1,79 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 9ce46e3f73..93d051fdd3 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -248,6 +248,9 @@ class Field(RegisterLookupMixin):
+         def is_value(value, accept_promise=True):
+             return isinstance(value, (str, Promise) if accept_promise else str) or not is_iterable(value)
+ 
++        def choice_value_length(value):
++            return len(str(value)) if isinstance(value, (str, Promise)) else 0
++
+         if is_value(self.choices, accept_promise=False):
+             return [
+                 checks.Error(
+@@ -257,6 +260,8 @@ class Field(RegisterLookupMixin):
+                 )
+             ]
+ 
++        choice_max_length = 0
++
+         # Expect [group_name, [value, display]]
+         for choices_group in self.choices:
+             try:
+@@ -265,21 +270,50 @@ class Field(RegisterLookupMixin):
+                 # Containing non-pairs
+                 break
+             try:
+-                if not all(
+-                    is_value(value) and is_value(human_name)
+-                    for value, human_name in group_choices
+-                ):
+-                    break
++                group_choice_max_length = 0
++                for value, human_name in group_choices:
++                    if not is_value(value) or not is_value(human_name):
++                        break
++                    group_choice_max_length = max(
++                        group_choice_max_length, choice_value_length(value),
++                    )
++                else:
++                    if self.max_length is not None:
++                        choice_max_length = max(
++                            choice_max_length, group_choice_max_length,
++                        )
++                    if isinstance(choices_group, str):
++                        break
++                    continue
++                break
+             except (TypeError, ValueError):
+                 # No groups, choices in the form [value, display]
+                 value, human_name = group_name, group_choices
+                 if not is_value(value) or not is_value(human_name):
+                     break
++                if self.max_length is not None:
++                    choice_max_length = max(
++                        choice_max_length, choice_value_length(value),
++                    )
+ 
+             # Special case: choices=['ab']
+             if isinstance(choices_group, str):
+                 break
+         else:
++            if (
++                isinstance(self.max_length, int) and
++                not isinstance(self.max_length, bool) and
++                self.max_length > 0 and
++                choice_max_length > self.max_length
++            ):
++                return [
++                    checks.Error(
++                        "'max_length' is too small to fit the longest value "
++                        "in 'choices' (%d characters)." % choice_max_length,
++                        obj=self,
++                        id='fields.E009',
++                    ),
++                ]
+             return []
+ 
+         return [

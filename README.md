@@ -21,7 +21,7 @@ The workflow is two-phase and agent-agnostic:
 | `configs/` | `agents.yaml` — agent definitions (command lines, flags, env); campaign selection lists (`instances75.txt` — the 75 SWE-bench instance IDs, `image_names.txt` — their SIF image names, `__` encoded as `_1776_`) |
 | `agent_plugins/` | Plugin interface for agents needing Python-side integration (OpenHands) |
 | `setup/` | One-time environment setup: `setup_hopper_deps.sh`, `prebake_harbor_sifs.sh` |
-| `datasets/` | Benchmark inputs: `hotpot_dev_distractor_v1.json`, `freshqa.csv` |
+| `datasets/` | Benchmark inputs: `hotpot_dev_fullwiki_v1.json` (default HotpotQA mode; fetch on a login node), `hotpot_dev_distractor_v1.json`, `freshqa.csv` |
 | `data/` | Per-family agent outputs (`claude/`, `codexlow/`, `codexmed/`, `codexhigh/`, `openhands/`), Harbor run dirs (`harbor_jobs/`), telemetry parser (`parse_codex.py`), storage measurements (`swebench_sizes.csv`) |
 | `jobs/` | Harbor job artifacts from Terminal-Bench runs |
 | `logs/` | SLURM stdout/stderr and evaluation logs |
@@ -185,7 +185,7 @@ SWE_N=1 bash slurm/run_swebench.sh
 | Script | Benchmark | Key knobs (env-overridable) |
 |---|---|---|
 | `slurm/run_swebench.sh` | SWE-bench Lite (generation) | `SWE_N` (default 25) |
-| `slurm/run_hotpot.sh` | HotpotQA | `HOTPOT_N` (50), `RESUME=1` |
+| `slurm/run_hotpot.sh` | HotpotQA | `HOTPOT_MODE` (`fullwiki` default / `distractor`), `HOTPOT_N` (50), `RESUME=1` |
 | `slurm/run_fresh.sh` | FreshQA | `FRESHQA_N` (50), `FRESHQA_AGENT=codex-search`, `RESUME=1` |
 | `slurm/run_terminalbench.sh` | Terminal-Bench 2.0 via Harbor | `AGENT`, `EFFORT`, `TBENCH_N`, `N_CONCURRENT`, `EXTRA_ARGS` |
 | `slurm/job.sh` | Combined multi-benchmark driver | union of the above |
@@ -196,8 +196,9 @@ defined in `configs/agents.yaml`; on Hopper, all Codex agent rows need
 `SWE_N=3 sbatch slurm/run_swebench.sh`.
 
 Generation writes predictions/responses into `data/<FAM>/`
-(`predictions.jsonl`, `hotpot_predictions.json`, `freshqa_responses.jsonl`),
-which is what the graders below consume.
+(`predictions.jsonl`, `hotpot_fullwiki_predictions.json` — or unsuffixed
+`hotpot_predictions.json` for `HOTPOT_MODE=distractor` — and
+`freshqa_responses.jsonl`), which is what the graders below consume.
 
 ---
 
@@ -286,10 +287,17 @@ rather than the stock Docker harness.
 ### HotpotQA — `slurm/grade_hotpot.sh`
 
 Fully **offline**: the official EM/F1 script (`eval/hotpot_evaluate_v1.py`)
-scores `data/$FAM/hotpot_predictions.json` against the gold file
-`datasets/hotpot_dev_distractor_v1.json`. No API key or network needed; runs
-in seconds. Reports answer EM/F1, supporting-facts `sp_em`/`sp_f1`, and
-`joint_*` metrics to `data/$FAM/hotpot_metrics.txt`.
+scores predictions against the gold file for the mode. `HOTPOT_MODE` defaults
+to `fullwiki` (matching the runner): it grades
+`data/$FAM/hotpot_fullwiki_predictions.json` against
+`datasets/hotpot_dev_fullwiki_v1.json` and writes
+`data/$FAM/hotpot_fullwiki_metrics.txt`. `HOTPOT_MODE=distractor` grades the
+unsuffixed `hotpot_predictions.json` against
+`hotpot_dev_distractor_v1.json`. No API key or network needed; runs in
+seconds. Reports answer EM/F1, supporting-facts `sp_em`/`sp_f1`, and
+`joint_*` metrics. Note that in fullwiki mode `sp_*`/`joint_*` are
+best-effort by construction (the agent cites live Wikipedia, so gold sentence
+indices are hard to match); answer EM/F1 is the headline metric.
 
 ### FreshQA — `slurm/grade_fresh.sh`
 

@@ -1,0 +1,123 @@
+2026-07-01 16:36:20,024 - INFO - Creating container for django__django-11630...
+2026-07-01 16:36:20,459 - INFO - Container for django__django-11630 created: f8b906360a585c5e9e90d4e70783912672a503d8e4cf1174d62d695999bb3167
+2026-07-01 16:36:20,804 - INFO - Container for django__django-11630 started: f8b906360a585c5e9e90d4e70783912672a503d8e4cf1174d62d695999bb3167
+2026-07-01 16:36:20,805 - INFO - Intermediate patch for django__django-11630 written to logs/run_evaluation/codex_results_high/codexhigh/django__django-11630/patch.diff, now applying to container...
+2026-07-01 16:36:21,272 - INFO - >>>>> Applied Patch:
+Checking patch django/core/checks/model_checks.py...
+Applied patch django/core/checks/model_checks.py cleanly.
+
+2026-07-01 16:36:22,220 - INFO - Git diff before:
+diff --git a/django/core/checks/model_checks.py b/django/core/checks/model_checks.py
+index 5c2266ca1d..564581b130 100644
+--- a/django/core/checks/model_checks.py
++++ b/django/core/checks/model_checks.py
+@@ -4,12 +4,14 @@ from collections import defaultdict
+ from itertools import chain
+ 
+ from django.apps import apps
++from django.conf import settings
+ from django.core.checks import Error, Tags, register
++from django.db import router
+ 
+ 
+ @register(Tags.models)
+ def check_all_models(app_configs=None, **kwargs):
+-    db_table_models = defaultdict(list)
++    db_table_models = defaultdict(lambda: defaultdict(list))
+     indexes = defaultdict(list)
+     constraints = defaultdict(list)
+     errors = []
+@@ -19,7 +21,9 @@ def check_all_models(app_configs=None, **kwargs):
+         models = chain.from_iterable(app_config.get_models() for app_config in app_configs)
+     for model in models:
+         if model._meta.managed and not model._meta.proxy:
+-            db_table_models[model._meta.db_table].append(model._meta.label)
++            for db in settings.DATABASES:
++                if router.allow_migrate_model(db, model):
++                    db_table_models[model._meta.db_table][db].append(model._meta.label)
+         if not inspect.ismethod(model.check):
+             errors.append(
+                 Error(
+@@ -35,12 +39,16 @@ def check_all_models(app_configs=None, **kwargs):
+             indexes[model_index.name].append(model._meta.label)
+         for model_constraint in model._meta.constraints:
+             constraints[model_constraint.name].append(model._meta.label)
+-    for db_table, model_labels in db_table_models.items():
+-        if len(model_labels) != 1:
++    for db_table, model_labels_by_db in db_table_models.items():
++        model_labels = []
++        for model_labels_for_db in model_labels_by_db.values():
++            if len(model_labels_for_db) > 1:
++                model_labels.extend(label for label in model_labels_for_db if label not in model_labels)
++        if model_labels:
+             errors.append(
+                 Error(
+                     "db_table '%s' is used by multiple models: %s."
+-                    % (db_table, ', '.join(db_table_models[db_table])),
++                    % (db_table, ', '.join(model_labels)),
+                     obj=db_table,
+                     id='models.E028',
+                 )
+2026-07-01 16:36:22,220 - INFO - Eval script for django__django-11630 written to logs/run_evaluation/codex_results_high/codexhigh/django__django-11630/eval.sh; copying to container...
+2026-07-01 16:36:27,018 - INFO - Test runtime: 4.66 seconds
+2026-07-01 16:36:27,019 - INFO - Test output for django__django-11630 written to logs/run_evaluation/codex_results_high/codexhigh/django__django-11630/test_output.txt
+2026-07-01 16:36:27,090 - INFO - Git diff after:
+diff --git a/django/core/checks/model_checks.py b/django/core/checks/model_checks.py
+index 5c2266ca1d..564581b130 100644
+--- a/django/core/checks/model_checks.py
++++ b/django/core/checks/model_checks.py
+@@ -4,12 +4,14 @@ from collections import defaultdict
+ from itertools import chain
+ 
+ from django.apps import apps
++from django.conf import settings
+ from django.core.checks import Error, Tags, register
++from django.db import router
+ 
+ 
+ @register(Tags.models)
+ def check_all_models(app_configs=None, **kwargs):
+-    db_table_models = defaultdict(list)
++    db_table_models = defaultdict(lambda: defaultdict(list))
+     indexes = defaultdict(list)
+     constraints = defaultdict(list)
+     errors = []
+@@ -19,7 +21,9 @@ def check_all_models(app_configs=None, **kwargs):
+         models = chain.from_iterable(app_config.get_models() for app_config in app_configs)
+     for model in models:
+         if model._meta.managed and not model._meta.proxy:
+-            db_table_models[model._meta.db_table].append(model._meta.label)
++            for db in settings.DATABASES:
++                if router.allow_migrate_model(db, model):
++                    db_table_models[model._meta.db_table][db].append(model._meta.label)
+         if not inspect.ismethod(model.check):
+             errors.append(
+                 Error(
+@@ -35,12 +39,16 @@ def check_all_models(app_configs=None, **kwargs):
+             indexes[model_index.name].append(model._meta.label)
+         for model_constraint in model._meta.constraints:
+             constraints[model_constraint.name].append(model._meta.label)
+-    for db_table, model_labels in db_table_models.items():
+-        if len(model_labels) != 1:
++    for db_table, model_labels_by_db in db_table_models.items():
++        model_labels = []
++        for model_labels_for_db in model_labels_by_db.values():
++            if len(model_labels_for_db) > 1:
++                model_labels.extend(label for label in model_labels_for_db if label not in model_labels)
++        if model_labels:
+             errors.append(
+                 Error(
+                     "db_table '%s' is used by multiple models: %s."
+-                    % (db_table, ', '.join(db_table_models[db_table])),
++                    % (db_table, ', '.join(model_labels)),
+                     obj=db_table,
+                     id='models.E028',
+                 )
+2026-07-01 16:36:27,090 - INFO - Grading answer for django__django-11630...
+2026-07-01 16:36:27,091 - INFO - report: {'django__django-11630': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['test_collision_across_apps_database_routers_installed (check_framework.test_model_checks.DuplicateDBTableTests)', 'test_collision_in_same_app_database_routers_installed (check_framework.test_model_checks.DuplicateDBTableTests)']}, 'PASS_TO_PASS': {'success': ['test_collision_abstract_model (check_framework.test_model_checks.IndexNameTests)', 'test_collision_across_apps (check_framework.test_model_checks.IndexNameTests)', 'test_collision_in_different_models (check_framework.test_model_checks.IndexNameTests)', 'test_collision_in_same_model (check_framework.test_model_checks.IndexNameTests)', 'test_no_collision_abstract_model_interpolation (check_framework.test_model_checks.IndexNameTests)', 'test_no_collision_across_apps_interpolation (check_framework.test_model_checks.IndexNameTests)', 'test_collision_abstract_model (check_framework.test_model_checks.ConstraintNameTests)', 'test_collision_across_apps (check_framework.test_model_checks.ConstraintNameTests)', 'test_collision_in_different_models (check_framework.test_model_checks.ConstraintNameTests)', 'test_collision_in_same_model (check_framework.test_model_checks.ConstraintNameTests)', 'test_no_collision_abstract_model_interpolation (check_framework.test_model_checks.ConstraintNameTests)', 'test_no_collision_across_apps_interpolation (check_framework.test_model_checks.ConstraintNameTests)', 'test_collision_across_apps (check_framework.test_model_checks.DuplicateDBTableTests)', 'test_collision_in_same_app (check_framework.test_model_checks.DuplicateDBTableTests)', 'test_no_collision_for_proxy_models (check_framework.test_model_checks.DuplicateDBTableTests)', 'test_no_collision_for_unmanaged_models (check_framework.test_model_checks.DuplicateDBTableTests)'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for django__django-11630: resolved: False
+2026-07-01 16:36:27,091 - INFO - Attempting to stop container sweb.eval.django__django-11630.codex_results_high...
+2026-07-01 16:36:42,372 - INFO - Attempting to remove container sweb.eval.django__django-11630.codex_results_high...
+2026-07-01 16:36:42,427 - INFO - Container sweb.eval.django__django-11630.codex_results_high removed.
+2026-07-01 16:36:42,427 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.django_1776_django-11630:latest...
+2026-07-01 16:36:42,997 - INFO - Image swebench/sweb.eval.x86_64.django_1776_django-11630:latest removed.

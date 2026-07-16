@@ -1,0 +1,2991 @@
+From 62049251896fa82f9d67f7b4687102b0cb51dcd4 Mon Sep 17 00:00:00 2001
+From: czhai <czhai@gmu.edu>
+Date: Mon, 13 Jul 2026 13:09:51 +0000
+Subject: [PATCH 01/10] webarena-verified-hopper: extend to all WebArena sites
+ except wikipedia
+
+- wa_common.sh: site registry (shopping shopping_admin reddit gitlab map),
+  per-kind dispatch, ports, health paths/timeouts, WA_MAP_DATA_DIR, urls.d
+- 01_fetch_images.sh: all-site pulls with size warnings
+- 02_patch_sandbox.sh: rootless patching per kind (reddit nginx/php-fpm/pg
+  port moves + pgdata detection; gitlab chpst/su strip + service downs;
+  map apache loopback 8080/8085 + external 3030 + pg cluster data dirs)
+- 03_prepare_state.sh: per-kind writable-state extraction + seed,
+  WA_SKIP_SEED for gitlab
+- 05_fetch_map_data.sh: NEW - download/extract tile-db, nominatim, osrm data
+- container/wa_{reddit,gitlab,map}_entry.sh: NEW rootless entry scripts
+- wa_site.sh: generalized binds/env/ports per kind, per-site health budgets
+- make_config.sh: all five placeholders, sources urls.d fragments
+- slurm/webarena_sites.sbatch: site-list parametrized, per-site URL fragments,
+  gitlab+map co-location guard
+- README.md: full 5-site docs, placement rules, known unknowns
+---
+ webarena-verified-hopper/01_fetch_images.sh   |  25 +-
+ webarena-verified-hopper/02_patch_sandbox.sh  | 357 ++++++++++++++----
+ webarena-verified-hopper/03_prepare_state.sh  | 168 +++++++--
+ webarena-verified-hopper/04_pack_sif.sh       |  10 +-
+ webarena-verified-hopper/05_fetch_map_data.sh | 141 +++++++
+ webarena-verified-hopper/README.md            | 200 ++++++----
+ .../container/wa_gitlab_entry.sh              |  93 +++++
+ .../container/wa_map_entry.sh                 | 180 +++++++++
+ .../container/wa_reddit_entry.sh              | 113 ++++++
+ webarena-verified-hopper/make_config.sh       |  43 ++-
+ .../slurm/webarena_sites.sbatch               | 127 ++++---
+ webarena-verified-hopper/wa_common.sh         | 132 ++++++-
+ webarena-verified-hopper/wa_site.sh           | 256 +++++++++----
+ 13 files changed, 1515 insertions(+), 330 deletions(-)
+ create mode 100755 webarena-verified-hopper/05_fetch_map_data.sh
+ create mode 100644 webarena-verified-hopper/container/wa_gitlab_entry.sh
+ create mode 100644 webarena-verified-hopper/container/wa_map_entry.sh
+ create mode 100644 webarena-verified-hopper/container/wa_reddit_entry.sh
+
+diff --git a/webarena-verified-hopper/01_fetch_images.sh b/webarena-verified-hopper/01_fetch_images.sh
+index b35fc93..904062d 100644
+--- a/webarena-verified-hopper/01_fetch_images.sh
++++ b/webarena-verified-hopper/01_fetch_images.sh
+@@ -2,14 +2,18 @@
+ # 01_fetch_images.sh - pull the webarena-verified docker images from Docker Hub
+ # into user-owned Apptainer sandboxes.
+ #
+-# Run this somewhere with outbound network access (Hopper login node, or a
+-# compute node if egress is allowed). No root / no subuid needed: building a
++# Run this somewhere with outbound network access (Hopper login node — compute
++# nodes throttle egress to ~50 KiB/s). No root / no subuid needed: building a
+ # sandbox as a normal user makes every file user-owned, which is exactly what
+ # the rootless runtime wants.
+ #
++# Approx compressed pull sizes (verified images are squashed): shopping /
++# shopping_admin a few GB each, reddit a few GB, gitlab ~15-25 GB,
++# map ~10-15 GB. Fetch gitlab and map one at a time.
++#
+ # Usage:
+-#   ./01_fetch_images.sh                # both sites
+-#   ./01_fetch_images.sh shopping_admin # one site
++#   ./01_fetch_images.sh                 # all sites (shopping shopping_admin reddit gitlab map)
++#   ./01_fetch_images.sh reddit gitlab   # a subset
+ 
+ set -euo pipefail
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+@@ -20,14 +24,8 @@ wa_ensure_dirs
+ 
+ fetch_one() {
+   local site="$1" src sandbox
+-  case "$site" in
+-    shopping) src="$WA_SHOPPING_DOCKER" ;;
+-    shopping_admin) src="$WA_SHOPPING_ADMIN_DOCKER" ;;
+-    *)
+-      echo "unknown site: $site" >&2
+-      exit 1
+-      ;;
+-  esac
++  wa_check_site "$site"
++  src="$(wa_site_docker "$site")"
+   sandbox="$(wa_sandbox "$site")"
+ 
+   if [ -d "$sandbox" ]; then
+@@ -43,8 +41,7 @@ fetch_one() {
+ }
+ 
+ if [ "$#" -eq 0 ]; then
+-  fetch_one shopping
+-  fetch_one shopping_admin
++  for s in $WA_ALL_SITES; do fetch_one "$s"; done
+ else
+   for s in "$@"; do fetch_one "$s"; done
+ fi
+diff --git a/webarena-verified-hopper/02_patch_sandbox.sh b/webarena-verified-hopper/02_patch_sandbox.sh
+index cdb7d04..bc12d5e 100644
+--- a/webarena-verified-hopper/02_patch_sandbox.sh
++++ b/webarena-verified-hopper/02_patch_sandbox.sh
+@@ -1,22 +1,40 @@
+ #!/usr/bin/env bash
+-# 02_patch_sandbox.sh - patch a webarena-verified shopping/shopping_admin
+-# sandbox so every service runs rootless under Apptainer on Hopper
+-# (single-uid user namespace, no /etc/subuid, no privileged ports, no su).
++# 02_patch_sandbox.sh - patch a webarena-verified sandbox so every service runs
++# rootless under Apptainer on Hopper (single-uid user namespace, no
++# /etc/subuid, no privileged ports, no su/chpst user switching).
+ #
+-# This is the PoloWitty webarena-lite-for-rootless-slurm patch set, ported to
+-# the ServiceNow webarena-verified images (same underlying Alpine/Magento
+-# layout, so the patches map 1:1). Changes:
+-#   * nginx:    drop `user` directive, listen on the external high port,
+-#               proxy PHP over TCP instead of a socket
+-#   * php-fpm:  drop user/group directives, listen on 127.0.0.1:<fpm_port>
+-#   * mariadb:  TCP on 127.0.0.1:<mysql_port> (client + server defaults)
+-#   * redis:    port moved via launcher args; magento env.php updated
+-#   * magento:  env.php db/redis endpoints point at the new TCP ports
++# Per site kind:
++#   magento (shopping, shopping_admin) — the PoloWitty webarena-lite patch set:
++#     * nginx:    drop `user` directive, listen on the external high port,
++#                 proxy PHP over TCP instead of a socket
++#     * php-fpm:  drop user/group directives, listen on 127.0.0.1:<fpm_port>
++#     * mariadb:  TCP on 127.0.0.1:<mysql_port> (client + server defaults)
++#     * redis:    port moved via launcher args; magento env.php updated
++#     * magento:  env.php db/redis endpoints point at the new TCP ports
++#   reddit (Postmill) —
++#     * nginx:    drop `user`, listen 80 -> <http_port>, fastcgi -> tcp <fpm_port>
++#     * php-fpm:  drop user/group, listen 127.0.0.1:<fpm_port>
++#     * postgres: port/socket moved via launcher args (entry script)
++#     * symfony:  .env DATABASE_URL points at 127.0.0.1:<pg_port>
++#   gitlab (omnibus) —
++#     * strip `chpst -u/-U <user>` from every runit run/log script so all
++#       services run as the calling uid
++#     * neuter chown in runsvdir-start and service scripts
++#     * drop nginx `user` directive in the generated /var/opt config
++#     * disable sshd (port 22 is privileged) and leftover monitoring services
++#   map (OSM website) —
++#     * apache: internal 8080 restricted to loopback (server-side URLs are
++#       baked to localhost:8080), add external Listen on <http_port> and add
++#       that port to the tile-server vhost
++#     * postgres cluster configs: point data_directory at the runtime bind
++#       locations, apply the tile-server custom config at patch time
++#       (/etc is read-only at runtime)
+ #
+-# Idempotent: safe to re-run. Supervisord configs are left in place but unused;
+-# the runtime launcher (container/wa_magento_entry.sh) starts services directly.
++# Idempotent: safe to re-run. Supervisord/runit configs shipped by the images
++# are otherwise left in place; the runtime launchers (container/wa_*_entry.sh)
++# start services directly (except gitlab, which keeps runit).
+ #
+-# Usage: ./02_patch_sandbox.sh {shopping|shopping_admin} [sandbox_dir]
++# Usage: ./02_patch_sandbox.sh {shopping|shopping_admin|reddit|gitlab|map} [sandbox_dir]
+ 
+ set -euo pipefail
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+@@ -26,37 +44,42 @@ source "$SCRIPT_DIR/wa_common.sh"
+ SITE="${1:-}"
+ wa_check_site "$SITE"
+ ROOT="${2:-$(wa_sandbox "$SITE")}"
+-
+-HTTP_PORT="$(wa_site_var "$SITE" HTTP_PORT)"
+-MYSQL_PORT="$(wa_site_var "$SITE" MYSQL_PORT)"
+-REDIS_PORT="$(wa_site_var "$SITE" REDIS_PORT)"
+-FPM_PORT="$(wa_site_var "$SITE" FPM_PORT)"
++KIND="$(wa_site_kind "$SITE")"
+ 
+ [ -d "$ROOT" ] || {
+   echo "sandbox not found: $ROOT (run 01_fetch_images.sh first)" >&2
+   exit 1
+ }
+-ENV_PHP="$ROOT/var/www/magento2/app/etc/env.php"
+-[ -f "$ENV_PHP" ] || {
+-  echo "sandbox incomplete; missing $ENV_PHP" >&2
+-  exit 1
+-}
+ 
+-echo "[patch] site=$SITE root=$ROOT"
+-echo "[patch] ports: http=$HTTP_PORT mysql=$MYSQL_PORT redis=$REDIS_PORT fpm=$FPM_PORT"
++HTTP_PORT="$(wa_site_var "$SITE" HTTP_PORT)"
+ 
+-# --- runtime dirs that must exist inside the image ---------------------------
+-mkdir -p "$ROOT/run/nginx" "$ROOT/run/mysqld" "$ROOT/run/redis" \
+-  "$ROOT/var/tmp/nginx/client_body" "$ROOT/var/log/webarena" "$ROOT/run/webarena"
++echo "[patch] site=$SITE kind=$KIND root=$ROOT http_port=$HTTP_PORT"
+ 
+-# --- nginx --------------------------------------------------------------------
+-if [ -f "$ROOT/etc/nginx/nginx.conf" ]; then
+-  sed -i 's/^user[[:space:]].*/# user disabled for rootless apptainer runtime/' \
+-    "$ROOT/etc/nginx/nginx.conf"
+-fi
++# ==============================================================================
++patch_magento() {
++  local MYSQL_PORT REDIS_PORT FPM_PORT ENV_PHP
++  MYSQL_PORT="$(wa_site_var "$SITE" MYSQL_PORT)"
++  REDIS_PORT="$(wa_site_var "$SITE" REDIS_PORT)"
++  FPM_PORT="$(wa_site_var "$SITE" FPM_PORT)"
++  ENV_PHP="$ROOT/var/www/magento2/app/etc/env.php"
++  [ -f "$ENV_PHP" ] || {
++    echo "sandbox incomplete; missing $ENV_PHP" >&2
++    exit 1
++  }
++  echo "[patch] ports: http=$HTTP_PORT mysql=$MYSQL_PORT redis=$REDIS_PORT fpm=$FPM_PORT"
+ 
+-if [ -d "$ROOT/etc/nginx/conf.d" ]; then
+-  cat >"$ROOT/etc/nginx/conf.d/default.conf" <<EOF_NGINX
++  # --- runtime dirs that must exist inside the image ---------------------------
++  mkdir -p "$ROOT/run/nginx" "$ROOT/run/mysqld" "$ROOT/run/redis" \
++    "$ROOT/var/tmp/nginx/client_body" "$ROOT/var/log/webarena" "$ROOT/run/webarena"
++
++  # --- nginx --------------------------------------------------------------------
++  if [ -f "$ROOT/etc/nginx/nginx.conf" ]; then
++    sed -i 's/^user[[:space:]].*/# user disabled for rootless apptainer runtime/' \
++      "$ROOT/etc/nginx/nginx.conf"
++  fi
++
++  if [ -d "$ROOT/etc/nginx/conf.d" ]; then
++    cat >"$ROOT/etc/nginx/conf.d/default.conf" <<EOF_NGINX
+ upstream fastcgi_backend {
+   server 127.0.0.1:${FPM_PORT};
+ }
+@@ -68,28 +91,28 @@ server {
+   include /var/www/magento2/nginx.conf.sample;
+ }
+ EOF_NGINX
+-fi
++  fi
+ 
+-# Alpine ships a default 80-listener in http.d on some builds; neutralize it.
+-if [ -d "$ROOT/etc/nginx/http.d" ]; then
+-  cat >"$ROOT/etc/nginx/http.d/default.conf" <<'EOF_HTTPD'
++  # Alpine ships a default 80-listener in http.d on some builds; neutralize it.
++  if [ -d "$ROOT/etc/nginx/http.d" ]; then
++    cat >"$ROOT/etc/nginx/http.d/default.conf" <<'EOF_HTTPD'
+ # disabled for rootless apptainer runtime (server block lives in conf.d)
+ EOF_HTTPD
+-fi
+-
+-# --- php-fpm ------------------------------------------------------------------
+-for f in "$ROOT"/usr/local/etc/php-fpm.d/*.conf "$ROOT"/usr/local/etc/php-fpm.d/*.default; do
+-  [ -f "$f" ] || continue
+-  sed -i "s|^listen = .*|listen = 127.0.0.1:${FPM_PORT}|g" "$f"
+-  sed -i 's|^user = .*|; user disabled for rootless apptainer runtime|g' "$f"
+-  sed -i 's|^group = .*|; group disabled for rootless apptainer runtime|g' "$f"
+-  sed -i 's|^listen\.owner = .*|; listen.owner disabled (tcp listen)|g' "$f"
+-  sed -i 's|^listen\.group = .*|; listen.group disabled (tcp listen)|g' "$f"
+-done
+-
+-# --- mariadb ------------------------------------------------------------------
+-mkdir -p "$ROOT/etc/my.cnf.d"
+-cat >"$ROOT/etc/my.cnf.d/webarena-rootless.cnf" <<EOF_MYSQL
++  fi
++
++  # --- php-fpm ------------------------------------------------------------------
++  for f in "$ROOT"/usr/local/etc/php-fpm.d/*.conf "$ROOT"/usr/local/etc/php-fpm.d/*.default; do
++    [ -f "$f" ] || continue
++    sed -i "s|^listen = .*|listen = 127.0.0.1:${FPM_PORT}|g" "$f"
++    sed -i 's|^user = .*|; user disabled for rootless apptainer runtime|g' "$f"
++    sed -i 's|^group = .*|; group disabled for rootless apptainer runtime|g' "$f"
++    sed -i 's|^listen\.owner = .*|; listen.owner disabled (tcp listen)|g' "$f"
++    sed -i 's|^listen\.group = .*|; listen.group disabled (tcp listen)|g' "$f"
++  done
++
++  # --- mariadb ------------------------------------------------------------------
++  mkdir -p "$ROOT/etc/my.cnf.d"
++  cat >"$ROOT/etc/my.cnf.d/webarena-rootless.cnf" <<EOF_MYSQL
+ [client]
+ host=127.0.0.1
+ port=${MYSQL_PORT}
+@@ -102,22 +125,206 @@ innodb_buffer_pool_size=${WA_MYSQL_BUFFER_POOL}
+ max_connections=${WA_MYSQL_MAX_CONNECTIONS}
+ EOF_MYSQL
+ 
+-# --- magento env.php ------------------------------------------------------------
+-# Point redis and mysql at the new TCP endpoints. The verified images inherit
+-# the CMU env.php (db host 127.0.0.1 or localhost, redis on 6379).
+-# (Same seds PoloWitty uses on the identical upstream env.php.)
+-sed -i "s|'port' => '6379'|'port' => '${REDIS_PORT}'|g" "$ENV_PHP"
+-if grep -q "'host' => '127.0.0.1:${MYSQL_PORT}'" "$ENV_PHP"; then
+-  echo "[patch] env.php db host already patched"
+-elif grep -q "'host' => '127.0.0.1'" "$ENV_PHP"; then
+-  sed -i "s|'host' => '127.0.0.1'|'host' => '127.0.0.1:${MYSQL_PORT}'|" "$ENV_PHP"
+-elif grep -q "'host' => 'localhost'" "$ENV_PHP"; then
+-  sed -i "s|'host' => 'localhost'|'host' => '127.0.0.1:${MYSQL_PORT}'|" "$ENV_PHP"
+-else
+-  echo "[patch] WARNING: no db host entry matched in env.php; inspect manually:" >&2
+-fi
+-
+-echo "[patch] env.php endpoints now:"
+-grep -n "host' =>\|port' =>" "$ENV_PHP" | head -12 || true
+-
+-echo "[patch] done. Next: ./03_prepare_state.sh $SITE  (then optionally 04_pack_sif.sh)"
++  # --- magento env.php ------------------------------------------------------------
++  # Point redis and mysql at the new TCP endpoints. The verified images inherit
++  # the CMU env.php (db host 127.0.0.1 or localhost, redis on 6379).
++  # (Same seds PoloWitty uses on the identical upstream env.php.)
++  sed -i "s|'port' => '6379'|'port' => '${REDIS_PORT}'|g" "$ENV_PHP"
++  if grep -q "'host' => '127.0.0.1:${MYSQL_PORT}'" "$ENV_PHP"; then
++    echo "[patch] env.php db host already patched"
++  elif grep -q "'host' => '127.0.0.1'" "$ENV_PHP"; then
++    sed -i "s|'host' => '127.0.0.1'|'host' => '127.0.0.1:${MYSQL_PORT}'|" "$ENV_PHP"
++  elif grep -q "'host' => 'localhost'" "$ENV_PHP"; then
++    sed -i "s|'host' => 'localhost'|'host' => '127.0.0.1:${MYSQL_PORT}'|" "$ENV_PHP"
++  else
++    echo "[patch] WARNING: no db host entry matched in env.php; inspect manually:" >&2
++  fi
++
++  echo "[patch] env.php endpoints now:"
++  grep -n "host' =>\|port' =>" "$ENV_PHP" | head -12 || true
++}
++
++# ==============================================================================
++patch_reddit() {
++  local PG_PORT FPM_PORT APP="$ROOT/var/www/html"
++  PG_PORT="$(wa_site_var "$SITE" PG_PORT)"
++  FPM_PORT="$(wa_site_var "$SITE" FPM_PORT)"
++  echo "[patch] ports: http=$HTTP_PORT postgres=$PG_PORT fpm=$FPM_PORT"
++
++  [ -d "$APP" ] || {
++    echo "sandbox incomplete; missing $APP (Postmill app root)" >&2
++    exit 1
++  }
++
++  mkdir -p "$ROOT/run/nginx" "$ROOT/run/postgresql" "$ROOT/run/php" \
++    "$ROOT/var/log/webarena" "$ROOT/run/webarena" \
++    "$ROOT/var/tmp/nginx/client_body"
++
++  # --- locate postgres data dir (recorded for wa_site.sh binds) ----------------
++  local pgdata="" cand
++  for cand in "$ROOT/usr/local/pgsql/data" \
++    "$ROOT/var/lib/postgresql/data" \
++    "$ROOT"/var/lib/postgresql/*/data \
++    "$ROOT"/var/lib/postgresql/*/main; do
++    if [ -f "$cand/PG_VERSION" ]; then
++      pgdata="$cand"
++      break
++    fi
++  done
++  [ -n "$pgdata" ] || {
++    echo "[patch] ERROR: no postgres data dir with PG_VERSION found under sandbox" >&2
++    exit 1
++  }
++  # container-side path == sandbox-relative path
++  printf '%s\n' "${pgdata#"$ROOT"}" >"$ROOT/.wa_pgdata_path"
++  echo "[patch] postgres data dir (in-container): $(cat "$ROOT/.wa_pgdata_path")"
++  chmod 700 "$pgdata" || true
++
++  # --- nginx --------------------------------------------------------------------
++  local nconf
++  for nconf in "$ROOT/etc/nginx/nginx.conf" "$ROOT"/etc/nginx/conf.d/*.conf \
++    "$ROOT"/etc/nginx/http.d/*.conf "$ROOT"/etc/nginx/sites-enabled/*; do
++    [ -f "$nconf" ] || continue
++    sed -i 's/^user[[:space:]].*/# user disabled for rootless apptainer runtime/' "$nconf"
++    sed -i -E "s/listen[[:space:]]+(\[::\]:)?80([; ])/listen ${HTTP_PORT}\2/g" "$nconf"
++    sed -i -E "s|fastcgi_pass[[:space:]]+[^;]+;|fastcgi_pass 127.0.0.1:${FPM_PORT};|g" "$nconf"
++    # keep pid/log paths off the read-only overlay (lesson from wa_common EOVERFLOW)
++    sed -i -E "s|^([[:space:]]*)pid[[:space:]]+[^;]+;|\1pid /run/nginx/nginx.pid;|" "$nconf"
++  done
++
++  # --- php-fpm ------------------------------------------------------------------
++  local f found_fpm=0
++  for f in "$ROOT"/etc/php*/php-fpm.d/*.conf "$ROOT"/etc/php/*/fpm/pool.d/*.conf \
++    "$ROOT"/usr/local/etc/php-fpm.d/*.conf; do
++    [ -f "$f" ] || continue
++    found_fpm=1
++    sed -i -E "s|^listen = .*|listen = 127.0.0.1:${FPM_PORT}|g" "$f"
++    sed -i 's|^user = .*|; user disabled for rootless apptainer runtime|g' "$f"
++    sed -i 's|^group = .*|; group disabled for rootless apptainer runtime|g' "$f"
++    sed -i 's|^listen\.owner = .*|; listen.owner disabled (tcp listen)|g' "$f"
++    sed -i 's|^listen\.group = .*|; listen.group disabled (tcp listen)|g' "$f"
++  done
++  [ "$found_fpm" = "1" ] || echo "[patch] WARNING: no php-fpm pool config matched; check image layout" >&2
++
++  # --- symfony .env: point Postmill at the moved postgres port -------------------
++  if [ -f "$APP/.env" ]; then
++    if grep -qE 'DATABASE_URL=.*@(localhost|127\.0\.0\.1):[0-9]+' "$APP/.env"; then
++      sed -i -E "s|(DATABASE_URL=.*@(localhost\|127\.0\.0\.1)):[0-9]+|\1:${PG_PORT}|" "$APP/.env"
++    else
++      sed -i -E "s|(DATABASE_URL=.*@)(localhost\|127\.0\.0\.1)(/)|\1127.0.0.1:${PG_PORT}\3|" "$APP/.env"
++    fi
++    echo "[patch] .env now:"
++    grep -nE 'DATABASE_URL|APP_SITE_NAME' "$APP/.env" || true
++  else
++    echo "[patch] WARNING: $APP/.env not found; DATABASE_URL not patched" >&2
++  fi
++}
++
++# ==============================================================================
++patch_gitlab() {
++  local SV="$ROOT/opt/gitlab/sv"
++  [ -d "$SV" ] || {
++    echo "sandbox incomplete; missing $SV (gitlab omnibus runit tree)" >&2
++    exit 1
++  }
++
++  mkdir -p "$ROOT/var/log/webarena" "$ROOT/run/webarena"
++
++  # --- strip user switching from every runit script ------------------------------
++  # chpst -u/-U <user[:group]> fails in a single-uid namespace; everything runs
++  # as the calling user instead (all files are user-owned via --fix-perms).
++  local f
++  for f in "$SV"/*/run "$SV"/*/log/run "$SV"/*/finish "$SV"/*/control/*; do
++    [ -f "$f" ] || continue
++    sed -i -E 's/[[:space:]]-[uU][[:space:]]+[A-Za-z0-9_.:-]+//g' "$f"
++    # `su - <user> -c` variants and chowns cannot succeed either
++    sed -i -E 's/\bsu[[:space:]]+-?[[:space:]]*[A-Za-z0-9_.-]+[[:space:]]+-c[[:space:]]+/sh -c /g' "$f"
++    sed -i -E 's/^([[:space:]]*)chown([[:space:]])/\1true chown\2/g' "$f"
++    sed -i -E 's/(&&|;)([[:space:]]*)chown([[:space:]])/\1\2true chown\3/g' "$f"
++  done
++
++  # runsvdir-start does mkdir/chown/chmod setup as root; neuter the chowns.
++  local RSS="$ROOT/opt/gitlab/embedded/bin/runsvdir-start"
++  if [ -f "$RSS" ]; then
++    sed -i -E 's/^([[:space:]]*)chown([[:space:]])/\1true chown\2/g' "$RSS"
++    sed -i -E 's/(&&|;|\|\|)([[:space:]]*)chown([[:space:]])/\1\2true chown\3/g' "$RSS"
++  fi
++
++  # --- disable services that cannot or should not run rootless -------------------
++  # sshd binds privileged port 22; monitoring is disabled in the verified image
++  # but the sv dirs may still exist. A `down` file stops runsv from autostarting.
++  local svc
++  for svc in sshd crond logrotate alertmanager prometheus grafana \
++    gitlab-exporter node-exporter postgres-exporter redis-exporter gitlab-kas; do
++    [ -d "$SV/$svc" ] && touch "$SV/$svc/down"
++  done
++
++  # --- generated nginx config (lives in /var/opt, becomes writable state) --------
++  local gnginx="$ROOT/var/opt/gitlab/nginx/conf/nginx.conf"
++  if [ -f "$gnginx" ]; then
++    sed -i 's/^user[[:space:]].*/# user disabled for rootless apptainer runtime/' "$gnginx"
++  fi
++
++  # postgres requires 0700 on its data dir
++  [ -d "$ROOT/var/opt/gitlab/postgresql/data" ] &&
++    chmod 700 "$ROOT/var/opt/gitlab/postgresql/data" || true
++
++  echo "[patch] gitlab: user-switching stripped, sshd/monitoring disabled"
++  echo "[patch] NOTE: external_url is fixed per-start by container/wa_gitlab_entry.sh"
++  echo "[patch]       (edits gitlab.yml directly; gitlab-ctl reconfigure is never run)"
++}
++
++# ==============================================================================
++patch_map() {
++  local PORTS="$ROOT/etc/apache2/ports.conf"
++  local VHOST="$ROOT/etc/apache2/sites-available/tile-server.conf"
++  [ -f "$PORTS" ] && [ -f "$VHOST" ] || {
++    echo "sandbox incomplete; missing apache config ($PORTS / $VHOST)" >&2
++    exit 1
++  }
++
++  mkdir -p "$ROOT/var/log/webarena" "$ROOT/run/webarena" "$ROOT/run/postgresql" \
++    "$ROOT/run/renderd" "$ROOT/run/apache2"
++
++  # --- apache: keep internal 8080 on loopback, add the external port -------------
++  # Server-side rails settings + precompiled assets reference localhost:8080, so
++  # 8080 must stay; agents connect on MAP_HTTP_PORT.
++  if ! grep -q "Listen ${MAP_HTTP_PORT}$" "$PORTS"; then
++    sed -i "s|^Listen 8080$|Listen 127.0.0.1:8080\nListen ${MAP_HTTP_PORT}|" "$PORTS"
++  fi
++  grep -q "Listen 127.0.0.1:8085" "$PORTS" ||
++    sed -i "s|^Listen 8085$|Listen 127.0.0.1:8085|" "$PORTS"
++  if ! grep -q "\*:${MAP_HTTP_PORT}" "$VHOST"; then
++    sed -i "s|<VirtualHost \*:8080>|<VirtualHost *:8080 *:${MAP_HTTP_PORT}>|" "$VHOST"
++  fi
++
++  # --- postgres clusters: data dirs at their runtime bind locations --------------
++  # /etc is read-only at runtime (SIF), so all config edits happen now.
++  local pg15="$ROOT/etc/postgresql/15/main"
++  if [ -d "$pg15" ]; then
++    sed -i "s|data_directory = '.*'|data_directory = '/data/database/postgres'|" \
++      "$pg15/postgresql.conf"
++    mkdir -p "$pg15/conf.d"
++    if [ -f "$pg15/postgresql.custom.conf.tmpl" ] && [ ! -f "$pg15/conf.d/postgresql.custom.conf" ]; then
++      cp "$pg15/postgresql.custom.conf.tmpl" "$pg15/conf.d/postgresql.custom.conf"
++      echo "autovacuum = on" >>"$pg15/conf.d/postgresql.custom.conf"
++    fi
++  fi
++  local pgnom="$ROOT/etc/postgresql/14/nominatim"
++  [ -d "$pgnom" ] &&
++    sed -i "s|data_directory = '.*'|data_directory = '/data/nominatim/postgres'|" \
++      "$pgnom/postgresql.conf"
++
++  echo "[patch] map: apache external port ${MAP_HTTP_PORT} added, pg data dirs pinned"
++  echo "[patch] NOTE: map needs external data — run ./05_fetch_map_data.sh (login node)"
++}
++
++# ==============================================================================
++case "$KIND" in
++  magento) patch_magento ;;
++  reddit) patch_reddit ;;
++  gitlab) patch_gitlab ;;
++  map) patch_map ;;
++esac
++
++echo "[patch] done. Next: ./03_prepare_state.sh prepare $SITE  (then optionally 04_pack_sif.sh)"
+diff --git a/webarena-verified-hopper/03_prepare_state.sh b/webarena-verified-hopper/03_prepare_state.sh
+index 2519b32..3355631 100644
+--- a/webarena-verified-hopper/03_prepare_state.sh
++++ b/webarena-verified-hopper/03_prepare_state.sh
+@@ -1,7 +1,37 @@
+ #!/usr/bin/env bash
+ # 03_prepare_state.sh - manage the writable state that gets bind-mounted over
+-# the read-only SIF at runtime (MySQL data, Magento var/, nginx lib,
+-# Elasticsearch data).
++# the read-only SIF at runtime.
++#
++# Per site the writable set differs (subdir -> in-container path; see
++# wa_site.sh for the binds):
++#   shopping / shopping_admin:
++#     mysql        -> /var/lib/mysql
++#     nginx-lib    -> /var/lib/nginx
++#     magento-var  -> /var/www/magento2/var
++#     es-data      -> /usr/share/java/elasticsearch/data   (shopping only)
++#   reddit:
++#     pgdata       -> <detected postgres data dir>  (path in sandbox/.wa_pgdata_path)
++#     nginx-lib    -> /var/lib/nginx                (if present in image)
++#     nginx-log    -> /var/log/nginx
++#     app-var      -> /var/www/html/var
++#     dot-env      -> /var/www/html/.env            (file bind; APP_SITE_NAME
++#                                                    is rewritten per start)
++#   gitlab:
++#     etc-gitlab   -> /etc/gitlab
++#     var-opt      -> /var/opt/gitlab               (repos + postgres + uploads;
++#                                                    tens of GB — seed is big)
++#     gitlab-log   -> /var/log/gitlab
++#   map:
++#     website-pg   -> /var/lib/postgresql/14/main
++#     app-log      -> /app/log
++#     app-tmp      -> /app/tmp
++#     apache-log   -> /var/log/apache2
++#     tiles        -> /data/tiles
++#     renderd-cache-> /var/cache/renderd
++#     style        -> /data/style
++#     nominatim    -> /nominatim
++#     (the big tile/nominatim/osrm data lives in $WA_MAP_DATA_DIR — see
++#      05_fetch_map_data.sh — and is bound directly, not seeded)
+ #
+ # Commands:
+ #   prepare {site}   Extract writable state from the patched sandbox into
+@@ -9,7 +39,9 @@
+ #   restore {site}   Reset $WA_STATE_DIR/{site} from the seed (task reset)
+ #   seed    {site}   Re-snapshot the current live state as the new seed
+ #
+-# Usage: ./03_prepare_state.sh {prepare|restore|seed} {shopping|shopping_admin}
++# WA_SKIP_SEED=1 ./03_prepare_state.sh prepare gitlab   # skip the (huge) seed copy
++#
++# Usage: ./03_prepare_state.sh {prepare|restore|seed} {shopping|shopping_admin|reddit|gitlab|map}
+ 
+ set -euo pipefail
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+@@ -24,12 +56,8 @@ wa_ensure_dirs
+ SANDBOX="$(wa_sandbox "$SITE")"
+ STATE="$WA_STATE_DIR/$SITE"
+ SEED="$WA_SEED_DIR/$SITE"
+-
+-# state subdirs -> in-container paths (see wa_site.sh for the binds)
+-#   mysql        -> /var/lib/mysql
+-#   nginx-lib    -> /var/lib/nginx
+-#   magento-var  -> /var/www/magento2/var
+-#   es-data      -> /usr/share/java/elasticsearch/data
++KIND="$(wa_site_kind "$SITE")"
++WA_SKIP_SEED="${WA_SKIP_SEED:-0}"
+ 
+ copy_dir() { # copy_dir <src> <dst>
+   rm -rf "$2"
+@@ -47,39 +75,111 @@ sync_dir() { # sync_dir <src> <dst>
+ }
+ 
+ sanitize_state() {
+-  # Alpine nginx symlinks lib/nginx/{logs,tmp}; replace with real dirs so the
+-  # non-root process can write there.
+-  for p in logs tmp; do
+-    if [ -L "$STATE/nginx-lib/$p" ] || { [ -e "$STATE/nginx-lib/$p" ] && [ ! -d "$STATE/nginx-lib/$p" ]; }; then
+-      rm -f "$STATE/nginx-lib/$p"
+-    fi
+-  done
+-  mkdir -p "$STATE/nginx-lib/logs" "$STATE/nginx-lib/tmp/client_body"
++  case "$KIND" in
++    magento | reddit)
++      # Alpine nginx symlinks lib/nginx/{logs,tmp}; replace with real dirs so the
++      # non-root process can write there.
++      for p in logs tmp; do
++        if [ -L "$STATE/nginx-lib/$p" ] || { [ -e "$STATE/nginx-lib/$p" ] && [ ! -d "$STATE/nginx-lib/$p" ]; }; then
++          rm -f "$STATE/nginx-lib/$p"
++        fi
++      done
++      mkdir -p "$STATE/nginx-lib/logs" "$STATE/nginx-lib/tmp/client_body"
++      ;;
++  esac
++  case "$KIND" in
++    reddit)
++      [ -d "$STATE/pgdata" ] && chmod 700 "$STATE/pgdata"
++      rm -f "$STATE/pgdata/postmaster.pid" 2>/dev/null || true
++      mkdir -p "$STATE/nginx-log" "$STATE/app-var"
++      ;;
++    gitlab)
++      [ -d "$STATE/var-opt/postgresql/data" ] && chmod 700 "$STATE/var-opt/postgresql/data"
++      rm -f "$STATE/var-opt/postgresql/data/postmaster.pid" 2>/dev/null || true
++      # stale runit/pid leftovers inside state
++      find "$STATE/var-opt" -maxdepth 3 -name "*.pid" -delete 2>/dev/null || true
++      ;;
++    map)
++      [ -d "$STATE/website-pg" ] && chmod 700 "$STATE/website-pg"
++      rm -f "$STATE/website-pg/postmaster.pid" 2>/dev/null || true
++      mkdir -p "$STATE/app-log" "$STATE/app-tmp" "$STATE/apache-log" \
++        "$STATE/tiles" "$STATE/renderd-cache/tiles"
++      ;;
++  esac
+   chmod -R u+rwX "$STATE"
+ }
+ 
++extract_state() {
++  case "$KIND" in
++    magento)
++      [ -d "$SANDBOX/var/lib/mysql/mysql" ] || {
++        echo "sandbox missing MySQL data: $SANDBOX/var/lib/mysql" >&2
++        exit 1
++      }
++      copy_dir "$SANDBOX/var/lib/mysql" "$STATE/mysql"
++      copy_dir "$SANDBOX/var/lib/nginx" "$STATE/nginx-lib"
++      copy_dir "$SANDBOX/var/www/magento2/var" "$STATE/magento-var"
++      if [ "$(wa_site_var "$SITE" WITH_ES)" = "1" ]; then
++        copy_dir "$SANDBOX/usr/share/java/elasticsearch/data" "$STATE/es-data"
++      fi
++      ;;
++    reddit)
++      [ -f "$SANDBOX/.wa_pgdata_path" ] || {
++        echo "sandbox not patched (missing .wa_pgdata_path); run 02_patch_sandbox.sh first" >&2
++        exit 1
++      }
++      local pgpath
++      pgpath="$(cat "$SANDBOX/.wa_pgdata_path")"
++      copy_dir "$SANDBOX$pgpath" "$STATE/pgdata"
++      printf '%s\n' "$pgpath" >"$STATE/.wa_pgdata_path"
++      [ -d "$SANDBOX/var/lib/nginx" ] && copy_dir "$SANDBOX/var/lib/nginx" "$STATE/nginx-lib" ||
++        mkdir -p "$STATE/nginx-lib"
++      copy_dir "$SANDBOX/var/www/html/var" "$STATE/app-var"
++      mkdir -p "$STATE/nginx-log"
++      rm -rf "$STATE/dot-env" && mkdir -p "$STATE/dot-env"
++      cp "$SANDBOX/var/www/html/.env" "$STATE/dot-env/.env"
++      ;;
++    gitlab)
++      [ -d "$SANDBOX/var/opt/gitlab/postgresql/data" ] || {
++        echo "sandbox missing gitlab postgres data: $SANDBOX/var/opt/gitlab/postgresql/data" >&2
++        exit 1
++      }
++      echo "[state] gitlab /var/opt is tens of GB; this copy takes a while..."
++      copy_dir "$SANDBOX/etc/gitlab" "$STATE/etc-gitlab"
++      copy_dir "$SANDBOX/var/opt/gitlab" "$STATE/var-opt"
++      copy_dir "$SANDBOX/var/log/gitlab" "$STATE/gitlab-log"
++      ;;
++    map)
++      copy_dir "$SANDBOX/var/lib/postgresql/14/main" "$STATE/website-pg"
++      copy_dir "$SANDBOX/home/renderer/src/openstreetmap-carto-backup" "$STATE/style"
++      if [ -d "$SANDBOX/nominatim-base" ]; then
++        copy_dir "$SANDBOX/nominatim-base" "$STATE/nominatim"
++      else
++        copy_dir "$SANDBOX/nominatim" "$STATE/nominatim"
++      fi
++      mkdir -p "$STATE/app-log" "$STATE/app-tmp" "$STATE/apache-log" \
++        "$STATE/tiles" "$STATE/renderd-cache/tiles"
++      ;;
++  esac
++}
++
+ cmd_prepare() {
+-  [ -d "$SANDBOX/var/lib/mysql/mysql" ] || {
+-    echo "sandbox missing MySQL data: $SANDBOX/var/lib/mysql" >&2
+-    exit 1
+-  }
+   echo "[state] extracting writable state from $SANDBOX"
+-  copy_dir "$SANDBOX/var/lib/mysql" "$STATE/mysql"
+-  copy_dir "$SANDBOX/var/lib/nginx" "$STATE/nginx-lib"
+-  copy_dir "$SANDBOX/var/www/magento2/var" "$STATE/magento-var"
+-  if [ "$(wa_site_var "$SITE" WITH_ES)" = "1" ]; then
+-    copy_dir "$SANDBOX/usr/share/java/elasticsearch/data" "$STATE/es-data"
+-  fi
++  extract_state
+   sanitize_state
+-  echo "[state] snapshotting seed -> $SEED"
+-  rm -rf "$SEED"
+-  mkdir -p "$SEED"
+-  cp -a --reflink=auto "$STATE"/. "$SEED"/
++  if [ "$WA_SKIP_SEED" = "1" ]; then
++    echo "[state] WA_SKIP_SEED=1: skipping seed snapshot (reset will not work until you run 'seed')"
++  else
++    echo "[state] snapshotting seed -> $SEED"
++    rm -rf "$SEED"
++    mkdir -p "$SEED"
++    cp -a --reflink=auto "$STATE"/. "$SEED"/
++  fi
+   echo "[state] done"
+ }
+ 
+ cmd_restore() {
+-  [ -d "$SEED/mysql/mysql" ] || {
++  [ -d "$SEED" ] && [ -n "$(ls -A "$SEED" 2>/dev/null)" ] || {
+     echo "no seed at $SEED; run prepare first" >&2
+     exit 1
+   }
+@@ -90,7 +190,7 @@ cmd_restore() {
+ }
+ 
+ cmd_seed() {
+-  [ -d "$STATE/mysql/mysql" ] || {
++  [ -d "$STATE" ] && [ -n "$(ls -A "$STATE" 2>/dev/null)" ] || {
+     echo "no live state at $STATE" >&2
+     exit 1
+   }
+@@ -106,7 +206,7 @@ case "$CMD" in
+   restore) cmd_restore ;;
+   seed) cmd_seed ;;
+   *)
+-    echo "usage: $0 {prepare|restore|seed} {shopping|shopping_admin}" >&2
++    echo "usage: $0 {prepare|restore|seed} {$WA_ALL_SITES}" >&2
+     exit 1
+     ;;
+ esac
+diff --git a/webarena-verified-hopper/04_pack_sif.sh b/webarena-verified-hopper/04_pack_sif.sh
+index d1283d5..534d3bb 100644
+--- a/webarena-verified-hopper/04_pack_sif.sh
++++ b/webarena-verified-hopper/04_pack_sif.sh
+@@ -4,7 +4,15 @@
+ #
+ # Run on a compute node (srun -c 16 ...) — mksquashfs is CPU hungry.
+ #
+-# Usage: ./04_pack_sif.sh {shopping|shopping_admin}
++# Usage: ./04_pack_sif.sh <site>   (any of the sites in wa_common.sh)
++#
++# Notes:
++#   - gitlab's sandbox is very large (tens of GB); packing takes a while and
++#     the resulting SIF is still big. Since SIF FUSE mounting is broken on
++#     Hopper compute nodes, running the sandbox directly is a fine choice —
++#     wa_site.sh falls back to the sandbox automatically if no SIF exists.
++#   - Do NOT pack the writable state (mysql/pg data etc.) — that lives in
++#     $WA_STATE_DIR and is bind-mounted; 03_prepare_state.sh moved it out.
+ 
+ set -euo pipefail
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+diff --git a/webarena-verified-hopper/05_fetch_map_data.sh b/webarena-verified-hopper/05_fetch_map_data.sh
+new file mode 100755
+index 0000000..4ed7c85
+--- /dev/null
++++ b/webarena-verified-hopper/05_fetch_map_data.sh
+@@ -0,0 +1,141 @@
++#!/usr/bin/env bash
++# 05_fetch_map_data.sh - download and extract the map site's external data
++# (tile postgres db, nominatim db + flatnode, osrm routing graphs) into
++# $WA_MAP_DATA_DIR. Only needed for the `map` site.
++#
++# RUN THIS ON THE LOGIN NODE: Hopper compute nodes throttle egress to
++# ~50 KiB/s, and these tarballs are huge (hundreds of GB total). Check the
++# sizes first if you're short on space:
++#
++#   ./05_fetch_map_data.sh sizes
++#
++# Layout produced (mirrors the docker volumes of webarena-verified):
++#   $WA_MAP_DATA_DIR/downloads/            the raw .tar files (delete after)
++#   $WA_MAP_DATA_DIR/tile-db/              -> /data/database        (rw)
++#   $WA_MAP_DATA_DIR/routing/car/          -> /data/routing/car     (ro)
++#   $WA_MAP_DATA_DIR/routing/bike/         -> /data/routing/bike    (ro)
++#   $WA_MAP_DATA_DIR/routing/foot/         -> /data/routing/foot    (ro)
++#   $WA_MAP_DATA_DIR/nominatim-db/         -> /data/nominatim/postgres (rw)
++#   $WA_MAP_DATA_DIR/nominatim-flatnode/   -> /data/nominatim/flatnode
++#
++# Note: tile-db holds the *postgres data dir* that the container expects at
++# /data/database/postgres; the tarball's osm-data volume contains a postgres/
++# subdirectory, so extracting the volume into tile-db/ gives tile-db/postgres.
++#
++# Usage:
++#   ./05_fetch_map_data.sh            # download (resume-capable) + extract
++#   ./05_fetch_map_data.sh sizes      # just print remote Content-Length
++#   ./05_fetch_map_data.sh download   # download only
++#   ./05_fetch_map_data.sh extract    # extract only (tars already present)
++
++set -euo pipefail
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++# shellcheck source=wa_common.sh
++source "$SCRIPT_DIR/wa_common.sh"
++
++DL="$WA_MAP_DATA_DIR/downloads"
++CMD="${1:-all}"
++
++fetch_tool() {
++  if command -v aria2c >/dev/null 2>&1; then
++    printf 'aria2c'
++  elif command -v wget >/dev/null 2>&1; then
++    printf 'wget'
++  else
++    printf 'curl'
++  fi
++}
++
++cmd_sizes() {
++  local url len
++  for url in $WA_MAP_DATA_URLS; do
++    len="$(curl -sI "$url" | tr -d '\r' | awk 'tolower($1)=="content-length:"{print $2}')"
++    if [ -n "${len:-}" ]; then
++      printf '%12.1f GiB  %s\n' "$(echo "$len" | awk '{print $1/1024/1024/1024}')" "$url"
++    else
++      printf '%16s  %s\n' "unknown" "$url"
++    fi
++  done
++  echo
++  echo "Extraction roughly doubles the peak footprint while a tarball and its"
++  echo "extracted copy coexist; delete $DL when done."
++}
++
++cmd_download() {
++  mkdir -p "$DL"
++  local url f tool
++  tool="$(fetch_tool)"
++  for url in $WA_MAP_DATA_URLS; do
++    f="$DL/$(basename "$url")"
++    if [ -f "$f" ] && [ ! -f "$f.aria2" ]; then
++      echo "[map-data] SKIP (exists): $(basename "$f")"
++      continue
++    fi
++    echo "[map-data] downloading $(basename "$f") via $tool ..."
++    case "$tool" in
++      aria2c) aria2c -x 8 -s 8 -c --file-allocation=none -d "$DL" -o "$(basename "$f")" "$url" ;;
++      wget) wget -c -O "$f" "$url" ;;
++      curl) curl -L -C - -o "$f" "$url" ;;
++    esac
++  done
++}
++
++extract_one() { # extract_one <tar> <destdir> <strip> <member>
++  local tarball="$1" dest="$2" strip="$3" member="$4"
++  if [ -n "$(ls -A "$dest" 2>/dev/null)" ]; then
++    echo "[map-data] SKIP (not empty): $dest"
++    return 0
++  fi
++  [ -f "$tarball" ] || {
++    echo "[map-data] missing tarball: $tarball (run download first)" >&2
++    return 1
++  }
++  mkdir -p "$dest"
++  echo "[map-data] extracting $(basename "$tarball") -> $dest"
++  tar -xf "$tarball" -C "$dest" --strip-components="$strip" "$member"
++  # Everything must be traversable/writable by our uid for rootless apptainer.
++  chmod -R u+rwX "$dest"
++}
++
++cmd_extract() {
++  mkdir -p "$WA_MAP_DATA_DIR"
++  local tile="$DL/osm_tile_server.tar"
++  local nom="$DL/nominatim_volumes.tar"
++  local osrm="$DL/osrm_routing.tar"
++
++  # tile-db: the docker volume 'osm-data' -> mounted at /data/database.
++  # The volume contains a postgres/ subdir (the PG15 tile cluster).
++  extract_one "$tile" "$WA_MAP_DATA_DIR/tile-db" 6 \
++    'projects/ogma3/docker/volumes/osm-data/_data'
++
++  # osrm routing graphs, one dir per profile
++  extract_one "$osrm" "$WA_MAP_DATA_DIR/routing/car" 1 'car'
++  extract_one "$osrm" "$WA_MAP_DATA_DIR/routing/bike" 1 'bike'
++  extract_one "$osrm" "$WA_MAP_DATA_DIR/routing/foot" 1 'foot'
++
++  # nominatim postgres cluster + flatnode file
++  extract_one "$nom" "$WA_MAP_DATA_DIR/nominatim-db" 7 \
++    'projects/metis2/docker/docker/volumes/nominatim-data/_data'
++  extract_one "$nom" "$WA_MAP_DATA_DIR/nominatim-flatnode" 7 \
++    'projects/metis2/docker/docker/volumes/nominatim-flatnode/_data'
++
++  # postgres refuses group/world-accessible data dirs
++  chmod 700 "$WA_MAP_DATA_DIR/tile-db/postgres" 2>/dev/null || true
++  chmod 700 "$WA_MAP_DATA_DIR/nominatim-db" 2>/dev/null || true
++
++  echo "[map-data] done. You can now delete $DL to reclaim space."
++}
++
++case "$CMD" in
++  sizes) cmd_sizes ;;
++  download) cmd_download ;;
++  extract) cmd_extract ;;
++  all)
++    cmd_download
++    cmd_extract
++    ;;
++  *)
++    echo "usage: $0 {all|sizes|download|extract}" >&2
++    exit 1
++    ;;
++esac
+diff --git a/webarena-verified-hopper/README.md b/webarena-verified-hopper/README.md
+index e4de284..751629c 100644
+--- a/webarena-verified-hopper/README.md
++++ b/webarena-verified-hopper/README.md
+@@ -1,25 +1,48 @@
+ # webarena-verified on Hopper (rootless Apptainer + SLURM)
+ 
+-Runs the ServiceNow **webarena-verified** `shopping` and `shopping_admin`
+-environments on GMU Hopper: no root, no `/etc/subuid` (single-uid user
+-namespaces), no privileged ports, no Docker.
++Runs the ServiceNow **webarena-verified** environments — everything in
++WebArena **except wikipedia** — on GMU Hopper: no root, no `/etc/subuid`
++(single-uid user namespaces), no privileged ports, no Docker.
++
++| Site | Kind | External port | URL placeholder | Credentials |
++|---|---|---|---|---|
++| `shopping` | Magento storefront | 7770 | `__SHOPPING__` | `emma.lopez@gmail.com` / `Password.123` |
++| `shopping_admin` | Magento admin | 7780 (`/admin`) | `__SHOPPING_ADMIN__` | `admin` / `admin1234` |
++| `reddit` | Postmill (nginx + php-fpm + postgres) | 9999 | `__REDDIT__` | `MarvelsGrantMan136` / `test1234` |
++| `gitlab` | GitLab omnibus (runit) | 8023 | `__GITLAB__` | `byteblaze` / `hello1234` |
++| `map` | OSM website (rails + apache/mod_tile + renderd + 3× postgres + 3× osrm) | 3030 | `__MAP__` | — |
+ 
+ The approach is the PoloWitty `webarena-lite-for-rootless-slurm` recipe ported
+-to the webarena-verified images. That works because the verified images are
+-squashed from the same CMU Alpine/Magento images PoloWitty patched, so the
+-config layout (`/etc/supervisor.d`, `/usr/local/etc/php-fpm.d`,
+-`/etc/my.cnf.d`, `/var/www/magento2`) is identical — while keeping the
+-verified extras you actually want: ~90% smaller images, the
+-`X-M2-Customer-Auto-Login` / `X-M2-Admin-Auto-Login` header-auth plugins baked
+-in, and offline HAR-based evaluation (so containers are only needed while the
+-agent browses, never for scoring).
+-
+-Instead of the image's supervisord + env-ctrl stack (which needs `su` and
+-multiple uids), `container/wa_magento_entry.sh` starts redis, mariadb,
+-php-fpm, nginx (+ mailcatcher, and elasticsearch for shopping) directly as
+-your uid, then applies exactly what `env-ctrl init` would: set the Magento
+-base URL, patch `web/secure/base_url` in MySQL, disable the admin password
+-expiry policies (admin site), and flush caches.
++to the webarena-verified images and extended per service stack. Instead of
++each image's supervisord/runit + env-ctrl (which need `su` and multiple uids),
++`02_patch_sandbox.sh` strips every user-switch from the configs and a per-kind
++entry script in `container/` starts the services directly as your uid, then
++applies exactly what `env-ctrl init` would (base-URL rewrite, cache flush).
++
++- **magento** (`wa_magento_entry.sh`): redis, mariadb, php-fpm, nginx
++  (+ mailcatcher, + elasticsearch for shopping), Magento base-URL set per start.
++- **reddit** (`wa_reddit_entry.sh`): postgres (moved to 19991), php-fpm
++  (19992), nginx; rewrites `APP_SITE_NAME` in `.env` and clears the Symfony
++  cache per start. Header auto-login: `X-Postmill-Auto-Login`.
++- **gitlab** (`wa_gitlab_entry.sh`): keeps omnibus runit but with
++  `chpst -u`/`su` stripped from all `sv` run scripts; **never runs
++  `gitlab-ctl reconfigure`** (would restore root-isms) — instead seds the
++  `host:`/`port:` in `gitlab-rails/etc/gitlab.yml` per start. Puma pins
++  `127.0.0.1:8080` internally.
++- **map** (`wa_map_entry.sh`): starts the three postgres clusters (website
++  5433, tiles 5432, nominatim 5434), rails (3000), apache (external
++  `MAP_HTTP_PORT`, internal 8080/8085 restricted to loopback), renderd, and
++  the three osrm-routed instances. Internal ports are **not** remapped —
++  `localhost:8080` URLs are baked into the rails settings and precompiled
++  assets — so map wants its own node.
++
++**Node placement rules**
++
++- `gitlab` and `map` must **not** share a node (both use internal port 8080).
++- `map` also needs 3000, 5000–5002, 5432–5434 free; give it its own node.
++- Everything else has internal services moved to >1024 unique ports and can
++  share: `shopping shopping_admin reddit gitlab` fit on one ~48G node.
++- Rough memory: magento pair ~20G, reddit ~4G, gitlab ~16G, map ~32G.
+ 
+ ## Layout
+ 
+@@ -29,13 +52,12 @@ later by setting `WA_ROOT`):
+ 
+ | Piece | Default location |
+ |---|---|
+-| Patched sandboxes / SIFs / seed state | `$WA_ROOT` = `/scratch/czhai/webarena-verified/persist` |
+-| Live state, run dirs, logs, apptainer cache | `$WA_SCRATCH` = `/scratch/czhai/webarena-verified/runtime` |
+-| Conda env, harness source, playwright browsers | `/scratch/czhai/webarena-verified/{conda-env,src,ms-playwright}` |
++| Patched sandboxes / SIFs / seed state | `$WA_ROOT` = `.../persist` |
++| Map external data (tiles, nominatim, osrm) | `$WA_MAP_DATA_DIR` = `.../persist/mapdata` |
++| Live state, run dirs, logs, URL fragments, apptainer cache | `$WA_SCRATCH` = `.../runtime` |
++| Conda env, harness source, playwright browsers | `.../{conda-env,src,ms-playwright}` |
+ 
+-All ports and paths are overridable env vars in `wa_common.sh`. Defaults keep
+-the webarena-verified external ports (`7770` shopping, `7780` admin) and move
+-internal services to `1777x` / `1778x` so both sites share one node.
++All ports and paths are overridable env vars in `wa_common.sh`.
+ 
+ ## Step 0: Python env (harness only — hosting needs no Python)
+ 
+@@ -45,46 +67,56 @@ source /scratch/czhai/webarena-verified/activate_wa.sh
+ webarena-verified --help
+ ```
+ 
+-This reuses your miniconda at `/projects/kzhou6/czhai/miniconda3` if found
+-(else bootstraps one into scratch), creates a prefix env
+-(`conda-env/`, python 3.12), clones + `pip install -e`'s webarena-verified
+-with the `examples` extra (Playwright), installs the chromium browser into
+-scratch, and keeps every cache (pip, conda pkgs, browsers) off `$HOME`.
+-`WA_INSTALL_EXAMPLES=0` skips Playwright if you only need offline evaluation.
+-
+ ## One-time setup
+ 
+ ```bash
+-# 1. Pull images into user-owned sandboxes (needs network — login node is fine)
+-./01_fetch_images.sh
++# 1. Pull images into user-owned sandboxes (LOGIN NODE — compute nodes
++#    throttle egress; gitlab is ~15-25GB, map ~10-15GB)
++./01_fetch_images.sh                       # all sites, or list them:
++./01_fetch_images.sh reddit gitlab map
++
++# 2. Apply the rootless patches (per site)
++for s in shopping shopping_admin reddit gitlab map; do ./02_patch_sandbox.sh $s; done
+ 
+-# 2. Apply the rootless patches
+-./02_patch_sandbox.sh shopping
+-./02_patch_sandbox.sh shopping_admin
++# 3. Map only: download + extract external data (LOGIN NODE, huge — check first)
++./05_fetch_map_data.sh sizes
++./05_fetch_map_data.sh                     # download + extract into $WA_MAP_DATA_DIR
+ 
+-# 3. Extract writable state (mysql, magento var/, nginx lib, ES data) + seed it
+-./03_prepare_state.sh prepare shopping
+-./03_prepare_state.sh prepare shopping_admin
++# 4. Extract writable state + snapshot seed (per site)
++for s in shopping shopping_admin reddit map; do ./03_prepare_state.sh prepare $s; done
++WA_SKIP_SEED=1 ./03_prepare_state.sh prepare gitlab   # gitlab seed is tens of GB;
++                                                      # skip it, or budget the space
+ 
+-# 4. (Recommended) pack to SIF on a compute node
++# 5. (Optional) pack to SIF on a compute node — skip for gitlab (huge; the
++#    sandbox runs fine and wa_site.sh falls back to it automatically)
+ srun -c 16 --mem=16G ./04_pack_sif.sh shopping
+ srun -c 16 --mem=16G ./04_pack_sif.sh shopping_admin
++srun -c 16 --mem=16G ./04_pack_sif.sh reddit
+ 
+-# 5. Smoke test on a compute node
+-srun -c 8 --mem=16G ./wa_site.sh shopping smoke
+-srun -c 8 --mem=16G ./wa_site.sh shopping_admin smoke
++# 6. Smoke test on a compute node (gitlab needs ~10-15 min, map ~5-10)
++srun -c 8  --mem=16G ./wa_site.sh shopping smoke
++srun -c 8  --mem=8G  ./wa_site.sh reddit smoke
++srun -c 8  --mem=24G --time=00:40:00 ./wa_site.sh gitlab smoke
++srun -c 16 --mem=40G --time=00:40:00 ./wa_site.sh map smoke
+ ```
+ 
+ ## Serving for a benchmark run
+ 
+ ```bash
+-sbatch slurm/webarena_sites.sbatch
++# four light sites on one node:
++sbatch slurm/webarena_sites.sbatch shopping shopping_admin reddit gitlab
++# map on its own node:
++sbatch --mem=64G slurm/webarena_sites.sbatch map
++
+ # once running:
+ source /scratch/czhai/webarena-verified/runtime/urls.env
+-echo $SHOPPING $SHOPPING_ADMIN
++echo $SHOPPING $SHOPPING_ADMIN $REDDIT $GITLAB $MAP
+ ```
+ 
+-The job also writes `$WA_SCRATCH/config.hopper.json`, ready for the harness:
++Each hosting job writes `$WA_URLS_DIR/<site>.env` and regenerates the merged
++`$WA_SCRATCH/urls.env` + `$WA_SCRATCH/config.hopper.json`, so multi-node
++hosting composes automatically — whichever job finishes last produces a config
++containing every live URL:
+ 
+ ```bash
+ webarena-verified evaluate ... \
+@@ -94,47 +126,73 @@ webarena-verified evaluate ... \
+ Reset an environment to pristine state between runs:
+ 
+ ```bash
+-./wa_site.sh shopping_admin reset     # stop + restore seed + start
++./wa_site.sh reddit reset        # stop + restore seed + start
+ ```
+ 
++(For gitlab prepared with `WA_SKIP_SEED=1` there is no seed — `reset` will
++fail at restore; re-run `03_prepare_state.sh prepare gitlab` from the sandbox
++instead, or accept state drift across runs.)
++
+ ## Agent-side notes
+ 
+ - Header auto-login (skips slow UI login):
+   `X-M2-Customer-Auto-Login: emma.lopez@gmail.com:Password.123` (shopping),
+-  `X-M2-Admin-Auto-Login: admin:admin1234` (admin). Set via Playwright
+-  `extra_http_headers`, or use `use_header_login: true` in the config (already
+-  emitted by `make_config.sh`).
++  `X-M2-Admin-Auto-Login: admin:admin1234` (admin),
++  `X-Postmill-Auto-Login: MarvelsGrantMan136:test1234` (reddit).
++  GitLab has no header plugin — agents log in via the UI form.
+ - `__SHOPPING_ADMIN__` maps to `http://<node>:7780/admin` (includes `/admin`).
+-- Agents on other compute nodes reach the site via the node IP written to
++- Agents on other compute nodes reach the sites via the node IPs written to
+   `urls.env`; Hopper's internal network routes compute-node ports.
++- The webarena-verified dataset has **369 usable tasks** for the original
++  two-site setup; adding reddit/gitlab/map unlocks the rest except
++  wikipedia-dependent and `__HOMEPAGE__`-dependent tasks.
+ 
+ ## Things to verify on first bring-up (known unknowns)
+ 
+-Written blind against the published images; the layout is confirmed from the
+-webarena-verified build scripts, but three spots are worth an eyeball on the
++Written blind against the published images; layouts are confirmed from the
++webarena-verified build scripts, but per site the spots worth an eyeball on
+ first `smoke`:
+ 
+-1. **`env.php` endpoints** — `02_patch_sandbox.sh` prints the `host`/`port`
+-   entries after patching. The db entry should read `127.0.0.1:<mysql_port>`
+-   and redis entries `<redis_port>`. If a *session* redis block uses
+-   `'host' => '127.0.0.1'` and got the mysql port appended, fix that line to
+-   plain `127.0.0.1` (redis port is a separate key).
+-2. **php-fpm as non-root** — user/group directives are commented out; if
+-   php-fpm still complains, check `$WA_LOG_DIR/<site>/php_fpm.log`.
+-3. **Elasticsearch (shopping only)** — first start may try to create a
+-   keystore in its config dir. `--writable-tmpfs` should absorb that (sandbox
+-   was built `--fix-perms`, so files are user-owned). If ES loops, storefront
+-   *browsing* still works; only catalog search breaks. Check
+-   `elasticsearch.log`.
++**magento** (unchanged from the two-site setup)
++1. `env.php` endpoints — db `127.0.0.1:<mysql_port>`, redis `<redis_port>`.
++2. php-fpm non-root — check `php_fpm.log` if it complains.
++3. Elasticsearch keystore on first start (shopping) — absorbed by
++   `--writable-tmpfs`; only catalog search breaks if ES loops.
++
++**reddit**
++1. `02_patch_sandbox.sh` auto-detects the php-fpm pool dir and postgres data
++   dir (records the latter in `sandbox/.wa_pgdata_path`); check its output.
++2. `DATABASE_URL` in `.env` should read `...@127.0.0.1:19991/postmill`.
++
++**gitlab**
++1. The `chpst -u` strip covers `/opt/gitlab/sv/*/run` and `*/log/run`; if a
++   service loops in `runsvdir`, check `$STATE/gitlab-log/<svc>/current` for a
++   remaining user-switch or a chown failure.
++2. Startup is legitimately slow (5–15 min). The entry script waits up to 900 s
++   for `/users/sign_in`.
++3. Never run `gitlab-ctl reconfigure` inside the container.
++
++**map**
++1. Tile db / nominatim db / osrm data missing ⇒ entry logs a WARNING and
++   keeps going: the website works, but tiles/geocoding/routing don't. Check
++   the binds against `$WA_MAP_DATA_DIR`.
++2. First start runs rails `db:migrate` + possibly `nominatim refresh` and a
++   carto style build — allow the full 600 s budget.
++3. Postgres data dirs must be mode 700 and owned by you (the scripts
++   `chmod` them, but verify if a cluster refuses to start).
+ 
+ ## Troubleshooting
+ 
+ - **Port already in use**: another user on the node, or a stale run. Override
+-  e.g. `SHOPPING_HTTP_PORT=27770` (then regenerate the config).
+-- **MySQL slow / flaky on scratch**: point live state at node-local disk for
+-  the job: `WA_STATE_DIR=$TMPDIR/wa-state` before `03_prepare_state.sh restore`
+-  + `wa_site.sh start` (seed stays on `/projects`).
++  e.g. `SHOPPING_HTTP_PORT=27770` (then regenerate the config). For map the
++  internal ports are not overridable — pick another node.
++- **MySQL/postgres slow or flaky on scratch**: point live state at node-local
++  disk for the job: `WA_STATE_DIR=$TMPDIR/wa-state` before
++  `03_prepare_state.sh restore` + `wa_site.sh start` (seed stays put).
+ - **`apptainer build` OOM/tmp issues**: cache and tmp are already forced to
+   scratch via `APPTAINER_CACHEDIR`/`APPTAINER_TMPDIR` in `wa_common.sh`.
+-- **Wrong base URL after moving nodes**: just `wa_site.sh <site> start` again —
+-  init re-runs `setup:store-config:set` with the current `WA_HOST` every start.
++- **Wrong base URL after moving nodes**: just `wa_site.sh <site> start`
++  again — every entry script re-applies the base URL with the current
++  `WA_HOST` on each start.
++- **SIF FUSE mounting broken on compute nodes**: known Hopper issue; the
++  sandbox fallback in `wa_site.sh` covers it (`rm` the SIF or never build one).
+diff --git a/webarena-verified-hopper/container/wa_gitlab_entry.sh b/webarena-verified-hopper/container/wa_gitlab_entry.sh
+new file mode 100644
+index 0000000..7092d88
+--- /dev/null
++++ b/webarena-verified-hopper/container/wa_gitlab_entry.sh
+@@ -0,0 +1,93 @@
++#!/bin/sh
++# wa_gitlab_entry.sh - in-container launcher for webarena-verified gitlab
++# (omnibus) under rootless Apptainer.
++#
++# Keeps the omnibus runit stack (runsvdir-start) — 02_patch_sandbox.sh has
++# already stripped all chpst/su user switching so every service runs as the
++# calling uid. gitlab-ctl reconfigure is NEVER run (needs root + chef);
++# instead the generated rails config is patched directly each start:
++#   * gitlab.yml  production.gitlab.host / port -> WA_HOST / WA_HTTP_PORT
++#
++# Driven by env vars set by wa_site.sh. POSIX sh (image is Ubuntu-based).
++
++set -eu
++
++WA_HTTP_PORT="${WA_HTTP_PORT:?}"
++WA_HOST="${WA_HOST:?}"
++WA_SKIP_INIT="${WA_SKIP_INIT:-0}"
++WA_RUN_SECONDS="${WA_RUN_SECONDS:-0}"
++
++LOG_DIR=/var/log/webarena
++PID_DIR=/run/webarena
++GITLAB_YML=/var/opt/gitlab/gitlab-rails/etc/gitlab.yml
++mkdir -p "$LOG_DIR" "$PID_DIR"
++
++echo "[entry] site=gitlab base_url=http://${WA_HOST}:${WA_HTTP_PORT}/"
++
++# --- point generated rails config at this node ----------------------------------
++if [ "$WA_SKIP_INIT" != "1" ] && [ -f "$GITLAB_YML" ]; then
++  # first host:/port: pair in the file is production.gitlab.{host,port}
++  sed -i "0,/^\([[:space:]]*\)host:.*/s//\1host: ${WA_HOST}/" "$GITLAB_YML"
++  sed -i "0,/^\([[:space:]]*\)port:.*/s//\1port: ${WA_HTTP_PORT}/" "$GITLAB_YML"
++  echo "[entry] gitlab.yml now:"
++  grep -nE '^\s*(host|port):' "$GITLAB_YML" | head -4 || true
++fi
++
++# stale pid cleanup (runit + postgres)
++rm -f /var/opt/gitlab/postgresql/data/postmaster.pid 2>/dev/null || true
++
++cleanup() {
++  gitlab-ctl stop >/dev/null 2>&1 || true
++  [ -n "${RUNSVDIR_PID:-}" ] && kill "$RUNSVDIR_PID" 2>/dev/null || true
++}
++trap cleanup INT TERM EXIT
++
++# --- start runit ----------------------------------------------------------------
++echo "[entry] starting runsvdir..."
++/opt/gitlab/embedded/bin/runsvdir-start >"$LOG_DIR/runsvdir.log" 2>&1 &
++RUNSVDIR_PID=$!
++echo "$RUNSVDIR_PID" >"$PID_DIR/runsvdir.pid"
++
++# wait until gitlab-ctl can talk to runit, then make sure services are up
++i=0
++while [ "$i" -lt 60 ]; do
++  gitlab-ctl status >/dev/null 2>&1 && break
++  i=$((i + 1))
++  sleep 5
++done
++gitlab-ctl start >"$LOG_DIR/gitlab-ctl-start.log" 2>&1 || true
++
++# --- wait for HTTP (puma boot is slow: several minutes on first start) -----------
++ready=0
++i=0
++while [ "$i" -lt 180 ]; do
++  code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${WA_HTTP_PORT}/users/sign_in" || true)"
++  case "$code" in 200 | 302)
++    ready=1
++    break
++    ;;
++  esac
++  i=$((i + 1))
++  sleep 5
++done
++if [ "$ready" != "1" ]; then
++  echo "[entry] gitlab did not answer HTTP (last: ${code:-none})" >&2
++  gitlab-ctl status >&2 || true
++  tail -n 40 /var/log/gitlab/nginx/*.log /var/log/gitlab/puma/*.log 2>/dev/null >&2 || true
++  exit 1
++fi
++
++echo "[entry] READY: http://${WA_HOST}:${WA_HTTP_PORT}/"
++echo "[entry] login: byteblaze / hello1234"
++
++if [ "$WA_RUN_SECONDS" != "0" ]; then
++  sleep "$WA_RUN_SECONDS"
++  exit 0
++fi
++
++# --- babysit runsvdir ------------------------------------------------------------
++while kill -0 "$RUNSVDIR_PID" 2>/dev/null; do
++  sleep 10
++done
++echo "[entry] runsvdir exited" >&2
++exit 1
+diff --git a/webarena-verified-hopper/container/wa_map_entry.sh b/webarena-verified-hopper/container/wa_map_entry.sh
+new file mode 100644
+index 0000000..0825cd6
+--- /dev/null
++++ b/webarena-verified-hopper/container/wa_map_entry.sh
+@@ -0,0 +1,180 @@
++#!/bin/bash
++# wa_map_entry.sh - in-container launcher for webarena-verified map (OSM
++# website) under rootless Apptainer.
++#
++# Replaces supervisord + the image entrypoint: starts three postgres clusters,
++# the rails website, apache (tiles + nominatim + routing proxy + external
++# vhost), renderd, and three osrm-routed instances directly as the calling
++# user, replicating the image entrypoint's one-time init (website db creation
++# + rails migrations, nominatim project setup) without su/sudo/chown.
++#
++# The site uses relative URLs client-side and localhost:8080 server-side, so
++# no base-url init is needed (matches MapOps._init in webarena-verified).
++#
++# Fixed internal ports (baked into the image): rails 3000, apache 8080/8085
++# (loopback), osrm 5000-5002, postgres 5432 (tiles) / 5433 (website) /
++# 5434 (nominatim). External: WA_HTTP_PORT (default 3030).
++
++set -eu
++
++WA_HTTP_PORT="${WA_HTTP_PORT:?}"
++WA_HOST="${WA_HOST:?}"
++WA_RUN_SECONDS="${WA_RUN_SECONDS:-0}"
++
++LOG_DIR=/var/log/webarena
++PID_DIR=/run/webarena
++mkdir -p "$LOG_DIR" "$PID_DIR" /run/postgresql /run/renderd /run/apache2
++
++PG14=/usr/lib/postgresql/14/bin
++PG15=/usr/lib/postgresql/15/bin
++PG14_DATA=/var/lib/postgresql/14/main
++PG14_CONF=/etc/postgresql/14/main/postgresql.conf
++PG15_DATA=/data/database/postgres
++PG15_CONF=/etc/postgresql/15/main/postgresql.conf
++NOM_DATA=/data/nominatim/postgres
++NOM_CONF=/etc/postgresql/14/nominatim/postgresql.conf
++
++export RAILS_ENV=production
++export RAILS_SERVE_STATIC_FILES=true
++export SECRET_KEY_BASE="${SECRET_KEY_BASE:-1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b}"
++
++cleanup() {
++  for pid_file in "$PID_DIR"/*.pid; do
++    [ -f "$pid_file" ] || continue
++    pid="$(cat "$pid_file" 2>/dev/null || true)"
++    [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
++  done
++  "$PG14/pg_ctl" -D "$PG14_DATA" stop -m fast >/dev/null 2>&1 || true
++  "$PG15/pg_ctl" -D "$PG15_DATA" stop -m fast >/dev/null 2>&1 || true
++  "$PG14/pg_ctl" -D "$NOM_DATA" stop -m fast >/dev/null 2>&1 || true
++}
++trap cleanup INT TERM EXIT
++
++pg_start() { # pg_start <bindir> <datadir> <conf> <name>
++  chmod 700 "$2" 2>/dev/null || true
++  rm -f "$2/postmaster.pid" 2>/dev/null || true
++  "$1/pg_ctl" -D "$2" \
++    -o "-c config_file=$3 -c unix_socket_directories=/run/postgresql" \
++    -l "$LOG_DIR/$4.log" start -w -t 120
++}
++
++echo "[entry] site=map url=http://${WA_HOST}:${WA_HTTP_PORT}/"
++
++# --- postgres: website (5433), tiles (5432), nominatim (5434) --------------------
++pg_start "$PG14" "$PG14_DATA" "$PG14_CONF" pg14-website
++
++if [ -f "$PG15_DATA/PG_VERSION" ]; then
++  pg_start "$PG15" "$PG15_DATA" "$PG15_CONF" pg15-tiles
++else
++  echo "[entry] WARNING: no tile db at $PG15_DATA (tiles disabled) — run 05_fetch_map_data.sh" >&2
++fi
++
++if [ -f "$NOM_DATA/PG_VERSION" ]; then
++  pg_start "$PG14" "$NOM_DATA" "$NOM_CONF" pg14-nominatim
++else
++  echo "[entry] WARNING: no nominatim db at $NOM_DATA (geocoding disabled)" >&2
++fi
++
++# --- one-time init: website db + migrations (mirrors image entrypoint, no su) -----
++if ! psql -h 127.0.0.1 -p 5433 -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='openstreetmap'" 2>/dev/null | grep -q 1; then
++  echo "[entry] creating openstreetmap role..."
++  psql -h 127.0.0.1 -p 5433 -U postgres -c "CREATE USER openstreetmap SUPERUSER PASSWORD 'openstreetmap';" ||
++    psql -h 127.0.0.1 -p 5433 -c "CREATE USER openstreetmap SUPERUSER PASSWORD 'openstreetmap';"
++fi
++if ! psql -h 127.0.0.1 -p 5433 -U openstreetmap -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='openstreetmap'" 2>/dev/null | grep -q 1; then
++  echo "[entry] creating openstreetmap database..."
++  createdb -h 127.0.0.1 -p 5433 -U openstreetmap openstreetmap
++fi
++cd /app
++if ! psql -h 127.0.0.1 -p 5433 -U openstreetmap -d openstreetmap -tAc "SELECT 1 FROM information_schema.tables WHERE table_name='users'" 2>/dev/null | grep -q 1; then
++  echo "[entry] running rails db:migrate (first start only)..."
++  bundle exec rails db:migrate >"$LOG_DIR/rails-migrate.log" 2>&1
++fi
++
++# --- nominatim project ------------------------------------------------------------
++if [ -f "$NOM_DATA/PG_VERSION" ] && [ -d /nominatim ]; then
++  grep -q "NOMINATIM_DATABASE_DSN" /nominatim/.env 2>/dev/null ||
++    echo 'NOMINATIM_DATABASE_DSN="pgsql:host=/run/postgresql;port=5434;dbname=nominatim"' >>/nominatim/.env
++  if [ ! -f /nominatim/website/search.php ]; then
++    (cd /nominatim && nominatim refresh --website --functions >"$LOG_DIR/nominatim-refresh.log" 2>&1) ||
++      echo "[entry] WARNING: nominatim refresh failed (geocoding may not work)" >&2
++  fi
++fi
++
++# --- tile style --------------------------------------------------------------------
++if [ ! -f /data/style/mapnik.xml ] && [ -f /data/style/project.mml ] && command -v carto >/dev/null 2>&1; then
++  (cd /data/style && carto project.mml >mapnik.xml) || echo "[entry] WARNING: carto build failed" >&2
++fi
++
++# --- rails ------------------------------------------------------------------------
++bundle exec rails server -b 127.0.0.1 -p 3000 >"$LOG_DIR/rails.log" 2>&1 &
++echo "$!" >"$PID_DIR/rails.pid"
++
++# --- apache (tiles + proxies + external vhost) --------------------------------------
++export APACHE_RUN_DIR=/run/apache2 APACHE_PID_FILE=/run/apache2/apache2.pid
++export APACHE_LOCK_DIR=/run/apache2 APACHE_LOG_DIR=/var/log/apache2
++export APACHE_RUN_USER="$(id -un)" APACHE_RUN_GROUP="$(id -gn)"
++apache2 -d /etc/apache2 -D FOREGROUND >"$LOG_DIR/apache2.log" 2>&1 &
++echo "$!" >"$PID_DIR/apache2.pid"
++
++# --- renderd ------------------------------------------------------------------------
++if [ -f /data/style/mapnik.xml ] && [ -f "$PG15_DATA/PG_VERSION" ]; then
++  renderd -f -c /etc/renderd.conf >"$LOG_DIR/renderd.log" 2>&1 &
++  echo "$!" >"$PID_DIR/renderd.pid"
++fi
++
++# --- osrm ---------------------------------------------------------------------------
++for profile in car:5000 bike:5001 foot:5002; do
++  name="${profile%%:*}"
++  port="${profile##*:}"
++  data="/data/routing/$name/us-northeast-latest.osrm"
++  if [ -f "$data.mldgr" ]; then
++    /usr/local/bin/osrm-routed --algorithm mld --mmap --max-table-size 1000 -t 4 \
++      --port "$port" "$data" >"$LOG_DIR/osrm-$name.log" 2>&1 &
++    echo "$!" >"$PID_DIR/osrm-$name.pid"
++  else
++    echo "[entry] WARNING: no $name routing data at $data.* (routing-$name disabled)" >&2
++  fi
++done
++
++# --- wait for HTTP -------------------------------------------------------------------
++ready=0
++i=0
++while [ "$i" -lt 120 ]; do
++  code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${WA_HTTP_PORT}/" || true)"
++  case "$code" in 200 | 302)
++    ready=1
++    break
++    ;;
++  esac
++  i=$((i + 1))
++  sleep 5
++done
++if [ "$ready" != "1" ]; then
++  echo "[entry] map did not answer HTTP (last: ${code:-none})" >&2
++  tail -n 60 "$LOG_DIR"/*.log >&2 || true
++  exit 1
++fi
++
++echo "[entry] READY: http://${WA_HOST}:${WA_HTTP_PORT}/"
++echo "[entry] internal: rails=3000 apache=8080/8085(loopback) osrm=5000-5002 pg=5432/5433/5434"
++
++if [ "$WA_RUN_SECONDS" != "0" ]; then
++  sleep "$WA_RUN_SECONDS"
++  exit 0
++fi
++
++# --- babysit ---------------------------------------------------------------------------
++while true; do
++  for pid_file in "$PID_DIR"/*.pid; do
++    [ -f "$pid_file" ] || continue
++    pid="$(cat "$pid_file" 2>/dev/null || true)"
++    [ -n "$pid" ] || continue
++    if ! kill -0 "$pid" 2>/dev/null; then
++      echo "[entry] service exited: $pid_file" >&2
++      tail -n 60 "$LOG_DIR"/*.log >&2 || true
++      exit 1
++    fi
++  done
++  sleep 5
++done
+diff --git a/webarena-verified-hopper/container/wa_reddit_entry.sh b/webarena-verified-hopper/container/wa_reddit_entry.sh
+new file mode 100644
+index 0000000..abae55d
+--- /dev/null
++++ b/webarena-verified-hopper/container/wa_reddit_entry.sh
+@@ -0,0 +1,113 @@
++#!/bin/sh
++# wa_reddit_entry.sh - in-container launcher for webarena-verified reddit
++# (Postmill: nginx + php-fpm + postgres) under rootless Apptainer.
++#
++# Replaces supervisord: starts postgres, php-fpm, and nginx directly as the
++# calling user, waits for readiness, then applies what env-ctrl init would:
++#   * set APP_SITE_NAME=<host>:<port> in /var/www/html/.env
++#   * clear the Symfony cache
++#
++# Driven entirely by env vars set by wa_site.sh. POSIX sh.
++
++set -eu
++
++WA_HTTP_PORT="${WA_HTTP_PORT:?}"
++WA_PG_PORT="${WA_PG_PORT:?}"
++WA_FPM_PORT="${WA_FPM_PORT:?}"
++WA_HOST="${WA_HOST:?}"
++WA_PGDATA="${WA_PGDATA:?}" # in-container postgres data dir (bound from state)
++WA_SKIP_INIT="${WA_SKIP_INIT:-0}"
++WA_RUN_SECONDS="${WA_RUN_SECONDS:-0}"
++
++APP=/var/www/html
++LOG_DIR=/var/log/webarena
++PID_DIR=/run/webarena
++mkdir -p "$LOG_DIR" "$PID_DIR" /run/nginx /run/postgresql
++
++cleanup() {
++  for pid_file in "$PID_DIR"/*.pid; do
++    [ -f "$pid_file" ] || continue
++    pid="$(cat "$pid_file" 2>/dev/null || true)"
++    [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
++  done
++}
++trap cleanup INT TERM EXIT
++
++echo "[entry] site=reddit base_url=http://${WA_HOST}:${WA_HTTP_PORT}/"
++
++# --- locate binaries ------------------------------------------------------------
++PG_BIN=""
++for d in /usr/local/pgsql/bin /usr/lib/postgresql/*/bin /usr/libexec/postgresql* /usr/bin; do
++  [ -x "$d/postgres" ] && PG_BIN="$d" && break
++done
++[ -n "$PG_BIN" ] || { echo "[entry] postgres binary not found" >&2; exit 1; }
++
++FPM_BIN=""
++for b in php-fpm php-fpm8 php-fpm81 php-fpm82 php-fpm7 /usr/sbin/php-fpm8.1 /usr/sbin/php-fpm7.4; do
++  command -v "$b" >/dev/null 2>&1 && FPM_BIN="$b" && break
++done
++[ -n "$FPM_BIN" ] || { echo "[entry] php-fpm binary not found" >&2; exit 1; }
++
++# --- start services -----------------------------------------------------------
++"$PG_BIN/postgres" -D "$WA_PGDATA" \
++  -c listen_addresses=127.0.0.1 -c port="$WA_PG_PORT" \
++  -c unix_socket_directories=/run/postgresql \
++  >"$LOG_DIR/postgres.log" 2>&1 &
++echo "$!" >"$PID_DIR/postgres.pid"
++
++"$FPM_BIN" --nodaemonize >"$LOG_DIR/php_fpm.log" 2>&1 &
++echo "$!" >"$PID_DIR/php_fpm.pid"
++
++nginx -c /etc/nginx/nginx.conf -g "daemon off;" \
++  >"$LOG_DIR/nginx.log" 2>&1 &
++echo "$!" >"$PID_DIR/nginx.pid"
++
++# --- wait for core services -----------------------------------------------------
++ready=0
++i=0
++while [ "$i" -lt 90 ]; do
++  if "$PG_BIN/pg_isready" -h 127.0.0.1 -p "$WA_PG_PORT" >/dev/null 2>&1 &&
++    php -r "\$s=@fsockopen('127.0.0.1',${WA_FPM_PORT}); if(!\$s) exit(1); fclose(\$s);"; then
++    ready=1
++    break
++  fi
++  i=$((i + 1))
++  sleep 2
++done
++if [ "$ready" != "1" ]; then
++  echo "[entry] timed out waiting for Postgres/PHP-FPM" >&2
++  tail -n 80 "$LOG_DIR"/*.log >&2 || true
++  exit 1
++fi
++echo "[entry] core services up"
++
++# --- postmill init (== env-ctrl init) -------------------------------------------
++if [ "$WA_SKIP_INIT" != "1" ]; then
++  sed -i "s/^APP_SITE_NAME=.*/APP_SITE_NAME=${WA_HOST}:${WA_HTTP_PORT}/" "$APP/.env"
++  rm -rf "$APP"/var/cache/* 2>/dev/null || true
++  echo "[entry] APP_SITE_NAME=${WA_HOST}:${WA_HTTP_PORT}; symfony cache cleared"
++  echo "[entry] (first request rebuilds the prod cache and is slow — that's normal)"
++fi
++
++echo "[entry] READY: http://${WA_HOST}:${WA_HTTP_PORT}/"
++echo "[entry] internal ports: postgres=$WA_PG_PORT fpm=$WA_FPM_PORT"
++
++if [ "$WA_RUN_SECONDS" != "0" ]; then
++  sleep "$WA_RUN_SECONDS"
++  exit 0
++fi
++
++# --- babysit -------------------------------------------------------------------
++while true; do
++  for pid_file in "$PID_DIR"/*.pid; do
++    [ -f "$pid_file" ] || continue
++    pid="$(cat "$pid_file" 2>/dev/null || true)"
++    [ -n "$pid" ] || continue
++    if ! kill -0 "$pid" 2>/dev/null; then
++      echo "[entry] service exited: $pid_file" >&2
++      tail -n 80 "$LOG_DIR"/*.log >&2 || true
++      exit 1
++    fi
++  done
++  sleep 5
++done
+diff --git a/webarena-verified-hopper/make_config.sh b/webarena-verified-hopper/make_config.sh
+index bffbd39..6f902b5 100644
+--- a/webarena-verified-hopper/make_config.sh
++++ b/webarena-verified-hopper/make_config.sh
+@@ -1,6 +1,11 @@
+ #!/usr/bin/env bash
+ # make_config.sh - emit a webarena-verified config.json wired to the running
+-# Hopper sites (shopping + shopping_admin only).
++# Hopper sites (all sites except wikipedia).
++#
++# URLs are resolved in priority order:
++#   1. $WA_URLS_DIR/<site>.env fragments (written by webarena_sites.sbatch;
++#      lets sites live on different compute nodes / hosting jobs)
++#   2. wa_site_url() with the current $WA_HOST
+ #
+ # Usage:
+ #   ./make_config.sh > config.hopper.json
+@@ -11,20 +16,52 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ # shellcheck source=wa_common.sh
+ source "$SCRIPT_DIR/wa_common.sh"
+ 
++# Pull in per-site URL fragments (export SHOPPING=..., export REDDIT=..., ...)
++if [ -d "$WA_URLS_DIR" ]; then
++  for f in "$WA_URLS_DIR"/*.env; do
++    [ -f "$f" ] || continue
++    # shellcheck disable=SC1090
++    source "$f"
++  done
++fi
++
++SHOPPING_URL="${SHOPPING:-$(wa_site_url shopping)}"
++SHOPPING_ADMIN_URL="${SHOPPING_ADMIN:-$(wa_site_url shopping_admin)}"
++REDDIT_URL="${REDDIT:-$(wa_site_url reddit)}"
++GITLAB_URL="${GITLAB:-$(wa_site_url gitlab)}"
++MAP_URL="${MAP:-$(wa_site_url map)}"
++
+ cat <<EOF
+ {
+   "environments": {
+     "__SHOPPING__": {
+-      "urls": ["http://${WA_HOST}:${SHOPPING_HTTP_PORT}"],
++      "urls": ["$SHOPPING_URL"],
+       "active_url_idx": 0,
+       "use_header_login": true,
+       "credentials": { "username": "emma.lopez@gmail.com", "password": "Password.123" }
+     },
+     "__SHOPPING_ADMIN__": {
+-      "urls": ["http://${WA_HOST}:${SHOPPING_ADMIN_HTTP_PORT}/admin"],
++      "urls": ["$SHOPPING_ADMIN_URL"],
+       "active_url_idx": 0,
+       "use_header_login": true,
+       "credentials": { "username": "admin", "password": "admin1234" }
++    },
++    "__REDDIT__": {
++      "urls": ["$REDDIT_URL"],
++      "active_url_idx": 0,
++      "use_header_login": true,
++      "credentials": { "username": "MarvelsGrantMan136", "password": "test1234" }
++    },
++    "__GITLAB__": {
++      "urls": ["$GITLAB_URL"],
++      "active_url_idx": 0,
++      "use_header_login": false,
++      "credentials": { "username": "byteblaze", "password": "hello1234" }
++    },
++    "__MAP__": {
++      "urls": ["$MAP_URL"],
++      "active_url_idx": 0,
++      "use_header_login": false
+     }
+   }
+ }
+diff --git a/webarena-verified-hopper/slurm/webarena_sites.sbatch b/webarena-verified-hopper/slurm/webarena_sites.sbatch
+index d344940..a9e64c3 100644
+--- a/webarena-verified-hopper/slurm/webarena_sites.sbatch
++++ b/webarena-verified-hopper/slurm/webarena_sites.sbatch
+@@ -2,19 +2,30 @@
+ #SBATCH --job-name=wa-verified-sites
+ #SBATCH --partition=normal
+ #SBATCH --nodes=1
+-#SBATCH --cpus-per-task=8
+-#SBATCH --mem=24G
++#SBATCH --cpus-per-task=16
++#SBATCH --mem=48G
+ #SBATCH --time=08:00:00
+ #SBATCH --output=%x_%j.out
+ #
+-# webarena_sites.sbatch - host shopping + shopping_admin on one Hopper compute
+-# node for the duration of the job, restoring pristine seed state first.
++# webarena_sites.sbatch - host one or more webarena-verified sites on a Hopper
++# compute node for the duration of the job, restoring pristine seed state
++# first, and publishing per-site URL fragments so multiple hosting jobs on
++# different nodes compose into one config.
+ #
+-# Submit:   sbatch slurm/webarena_sites.sbatch
+-# Then:     source $WA_SCRATCH/urls.env   # SHOPPING / SHOPPING_ADMIN URLs
++# Submit:
++#   sbatch slurm/webarena_sites.sbatch                       # default set
++#   sbatch slurm/webarena_sites.sbatch shopping reddit       # explicit sites
++#   sbatch --mem=64G slurm/webarena_sites.sbatch map         # map on own node
++#   sbatch --mem=32G slurm/webarena_sites.sbatch gitlab      # gitlab alone
++# Then:
++#   source $WA_SCRATCH/urls.env
++#   # config at $WA_SCRATCH/config.hopper.json
+ #
+-# Adjust partition/mem/time for Hopper as needed. 24G is comfortable for
+-# Magento x2 + one Elasticsearch; 16G is a workable floor.
++# Default site set is everything except map (map needs its external data and
++# ideally its own node) — and NEVER put gitlab and map on the same node: both
++# use internal port 8080.
++#
++# Rough memory guide: magento pair ~20G, reddit ~4G, gitlab ~16G, map ~32G.
+ 
+ set -euo pipefail
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+@@ -22,57 +33,87 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ source "$SCRIPT_DIR/wa_common.sh"
+ wa_ensure_dirs
+ 
++SITES="${*:-shopping shopping_admin reddit gitlab}"
++
++# refuse the known-bad co-location
++case " $SITES " in
++  *" gitlab "*)
++    case " $SITES " in
++      *" map "*)
++        echo "[job] refusing to host gitlab and map on one node (both use internal port 8080)" >&2
++        exit 1
++        ;;
++    esac
++    ;;
++esac
++
+ # Advertise this compute node
+ WA_HOST="${WA_HOST:-$(hostname -I | awk '{print $1}')}"
+ export WA_HOST
+ 
+-echo "[job] node=$(hostname) host=$WA_HOST"
++echo "[job] node=$(hostname) host=$WA_HOST sites=[$SITES]"
+ 
+-# Fresh state for both sites
+-"$SCRIPT_DIR/03_prepare_state.sh" restore shopping
+-"$SCRIPT_DIR/03_prepare_state.sh" restore shopping_admin
++# Fresh state + published URL fragment per site
++for site in $SITES; do
++  "$SCRIPT_DIR/03_prepare_state.sh" restore "$site"
++  upper="$(printf '%s' "$site" | tr '[:lower:]' '[:upper:]')"
++  echo "export ${upper}=$(wa_site_url "$site")" > "$WA_URLS_DIR/$site.env"
++done
+ 
+-# Publish URLs + a ready-made harness config for other jobs/agents
+-URLS_ENV="$WA_SCRATCH/urls.env"
++# Regenerate the merged urls.env + harness config from all fragments
+ {
+-    echo "export WA_HOST=$WA_HOST"
+-    echo "export SHOPPING=http://${WA_HOST}:${SHOPPING_HTTP_PORT}"
+-    echo "export SHOPPING_ADMIN=http://${WA_HOST}:${SHOPPING_ADMIN_HTTP_PORT}/admin"
+-} > "$URLS_ENV"
++  echo "export WA_HOST=$WA_HOST"
++  cat "$WA_URLS_DIR"/*.env 2>/dev/null || true
++} > "$WA_SCRATCH/urls.env"
+ "$SCRIPT_DIR/make_config.sh" > "$WA_SCRATCH/config.hopper.json"
+-echo "[job] wrote $URLS_ENV and $WA_SCRATCH/config.hopper.json"
++echo "[job] wrote $WA_SCRATCH/urls.env and $WA_SCRATCH/config.hopper.json"
+ 
+-# Launch both sites; if either dies, kill the job so SLURM notices.
+-"$SCRIPT_DIR/wa_site.sh" shopping start        > "$WA_LOG_DIR/shopping.launcher.log" 2>&1 &
+-PID_SHOP=$!
+-"$SCRIPT_DIR/wa_site.sh" shopping_admin start  > "$WA_LOG_DIR/shopping_admin.launcher.log" 2>&1 &
+-PID_ADMIN=$!
++# Launch all sites in the background
++declare -a PIDS=()
++for site in $SITES; do
++  "$SCRIPT_DIR/wa_site.sh" "$site" start > "$WA_LOG_DIR/$site.launcher.log" 2>&1 &
++  PIDS+=($!)
++done
+ 
+ cleanup() {
+-    "$SCRIPT_DIR/wa_site.sh" shopping stop || true
+-    "$SCRIPT_DIR/wa_site.sh" shopping_admin stop || true
++  for site in $SITES; do
++    "$SCRIPT_DIR/wa_site.sh" "$site" stop || true
++  done
+ }
+ trap cleanup EXIT
+ 
+-# Wait for both to answer HTTP
+-wait_http() { # wait_http <port> <path> <name>
+-    local i=0 code=""
+-    while [ "$i" -lt 120 ]; do
+-        code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${1}${2}" || true)"
+-        case "$code" in 200|302) echo "[job] $3 ready ($code)"; return 0 ;; esac
+-        i=$((i+1)); sleep 5
+-    done
+-    echo "[job] $3 did not become ready (last: ${code:-none})" >&2
+-    return 1
++# Wait for each site to answer HTTP (per-site budget; gitlab/map are slow)
++wait_http() { # wait_http <site>
++  local port path budget tries i=0 code=""
++  port="$(wa_site_var "$1" HTTP_PORT)"
++  path="$(wa_health_path "$1")"
++  budget="$(wa_health_timeout "$1")"
++  tries=$((budget / 5))
++  while [ "$i" -lt "$tries" ]; do
++    code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${port}${path}" || true)"
++    case "$code" in 200 | 302)
++      echo "[job] $1 ready ($code)"
++      return 0
++      ;;
++    esac
++    i=$((i + 1))
++    sleep 5
++  done
++  echo "[job] $1 did not become ready within ${budget}s (last: ${code:-none})" >&2
++  return 1
+ }
+-wait_http "$SHOPPING_HTTP_PORT" "/customer/account/login" shopping
+-wait_http "$SHOPPING_ADMIN_HTTP_PORT" "/admin" shopping_admin
+ 
+-echo "[job] both sites up:"
+-echo "        SHOPPING       = http://${WA_HOST}:${SHOPPING_HTTP_PORT}"
+-echo "        SHOPPING_ADMIN = http://${WA_HOST}:${SHOPPING_ADMIN_HTTP_PORT}/admin"
++for site in $SITES; do
++  wait_http "$site"
++done
++
++echo "[job] all sites up:"
++for site in $SITES; do
++  upper="$(printf '%s' "$site" | tr '[:lower:]' '[:upper:]')"
++  echo "        ${upper} = $(wa_site_url "$site")"
++done
+ 
+-# Block until a site process exits or the job is cancelled
+-wait -n "$PID_SHOP" "$PID_ADMIN"
++# Block until a site launcher exits or the job is cancelled
++wait -n "${PIDS[@]}"
+ echo "[job] a site launcher exited; shutting down" >&2
+ exit 1
+diff --git a/webarena-verified-hopper/wa_common.sh b/webarena-verified-hopper/wa_common.sh
+index 097d5e8..f1c462e 100644
+--- a/webarena-verified-hopper/wa_common.sh
++++ b/webarena-verified-hopper/wa_common.sh
+@@ -5,6 +5,13 @@
+ # Everything is overridable via environment variables. Defaults follow the
+ # Agent-Bench layout: persistent artifacts under /projects, volatile runtime
+ # state under scratch.
++#
++# Covered sites (everything in WebArena except wikipedia):
++#   shopping, shopping_admin  (Magento; the original two-site setup)
++#   reddit                    (Postmill: nginx + php-fpm + postgres)
++#   gitlab                    (GitLab omnibus under runit, user-switch stripped)
++#   map                       (OSM website: rails + apache/mod_tile + renderd
++#                              + 3x postgres + 3x osrm; needs external data)
+ 
+ # --- Roots ------------------------------------------------------------------
+ # For now everything lives under /scratch/czhai for testing. When this is
+@@ -20,22 +27,68 @@ WA_SEED_DIR="${WA_SEED_DIR:-$WA_ROOT/seed}"            # pristine writable state
+ WA_STATE_DIR="${WA_STATE_DIR:-$WA_SCRATCH/state}"      # live writable state (mysql, magento var, ...)
+ WA_RUN_DIR="${WA_RUN_DIR:-$WA_SCRATCH/run}"            # pid files, sockets
+ WA_LOG_DIR="${WA_LOG_DIR:-$WA_SCRATCH/logs}"
++WA_URLS_DIR="${WA_URLS_DIR:-$WA_SCRATCH/urls.d}"       # per-site URL fragments
++
++# Map external data (tile db, nominatim db, osrm graphs) - large, download once.
++# Lives under persist (candidate for /projects once stable).
++WA_MAP_DATA_DIR="${WA_MAP_DATA_DIR:-$WA_ROOT/mapdata}"
+ 
+ # Apptainer cache/tmp on scratch (never $HOME on Hopper)
+ export APPTAINER_CACHEDIR="${APPTAINER_CACHEDIR:-$WA_SCRATCH/apptainer-cache}"
+ export APPTAINER_TMPDIR="${APPTAINER_TMPDIR:-$WA_SCRATCH/apptainer-tmp}"
+ 
++# --- Sites ------------------------------------------------------------------
++# All supported sites (wikipedia intentionally excluded).
++WA_ALL_SITES="shopping shopping_admin reddit gitlab map"
++
++wa_site_kind() {
++  # wa_site_kind <site> -> magento | reddit | gitlab | map
++  case "$1" in
++    shopping | shopping_admin) printf 'magento' ;;
++    reddit) printf 'reddit' ;;
++    gitlab) printf 'gitlab' ;;
++    map) printf 'map' ;;
++    *)
++      echo "unknown site: $1" >&2
++      return 1
++      ;;
++  esac
++}
++
+ # --- Images -----------------------------------------------------------------
+ WA_IMG_TAG="${WA_IMG_TAG:-latest}"
+ WA_SHOPPING_DOCKER="${WA_SHOPPING_DOCKER:-docker://am1n3e/webarena-verified-shopping:$WA_IMG_TAG}"
+ WA_SHOPPING_ADMIN_DOCKER="${WA_SHOPPING_ADMIN_DOCKER:-docker://am1n3e/webarena-verified-shopping_admin:$WA_IMG_TAG}"
++WA_REDDIT_DOCKER="${WA_REDDIT_DOCKER:-docker://am1n3e/webarena-verified-reddit:$WA_IMG_TAG}"
++WA_GITLAB_DOCKER="${WA_GITLAB_DOCKER:-docker://am1n3e/webarena-verified-gitlab:$WA_IMG_TAG}"
++WA_MAP_DOCKER="${WA_MAP_DOCKER:-docker://am1n3e/webarena-verified-map:$WA_IMG_TAG}"
++
++wa_site_docker() {
++  case "$1" in
++    shopping) printf '%s' "$WA_SHOPPING_DOCKER" ;;
++    shopping_admin) printf '%s' "$WA_SHOPPING_ADMIN_DOCKER" ;;
++    reddit) printf '%s' "$WA_REDDIT_DOCKER" ;;
++    gitlab) printf '%s' "$WA_GITLAB_DOCKER" ;;
++    map) printf '%s' "$WA_MAP_DOCKER" ;;
++    *)
++      echo "unknown site: $1" >&2
++      return 1
++      ;;
++  esac
++}
++
++# Map external data tarballs (same sources webarena-verified uses)
++WA_MAP_DATA_URLS="${WA_MAP_DATA_URLS:-\
++https://webarena-map-server-data.s3.amazonaws.com/osm_tile_server.tar \
++https://webarena-map-server-data.s3.amazonaws.com/nominatim_volumes.tar \
++https://webarena-map-server-data.s3.amazonaws.com/osrm_routing.tar}"
+ 
+ # --- Host / URL -------------------------------------------------------------
+ # Hostname/IP that agents will use to reach the sites. Under SLURM, run the
+ # launcher on the compute node so this resolves to that node.
+ WA_HOST="${WA_HOST:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
+ 
+-# --- Ports (all >1024, all distinct so both sites share one node) -----------
++# --- Ports (all >1024, all distinct so sites can share one node) -------------
+ # shopping (storefront): external HTTP kept at the webarena-verified default 7770
+ SHOPPING_HTTP_PORT="${SHOPPING_HTTP_PORT:-7770}"
+ SHOPPING_MYSQL_PORT="${SHOPPING_MYSQL_PORT:-17771}"
+@@ -58,6 +111,27 @@ SHOPPING_ADMIN_ES_HTTP_PORT="${SHOPPING_ADMIN_ES_HTTP_PORT:-17786}"
+ SHOPPING_ADMIN_ES_TRANSPORT_PORT="${SHOPPING_ADMIN_ES_TRANSPORT_PORT:-17787}"
+ SHOPPING_ADMIN_WITH_ES="${SHOPPING_ADMIN_WITH_ES:-0}" # webarena-verified drops ES for admin
+ 
++# reddit (Postmill): external HTTP kept at the WebArena default 9999.
++# Internal services moved to 1999x so reddit can share a node with the others.
++REDDIT_HTTP_PORT="${REDDIT_HTTP_PORT:-9999}"
++REDDIT_PG_PORT="${REDDIT_PG_PORT:-19991}"
++REDDIT_FPM_PORT="${REDDIT_FPM_PORT:-19992}"
++
++# gitlab (omnibus): external HTTP kept at the WebArena default 8023.
++# Internal endpoints are the omnibus defaults, mostly unix sockets under
++# /var/opt/gitlab, EXCEPT puma which also listens on 127.0.0.1:8080.
++# => do not co-locate gitlab with map (apache internal 8080) on one node.
++GITLAB_HTTP_PORT="${GITLAB_HTTP_PORT:-8023}"
++
++# map (OSM website): external HTTP kept at the WebArena convention 3030.
++# The image internally hard-wires: apache 8080 (loopback, server-side URLs are
++# baked into rails settings/assets), nominatim vhost 8085, rails 3000,
++# osrm 5000-5002, postgres 5432/5433/5434. These are NOT remapped (too many
++# baked references) — run map on a node where those ports are free, ideally
++# its own node.
++MAP_HTTP_PORT="${MAP_HTTP_PORT:-3030}"
++MAP_INTERNAL_HTTP_PORT=8080 # do not change: baked into rails assets/settings
++
+ # --- Resource tuning (mirrors the verified images' custom entrypoint) --------
+ WA_ES_JAVA_OPTS="${WA_ES_JAVA_OPTS:--Xms512m -Xmx512m}"
+ WA_MYSQL_BUFFER_POOL="${WA_MYSQL_BUFFER_POOL:-512M}"
+@@ -67,32 +141,54 @@ WA_MYSQL_MAX_CONNECTIONS="${WA_MYSQL_MAX_CONNECTIONS:-50}"
+ wa_site_var() {
+   # wa_site_var <site> <SUFFIX> -> value of e.g. SHOPPING_ADMIN_HTTP_PORT
+   local prefix
+-  case "$1" in
+-    shopping) prefix=SHOPPING ;;
+-    shopping_admin) prefix=SHOPPING_ADMIN ;;
+-    *)
+-      echo "unknown site: $1" >&2
+-      return 1
+-      ;;
+-  esac
+-  eval "printf '%s' \"\$${prefix}_$2\""
++  prefix="$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')"
++  eval "printf '%s' \"\${${prefix}_$2:-}\""
+ }
+ 
+ wa_sandbox() { printf '%s' "$WA_SANDBOX_DIR/${1}_verified_rootless"; }
+ wa_sif() { printf '%s' "$WA_IMAGE_DIR/${1}_verified_rootless.sif"; }
+ 
+ wa_check_site() {
+-  case "$1" in
+-    shopping | shopping_admin) ;;
+-    *)
+-      echo "usage: $0 ... {shopping|shopping_admin}" >&2
+-      exit 1
+-      ;;
+-  esac
++  local s
++  for s in $WA_ALL_SITES; do
++    [ "$1" = "$s" ] && return 0
++  done
++  echo "usage: $0 ... {${WA_ALL_SITES// /|}}" >&2
++  exit 1
+ }
+ 
+ wa_ensure_dirs() {
+   mkdir -p "$WA_SANDBOX_DIR" "$WA_IMAGE_DIR" "$WA_SEED_DIR" \
+-    "$WA_STATE_DIR" "$WA_RUN_DIR" "$WA_LOG_DIR" \
++    "$WA_STATE_DIR" "$WA_RUN_DIR" "$WA_LOG_DIR" "$WA_URLS_DIR" \
+     "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
+ }
++
++wa_site_url() {
++  # wa_site_url <site> -> the URL agents should use
++  local port
++  port="$(wa_site_var "$1" HTTP_PORT)"
++  case "$1" in
++    shopping_admin) printf 'http://%s:%s/admin' "$WA_HOST" "$port" ;;
++    *) printf 'http://%s:%s' "$WA_HOST" "$port" ;;
++  esac
++}
++
++wa_health_path() {
++  # health-check path per site (against 127.0.0.1:<http_port>)
++  case "$1" in
++    shopping) printf '/customer/account/login' ;;
++    shopping_admin) printf '/admin' ;;
++    reddit) printf '/' ;;
++    gitlab) printf '/users/sign_in' ;;
++    map) printf '/' ;;
++  esac
++}
++
++wa_health_timeout() {
++  # per-site startup budget in seconds (gitlab/map are slow to come up)
++  case "$1" in
++    gitlab) printf '900' ;;
++    map) printf '600' ;;
++    *) printf '300' ;;
++  esac
++}
+diff --git a/webarena-verified-hopper/wa_site.sh b/webarena-verified-hopper/wa_site.sh
+index e246ed1..257013e 100644
+--- a/webarena-verified-hopper/wa_site.sh
++++ b/webarena-verified-hopper/wa_site.sh
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env bash
+ # wa_site.sh - run a webarena-verified site rootlessly on Hopper.
+ #
+-# Usage: ./wa_site.sh {shopping|shopping_admin} <command>
++# Usage: ./wa_site.sh {shopping|shopping_admin|reddit|gitlab|map} <command>
+ #
+ # Commands:
+ #   start    Start the site (foreground; use tmux / srun / sbatch to keep alive)
+@@ -13,6 +13,12 @@
+ # Runs the SIF if present ($WA_IMAGE_DIR/<site>_verified_rootless.sif),
+ # otherwise the patched sandbox directly. No --fakeroot: everything runs as
+ # your uid, which is what the 02_patch_sandbox.sh changes are designed for.
++#
++# Placement notes:
++#   - gitlab's puma listens on 127.0.0.1:8080 and map's apache uses internal
++#     8080 (baked into rails assets) — do NOT run gitlab and map on one node.
++#   - map also needs internal 3000, 5000-5002, 5432-5434 free, plus the data
++#     from 05_fetch_map_data.sh. Give it its own node if you can.
+ 
+ set -euo pipefail
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+@@ -24,30 +30,25 @@ CMD="${2:-}"
+ wa_check_site "$SITE"
+ wa_ensure_dirs
+ 
++KIND="$(wa_site_kind "$SITE")"
+ SANDBOX="$(wa_sandbox "$SITE")"
+ SIF="$(wa_sif "$SITE")"
+ STATE="$WA_STATE_DIR/$SITE"
+ RUN="$WA_RUN_DIR/$SITE"
+ LOGS="$WA_LOG_DIR/$SITE"
+-ENTRY="$SCRIPT_DIR/container/wa_magento_entry.sh"
+ 
+ HTTP_PORT="$(wa_site_var "$SITE" HTTP_PORT)"
+-MYSQL_PORT="$(wa_site_var "$SITE" MYSQL_PORT)"
+-REDIS_PORT="$(wa_site_var "$SITE" REDIS_PORT)"
+-FPM_PORT="$(wa_site_var "$SITE" FPM_PORT)"
+-MAIL_SMTP_PORT="$(wa_site_var "$SITE" MAIL_SMTP_PORT)"
+-MAIL_HTTP_PORT="$(wa_site_var "$SITE" MAIL_HTTP_PORT)"
+-ES_HTTP_PORT="$(wa_site_var "$SITE" ES_HTTP_PORT)"
+-ES_TRANSPORT_PORT="$(wa_site_var "$SITE" ES_TRANSPORT_PORT)"
+-WITH_ES="$(wa_site_var "$SITE" WITH_ES)"
+-
+-if [ "$SITE" = "shopping" ]; then
+-  HEALTH_PATH="/customer/account/login"
+-  SITE_URL="http://${WA_HOST}:${HTTP_PORT}"
+-else
+-  HEALTH_PATH="/admin"
+-  SITE_URL="http://${WA_HOST}:${HTTP_PORT}/admin"
+-fi
++HEALTH_PATH="$(wa_health_path "$SITE")"
++HEALTH_TIMEOUT="$(wa_health_timeout "$SITE")"
++SITE_URL="$(wa_site_url "$SITE")"
++
++case "$KIND" in
++  magento) ENTRY="$SCRIPT_DIR/container/wa_magento_entry.sh" ;;
++  reddit) ENTRY="$SCRIPT_DIR/container/wa_reddit_entry.sh" ;;
++  gitlab) ENTRY="$SCRIPT_DIR/container/wa_gitlab_entry.sh" ;;
++  map) ENTRY="$SCRIPT_DIR/container/wa_map_entry.sh" ;;
++esac
++ENTRY_BASENAME="$(basename "$ENTRY")"
+ 
+ runtime_image() {
+   if [ -f "$SIF" ]; then printf '%s' "$SIF"; else printf '%s' "$SANDBOX"; fi
+@@ -55,26 +56,158 @@ runtime_image() {
+ 
+ port_in_use() { ss -ltn "( sport = :$1 )" 2>/dev/null | grep -q ":$1"; }
+ 
++# Ports each site needs free on the node (external + internal TCP)
++site_ports() {
++  case "$KIND" in
++    magento)
++      printf '%s %s %s %s %s %s' \
++        "$HTTP_PORT" \
++        "$(wa_site_var "$SITE" MYSQL_PORT)" \
++        "$(wa_site_var "$SITE" REDIS_PORT)" \
++        "$(wa_site_var "$SITE" FPM_PORT)" \
++        "$(wa_site_var "$SITE" MAIL_SMTP_PORT)" \
++        "$(wa_site_var "$SITE" MAIL_HTTP_PORT)"
++      if [ "$(wa_site_var "$SITE" WITH_ES)" = "1" ]; then
++        printf ' %s %s' \
++          "$(wa_site_var "$SITE" ES_HTTP_PORT)" \
++          "$(wa_site_var "$SITE" ES_TRANSPORT_PORT)"
++      fi
++      ;;
++    reddit) printf '%s %s %s' "$HTTP_PORT" "$REDDIT_PG_PORT" "$REDDIT_FPM_PORT" ;;
++    gitlab) printf '%s 8080' "$HTTP_PORT" ;; # omnibus puma pins 127.0.0.1:8080
++    map) printf '%s 8080 8085 3000 5000 5001 5002 5432 5433 5434' "$HTTP_PORT" ;;
++  esac
++}
++
+ check_ports_free() {
+   local busy=0 p
+-  for p in "$HTTP_PORT" "$MYSQL_PORT" "$REDIS_PORT" "$FPM_PORT" \
+-    "$MAIL_SMTP_PORT" "$MAIL_HTTP_PORT"; do
++  for p in $(site_ports); do
+     if port_in_use "$p"; then
+       echo "port already in use: $p" >&2
+       busy=1
+     fi
+   done
+-  if [ "$WITH_ES" = "1" ]; then
+-    for p in "$ES_HTTP_PORT" "$ES_TRANSPORT_PORT"; do
+-      if port_in_use "$p"; then
+-        echo "port already in use: $p" >&2
+-        busy=1
+-      fi
+-    done
+-  fi
+   [ "$busy" -eq 0 ] || exit 1
+ }
+ 
++state_ready() {
++  case "$KIND" in
++    magento) [ -d "$STATE/mysql/mysql" ] ;;
++    reddit) [ -f "$STATE/.wa_pgdata_path" ] && [ -d "$STATE/pgdata" ] ;;
++    gitlab) [ -d "$STATE/var-opt" ] ;;
++    map) [ -d "$STATE/website-pg" ] ;;
++  esac
++}
++
++# --- per-kind bind + env assembly --------------------------------------------
++BINDS=()
++ENVS=(
++  --env "WA_SITE=$SITE"
++  --env "WA_HOST=$WA_HOST"
++  --env "WA_HTTP_PORT=$HTTP_PORT"
++  --env "WA_RUN_SECONDS=${WA_RUN_SECONDS:-0}"
++  --env "WA_SKIP_INIT=${WA_SKIP_INIT:-0}"
++)
++
++setup_magento() {
++  mkdir -p "$RUN/mysqld" "$RUN/redis" "$RUN/nginx" "$RUN/webarena" "$RUN/tmp"
++  BINDS+=(
++    --bind "$LOGS:/var/log/webarena"
++    --bind "$RUN/webarena:/run/webarena"
++    --bind "$RUN/mysqld:/run/mysqld"
++    --bind "$RUN/redis:/run/redis"
++    --bind "$RUN/nginx:/run/nginx"
++    --bind "$STATE/mysql:/var/lib/mysql"
++    --bind "$STATE/nginx-lib:/var/lib/nginx"
++    --bind "$STATE/magento-var:/var/www/magento2/var"
++  )
++  local with_es
++  with_es="$(wa_site_var "$SITE" WITH_ES)"
++  if [ "$with_es" = "1" ]; then
++    BINDS+=(--bind "$STATE/es-data:/usr/share/java/elasticsearch/data")
++  fi
++  ENVS+=(
++    --env "WA_MYSQL_PORT=$(wa_site_var "$SITE" MYSQL_PORT)"
++    --env "WA_REDIS_PORT=$(wa_site_var "$SITE" REDIS_PORT)"
++    --env "WA_FPM_PORT=$(wa_site_var "$SITE" FPM_PORT)"
++    --env "WA_MAIL_SMTP_PORT=$(wa_site_var "$SITE" MAIL_SMTP_PORT)"
++    --env "WA_MAIL_HTTP_PORT=$(wa_site_var "$SITE" MAIL_HTTP_PORT)"
++    --env "WA_ES_HTTP_PORT=$(wa_site_var "$SITE" ES_HTTP_PORT)"
++    --env "WA_ES_TRANSPORT_PORT=$(wa_site_var "$SITE" ES_TRANSPORT_PORT)"
++    --env "WA_WITH_ES=$with_es"
++    --env "ES_JAVA_OPTS=$WA_ES_JAVA_OPTS"
++  )
++}
++
++setup_reddit() {
++  mkdir -p "$RUN/webarena" "$RUN/postgresql" "$RUN/nginx"
++  local pgdata_path
++  pgdata_path="$(cat "$STATE/.wa_pgdata_path")"
++  BINDS+=(
++    --bind "$LOGS:/var/log/webarena"
++    --bind "$RUN/webarena:/run/webarena"
++    --bind "$RUN/postgresql:/run/postgresql"
++    --bind "$RUN/nginx:/run/nginx"
++    --bind "$STATE/pgdata:$pgdata_path"
++    --bind "$STATE/nginx-log:/var/log/nginx"
++    --bind "$STATE/app-var:/var/www/html/var"
++    --bind "$STATE/dot-env/.env:/var/www/html/.env"
++  )
++  # nginx-lib only exists if the image had /var/lib/nginx
++  [ -d "$STATE/nginx-lib" ] && BINDS+=(--bind "$STATE/nginx-lib:/var/lib/nginx")
++  ENVS+=(
++    --env "WA_PG_PORT=$REDDIT_PG_PORT"
++    --env "WA_FPM_PORT=$REDDIT_FPM_PORT"
++    --env "WA_PGDATA=$pgdata_path"
++  )
++}
++
++setup_gitlab() {
++  mkdir -p "$RUN/webarena"
++  BINDS+=(
++    --bind "$LOGS:/var/log/webarena"
++    --bind "$RUN/webarena:/run/webarena"
++    --bind "$STATE/etc-gitlab:/etc/gitlab"
++    --bind "$STATE/var-opt:/var/opt/gitlab"
++    --bind "$STATE/gitlab-log:/var/log/gitlab"
++  )
++}
++
++setup_map() {
++  mkdir -p "$RUN/webarena" "$RUN/postgresql" "$RUN/renderd" "$RUN/apache2"
++  # sanity: external data must be present (05_fetch_map_data.sh)
++  if [ ! -d "$WA_MAP_DATA_DIR/tile-db" ]; then
++    echo "[site] WARNING: $WA_MAP_DATA_DIR/tile-db missing — tiles/geocoding" >&2
++    echo "[site]          will be disabled. Run 05_fetch_map_data.sh first." >&2
++  fi
++  BINDS+=(
++    --bind "$LOGS:/var/log/webarena"
++    --bind "$RUN/webarena:/run/webarena"
++    --bind "$RUN/postgresql:/run/postgresql"
++    --bind "$RUN/renderd:/run/renderd"
++    --bind "$RUN/apache2:/run/apache2"
++    --bind "$STATE/website-pg:/var/lib/postgresql/14/main"
++    --bind "$STATE/app-log:/app/log"
++    --bind "$STATE/app-tmp:/app/tmp"
++    --bind "$STATE/apache-log:/var/log/apache2"
++    --bind "$STATE/tiles:/data/tiles"
++    --bind "$STATE/renderd-cache:/var/cache/renderd"
++    --bind "$STATE/style:/data/style"
++    --bind "$STATE/nominatim:/nominatim"
++  )
++  [ -d "$WA_MAP_DATA_DIR/tile-db" ] &&
++    BINDS+=(--bind "$WA_MAP_DATA_DIR/tile-db:/data/database")
++  local prof
++  for prof in car bike foot; do
++    [ -d "$WA_MAP_DATA_DIR/routing/$prof" ] &&
++      BINDS+=(--bind "$WA_MAP_DATA_DIR/routing/$prof:/data/routing/$prof:ro")
++  done
++  [ -d "$WA_MAP_DATA_DIR/nominatim-db" ] &&
++    BINDS+=(--bind "$WA_MAP_DATA_DIR/nominatim-db:/data/nominatim/postgres")
++  [ -d "$WA_MAP_DATA_DIR/nominatim-flatnode" ] &&
++    BINDS+=(--bind "$WA_MAP_DATA_DIR/nominatim-flatnode:/data/nominatim/flatnode")
++}
++
+ cmd_start() {
+   [ -e "$(runtime_image)" ] || {
+     echo "no SIF or sandbox for $SITE" >&2
+@@ -84,49 +217,27 @@ cmd_start() {
+     echo "missing entry script: $ENTRY" >&2
+     exit 1
+   }
+-  if [ ! -d "$STATE/mysql/mysql" ]; then
++  if ! state_ready; then
+     "$SCRIPT_DIR/03_prepare_state.sh" restore "$SITE"
+   fi
+-  mkdir -p "$RUN/mysqld" "$RUN/redis" "$RUN/nginx" "$RUN/webarena" "$RUN/tmp" "$LOGS"
+-  chmod -R u+rwX "$STATE" "$RUN" "$LOGS"
++  mkdir -p "$RUN" "$LOGS"
++  "setup_$KIND"
++  chmod -R u+rwX "$STATE" "$RUN" "$LOGS" 2>/dev/null || true
++  # postgres insists on 0700 data dirs
++  [ -d "$STATE/pgdata" ] && chmod 700 "$STATE/pgdata"
++  [ -d "$STATE/website-pg" ] && chmod 700 "$STATE/website-pg"
+   check_ports_free
+ 
+-  local binds=(
+-    --bind "$LOGS:/var/log/webarena"
+-    --bind "$RUN/webarena:/run/webarena"
+-    --bind "$RUN/mysqld:/run/mysqld"
+-    --bind "$RUN/redis:/run/redis"
+-    --bind "$RUN/nginx:/run/nginx"
+-    --bind "$STATE/mysql:/var/lib/mysql"
+-    --bind "$STATE/nginx-lib:/var/lib/nginx"
+-    --bind "$STATE/magento-var:/var/www/magento2/var"
+-    --bind "$ENTRY:/wa_magento_entry.sh:ro"
+-  )
+-  if [ "$WITH_ES" = "1" ]; then
+-    binds+=(--bind "$STATE/es-data:/usr/share/java/elasticsearch/data")
+-  fi
++  BINDS+=(--bind "$ENTRY:/$ENTRY_BASENAME:ro")
+ 
+-  echo "[site] starting $SITE -> $SITE_URL"
++  echo "[site] starting $SITE ($KIND) -> $SITE_URL"
+   exec apptainer exec \
+     --cleanenv \
+     --writable-tmpfs \
+-    "${binds[@]}" \
+-    --env "WA_SITE=$SITE" \
+-    --env "WA_HOST=$WA_HOST" \
+-    --env "WA_HTTP_PORT=$HTTP_PORT" \
+-    --env "WA_MYSQL_PORT=$MYSQL_PORT" \
+-    --env "WA_REDIS_PORT=$REDIS_PORT" \
+-    --env "WA_FPM_PORT=$FPM_PORT" \
+-    --env "WA_MAIL_SMTP_PORT=$MAIL_SMTP_PORT" \
+-    --env "WA_MAIL_HTTP_PORT=$MAIL_HTTP_PORT" \
+-    --env "WA_ES_HTTP_PORT=$ES_HTTP_PORT" \
+-    --env "WA_ES_TRANSPORT_PORT=$ES_TRANSPORT_PORT" \
+-    --env "WA_WITH_ES=$WITH_ES" \
+-    --env "ES_JAVA_OPTS=$WA_ES_JAVA_OPTS" \
+-    --env "WA_RUN_SECONDS=${WA_RUN_SECONDS:-0}" \
+-    --env "WA_SKIP_INIT=${WA_SKIP_INIT:-0}" \
++    "${BINDS[@]}" \
++    "${ENVS[@]}" \
+     "$(runtime_image)" \
+-    /bin/sh /wa_magento_entry.sh
++    /bin/sh "/$ENTRY_BASENAME"
+ }
+ 
+ cmd_stop() {
+@@ -136,7 +247,7 @@ cmd_stop() {
+     pid="$(cat "$pid_file" 2>/dev/null || true)"
+     [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
+   done
+-  pkill -f "wa_magento_entry.sh" 2>/dev/null || true
++  pkill -f "$ENTRY_BASENAME" 2>/dev/null || true
+   pkill -f "apptainer exec .*$(basename "$(runtime_image)")" 2>/dev/null || true
+   sleep 1
+   for pid_file in "$RUN/webarena"/*.pid; do
+@@ -156,10 +267,13 @@ cmd_reset() {
+ }
+ 
+ cmd_smoke() {
+-  (WA_RUN_SECONDS=30 cmd_start) &
++  local budget tries
++  budget="$HEALTH_TIMEOUT"
++  tries=$((budget / 5))
++  (WA_RUN_SECONDS=$((budget + 60)) cmd_start) &
+   local runner=$!
+-  local ok=0 i=0
+-  while [ "$i" -lt 60 ]; do
++  local ok=0 i=0 code=""
++  while [ "$i" -lt "$tries" ]; do
+     code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${HTTP_PORT}${HEALTH_PATH}" || true)"
+     case "$code" in 200 | 302)
+       ok=1
+@@ -167,27 +281,27 @@ cmd_smoke() {
+       ;;
+     esac
+     i=$((i + 1))
+-    sleep 3
++    sleep 5
+   done
+   if [ "$ok" = "1" ]; then
+     echo "[smoke] OK: http://127.0.0.1:${HTTP_PORT}${HEALTH_PATH} -> $code"
+   else
+     echo "[smoke] FAILED (last code: ${code:-none}); see $LOGS" >&2
+   fi
+-  wait "$runner" 2>/dev/null || true
+   cmd_stop
++  wait "$runner" 2>/dev/null || true
+   [ "$ok" = "1" ]
+ }
+ 
+ cmd_status() {
+-  echo "site:     $SITE"
++  echo "site:     $SITE ($KIND)"
+   echo "url:      $SITE_URL"
+   echo "image:    $(runtime_image)"
+   echo "state:    $STATE"
+   echo "seed:     $WA_SEED_DIR/$SITE"
+   echo "logs:     $LOGS"
+   local p
+-  for p in "$HTTP_PORT" "$MYSQL_PORT" "$REDIS_PORT" "$FPM_PORT"; do
++  for p in $(site_ports); do
+     port_in_use "$p" && echo "port_$p: listening" || echo "port_$p: not_listening"
+   done
+ }
+@@ -199,7 +313,7 @@ case "$CMD" in
+   smoke) cmd_smoke ;;
+   status) cmd_status ;;
+   *)
+-    echo "usage: $0 {shopping|shopping_admin} {start|stop|reset|smoke|status}" >&2
++    echo "usage: $0 {${WA_ALL_SITES// /|}} {start|stop|reset|smoke|status}" >&2
+     exit 1
+     ;;
+ esac
+-- 
+2.43.0
+
+
+From 71b14d6902754c4efbfe88863af7067a47bd9741 Mon Sep 17 00:00:00 2001
+From: czhai <czhai@gmu.edu>
+Date: Mon, 13 Jul 2026 16:58:36 +0000
+Subject: [PATCH 02/10] reddit: fixes from local rootless bring-up (WSL2 Hopper
+ sim)
+
+- 02_patch_sandbox.sh: patch the authoritative fastcgi_param DATABASE_URL in
+  nginx conf (Symfony Dotenv never overrides real env vars); strip docker-ism
+  'daemon off;' (entry passes -g); collapse v4+v6 listen pairs to a single
+  listen on HTTP_PORT (rewrite produced fatal duplicates); host localhost ->
+  127.0.0.1 (postgres listens v4-only)
+- wa_reddit_entry.sh: truncate-write APP_SITE_NAME (sed -i rename fails EBUSY
+  on single-file bind mount)
+- README: reddit marked locally verified; document findings
+---
+ webarena-verified-hopper/02_patch_sandbox.sh  | 33 ++++++++++++++-----
+ webarena-verified-hopper/README.md            | 12 +++++--
+ .../container/wa_reddit_entry.sh              |  7 +++-
+ 3 files changed, 40 insertions(+), 12 deletions(-)
+
+diff --git a/webarena-verified-hopper/02_patch_sandbox.sh b/webarena-verified-hopper/02_patch_sandbox.sh
+index bc12d5e..51bfb0c 100644
+--- a/webarena-verified-hopper/02_patch_sandbox.sh
++++ b/webarena-verified-hopper/02_patch_sandbox.sh
+@@ -186,11 +186,31 @@ patch_reddit() {
+     "$ROOT"/etc/nginx/http.d/*.conf "$ROOT"/etc/nginx/sites-enabled/*; do
+     [ -f "$nconf" ] || continue
+     sed -i 's/^user[[:space:]].*/# user disabled for rootless apptainer runtime/' "$nconf"
+-    sed -i -E "s/listen[[:space:]]+(\[::\]:)?80([; ])/listen ${HTTP_PORT}\2/g" "$nconf"
+-    sed -i -E "s|fastcgi_pass[[:space:]]+[^;]+;|fastcgi_pass 127.0.0.1:${FPM_PORT};|g" "$nconf"
++    # the entry script runs nginx with -g 'daemon off;'; a daemon directive in
++    # the conf (typical for docker images) would be a fatal duplicate
++    sed -i -E 's/^[[:space:]]*daemon[[:space:]]+[a-z]+;.*/# daemon directive removed (entry passes -g)/' "$nconf"
+     # keep pid/log paths off the read-only overlay (lesson from wa_common EOVERFLOW)
+     sed -i -E "s|^([[:space:]]*)pid[[:space:]]+[^;]+;|\1pid /run/nginx/nginx.pid;|" "$nconf"
++    sed -i -E "s|fastcgi_pass[[:space:]]+[^;]+;|fastcgi_pass 127.0.0.1:${FPM_PORT};|g" "$nconf"
++    # Postmill's REAL db config is a fastcgi_param injected into $_SERVER —
++    # Symfony's Dotenv never overrides it, so this (not .env) is authoritative.
++    # Rewrite host -> 127.0.0.1 (localhost may resolve ::1; postgres is v4-only)
++    # and port -> moved PG_PORT, keeping credentials/dbname/serverVersion as shipped.
++    sed -i -E "s|(fastcgi_param[[:space:]]+DATABASE_URL[[:space:]]+\"pgsql://[^@\"]+@)(localhost\|127\.0\.0\.1)(:[0-9]+)?/|\1127.0.0.1:${PG_PORT}/|" "$nconf"
++    # Collapse ALL listen directives per server block to exactly one on
++    # HTTP_PORT. The image ships v4+v6 pairs (listen 80; listen [::]:80 ...);
++    # naive port rewriting turns those into fatal duplicates.
++    awk -v port="$HTTP_PORT" '
++      /^[[:space:]]*server[[:space:]]*\{/ { seen = 0 }
++      /^[[:space:]]*listen[[:space:]]/ {
++        if (!seen) { print "    listen " port ";"; seen = 1 }
++        next
++      }
++      { print }
++    ' "$nconf" >"$nconf.wa_tmp" && mv "$nconf.wa_tmp" "$nconf"
+   done
++  echo "[patch] nginx listen/fastcgi now:"
++  grep -hnE 'listen |DATABASE_URL' "$ROOT"/etc/nginx/conf.d/*.conf 2>/dev/null || true
+ 
+   # --- php-fpm ------------------------------------------------------------------
+   local f found_fpm=0
+@@ -206,13 +226,10 @@ patch_reddit() {
+   done
+   [ "$found_fpm" = "1" ] || echo "[patch] WARNING: no php-fpm pool config matched; check image layout" >&2
+ 
+-  # --- symfony .env: point Postmill at the moved postgres port -------------------
++  # --- symfony .env: secondary — the nginx fastcgi_param above is what the web
++  # app actually sees; this covers `bin/console` CLI use inside the container.
+   if [ -f "$APP/.env" ]; then
+-    if grep -qE 'DATABASE_URL=.*@(localhost|127\.0\.0\.1):[0-9]+' "$APP/.env"; then
+-      sed -i -E "s|(DATABASE_URL=.*@(localhost\|127\.0\.0\.1)):[0-9]+|\1:${PG_PORT}|" "$APP/.env"
+-    else
+-      sed -i -E "s|(DATABASE_URL=.*@)(localhost\|127\.0\.0\.1)(/)|\1127.0.0.1:${PG_PORT}\3|" "$APP/.env"
+-    fi
++    sed -i -E "s|(DATABASE_URL=pgsql://[^@]+@)(localhost\|127\.0\.0\.1)(:[0-9]+)?/|\1127.0.0.1:${PG_PORT}/|" "$APP/.env"
+     echo "[patch] .env now:"
+     grep -nE 'DATABASE_URL|APP_SITE_NAME' "$APP/.env" || true
+   else
+diff --git a/webarena-verified-hopper/README.md b/webarena-verified-hopper/README.md
+index 751629c..f731557 100644
+--- a/webarena-verified-hopper/README.md
++++ b/webarena-verified-hopper/README.md
+@@ -159,10 +159,16 @@ first `smoke`:
+ 3. Elasticsearch keystore on first start (shopping) — absorbed by
+    `--writable-tmpfs`; only catalog search breaks if ES loops.
+ 
+-**reddit**
+-1. `02_patch_sandbox.sh` auto-detects the php-fpm pool dir and postgres data
++**reddit** — *verified end-to-end locally (WSL2, non-suid Apptainer 1.5.2,
++no subuid) on 2026-07-13: full request path nginx→php-fpm→Symfony→postgres
++returns 200.* Notes from that bring-up, now handled by the scripts:
++1. The app's real DB config is the `fastcgi_param DATABASE_URL` in
++   `etc/nginx/conf.d/default.conf` (Symfony Dotenv never overrides real env);
++   `02_patch_sandbox.sh` patches it to `127.0.0.1:19991`.
++2. The image's `daemon off;` and v4+v6 `listen` pairs in the nginx confs are
++   stripped/deduped at patch time (fatal duplicates otherwise).
++3. `02_patch_sandbox.sh` auto-detects the php-fpm pool dir and postgres data
+    dir (records the latter in `sandbox/.wa_pgdata_path`); check its output.
+-2. `DATABASE_URL` in `.env` should read `...@127.0.0.1:19991/postmill`.
+ 
+ **gitlab**
+ 1. The `chpst -u` strip covers `/opt/gitlab/sv/*/run` and `*/log/run`; if a
+diff --git a/webarena-verified-hopper/container/wa_reddit_entry.sh b/webarena-verified-hopper/container/wa_reddit_entry.sh
+index abae55d..6eebfd6 100644
+--- a/webarena-verified-hopper/container/wa_reddit_entry.sh
++++ b/webarena-verified-hopper/container/wa_reddit_entry.sh
+@@ -83,7 +83,12 @@ echo "[entry] core services up"
+ 
+ # --- postmill init (== env-ctrl init) -------------------------------------------
+ if [ "$WA_SKIP_INIT" != "1" ]; then
+-  sed -i "s/^APP_SITE_NAME=.*/APP_SITE_NAME=${WA_HOST}:${WA_HTTP_PORT}/" "$APP/.env"
++  # truncate-write: sed -i renames its temp file over the target, which fails
++  # with EBUSY on a single-file bind mount (.env is bound from state)
++  _tmp="$(mktemp)"
++  sed "s|^APP_SITE_NAME=.*|APP_SITE_NAME=${WA_HOST}:${WA_HTTP_PORT}|" "$APP/.env" >"$_tmp"
++  cat "$_tmp" >"$APP/.env"
++  rm -f "$_tmp"
+   rm -rf "$APP"/var/cache/* 2>/dev/null || true
+   echo "[entry] APP_SITE_NAME=${WA_HOST}:${WA_HTTP_PORT}; symfony cache cleared"
+   echo "[entry] (first request rebuilds the prod cache and is slow — that's normal)"
+-- 
+2.43.0
+
+
+From df93511c248ab90f62e4d4ff2f174ae849017451 Mon Sep 17 00:00:00 2001
+From: czhai <czhai@gmu.edu>
+Date: Mon, 13 Jul 2026 18:19:56 +0000
+Subject: [PATCH 03/10] wa_site.sh: smoke must fail if launcher died (foreign
+ listener false-OK)
+
+---
+ webarena-verified-hopper/wa_site.sh | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/webarena-verified-hopper/wa_site.sh b/webarena-verified-hopper/wa_site.sh
+index 257013e..b29a9ea 100644
+--- a/webarena-verified-hopper/wa_site.sh
++++ b/webarena-verified-hopper/wa_site.sh
+@@ -274,6 +274,12 @@ cmd_smoke() {
+   local runner=$!
+   local ok=0 i=0 code=""
+   while [ "$i" -lt "$tries" ]; do
++    # if our launcher already died (e.g. port-in-use abort), any HTTP answer
++    # is from a FOREIGN listener — do not let it produce a false OK
++    if ! kill -0 "$runner" 2>/dev/null; then
++      echo "[smoke] launcher exited before the site came up" >&2
++      break
++    fi
+     code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${HTTP_PORT}${HEALTH_PATH}" || true)"
+     case "$code" in 200 | 302)
+       ok=1
+-- 
+2.43.0
+
+
+From 34241548f60a934e816859f54720bbf5acc6135e Mon Sep 17 00:00:00 2001
+From: czhai <czhai@gmu.edu>
+Date: Mon, 13 Jul 2026 18:27:16 +0000
+Subject: [PATCH 04/10] magento: strip nginx daemon directive too (shared
+ wa_patch_nginx_top helper)
+
+Same failure as reddit: image ships 'daemon off;' in nginx.conf while the
+entry passes -g 'daemon off;' -> fatal duplicate. Reddit's inline fix kept
+as-is (verified); magento now uses the shared helper (user/daemon/pid).
+---
+ webarena-verified-hopper/02_patch_sandbox.sh | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/webarena-verified-hopper/02_patch_sandbox.sh b/webarena-verified-hopper/02_patch_sandbox.sh
+index 51bfb0c..77e3a02 100644
+--- a/webarena-verified-hopper/02_patch_sandbox.sh
++++ b/webarena-verified-hopper/02_patch_sandbox.sh
+@@ -56,6 +56,17 @@ HTTP_PORT="$(wa_site_var "$SITE" HTTP_PORT)"
+ echo "[patch] site=$SITE kind=$KIND root=$ROOT http_port=$HTTP_PORT"
+ 
+ # ==============================================================================
++# Shared: normalize a top-level nginx.conf for rootless single-uid runtime.
++# Applied to every nginx-based site (magento, reddit): drop the user directive,
++# drop the docker-ism daemon directive (all entry scripts pass -g 'daemon off;'
++# — leaving it in the conf is a fatal duplicate), pin the pid path to /run/nginx.
++wa_patch_nginx_top() { # wa_patch_nginx_top <nginx.conf path>
++  [ -f "$1" ] || return 0
++  sed -i 's/^user[[:space:]].*/# user disabled for rootless apptainer runtime/' "$1"
++  sed -i -E 's/^[[:space:]]*daemon[[:space:]]+[a-z]+;.*/# daemon directive removed (entry passes -g)/' "$1"
++  sed -i -E "s|^([[:space:]]*)pid[[:space:]]+[^;]+;|\1pid /run/nginx/nginx.pid;|" "$1"
++}
++
+ patch_magento() {
+   local MYSQL_PORT REDIS_PORT FPM_PORT ENV_PHP
+   MYSQL_PORT="$(wa_site_var "$SITE" MYSQL_PORT)"
+@@ -73,10 +84,7 @@ patch_magento() {
+     "$ROOT/var/tmp/nginx/client_body" "$ROOT/var/log/webarena" "$ROOT/run/webarena"
+ 
+   # --- nginx --------------------------------------------------------------------
+-  if [ -f "$ROOT/etc/nginx/nginx.conf" ]; then
+-    sed -i 's/^user[[:space:]].*/# user disabled for rootless apptainer runtime/' \
+-      "$ROOT/etc/nginx/nginx.conf"
+-  fi
++  wa_patch_nginx_top "$ROOT/etc/nginx/nginx.conf"
+ 
+   if [ -d "$ROOT/etc/nginx/conf.d" ]; then
+     cat >"$ROOT/etc/nginx/conf.d/default.conf" <<EOF_NGINX
+-- 
+2.43.0
+
+
+From f587b0b7afe1ca3bd05d213309c06ddd4f42aea7 Mon Sep 17 00:00:00 2001
+From: czhai <czhai@gmu.edu>
+Date: Mon, 13 Jul 2026 19:02:27 +0000
+Subject: [PATCH 05/10] ready marker: don't declare a site up mid-init
+
+Magento's /admin answers 302 while setup:store-config:set is still running;
+smoke declared OK and tore down mariadb under the CLI (SQLSTATE 2002 spew).
+Entries now touch /run/webarena/ready after init; smoke and the sbatch
+wait_http require HTTP OK *and* the marker.
+---
+ webarena-verified-hopper/container/wa_gitlab_entry.sh  | 2 ++
+ webarena-verified-hopper/container/wa_magento_entry.sh | 2 ++
+ webarena-verified-hopper/container/wa_map_entry.sh     | 2 ++
+ webarena-verified-hopper/container/wa_reddit_entry.sh  | 2 ++
+ webarena-verified-hopper/slurm/webarena_sites.sbatch   | 6 ++++--
+ webarena-verified-hopper/wa_site.sh                    | 9 +++++++--
+ 6 files changed, 19 insertions(+), 4 deletions(-)
+
+diff --git a/webarena-verified-hopper/container/wa_gitlab_entry.sh b/webarena-verified-hopper/container/wa_gitlab_entry.sh
+index 7092d88..994b1be 100644
+--- a/webarena-verified-hopper/container/wa_gitlab_entry.sh
++++ b/webarena-verified-hopper/container/wa_gitlab_entry.sh
+@@ -21,6 +21,7 @@ LOG_DIR=/var/log/webarena
+ PID_DIR=/run/webarena
+ GITLAB_YML=/var/opt/gitlab/gitlab-rails/etc/gitlab.yml
+ mkdir -p "$LOG_DIR" "$PID_DIR"
++rm -f /run/webarena/ready 2>/dev/null || true
+ 
+ echo "[entry] site=gitlab base_url=http://${WA_HOST}:${WA_HTTP_PORT}/"
+ 
+@@ -78,6 +79,7 @@ if [ "$ready" != "1" ]; then
+ fi
+ 
+ echo "[entry] READY: http://${WA_HOST}:${WA_HTTP_PORT}/"
++touch /run/webarena/ready  # signals launcher/smoke that init is complete
+ echo "[entry] login: byteblaze / hello1234"
+ 
+ if [ "$WA_RUN_SECONDS" != "0" ]; then
+diff --git a/webarena-verified-hopper/container/wa_magento_entry.sh b/webarena-verified-hopper/container/wa_magento_entry.sh
+index 0925f78..cfae4ca 100644
+--- a/webarena-verified-hopper/container/wa_magento_entry.sh
++++ b/webarena-verified-hopper/container/wa_magento_entry.sh
+@@ -35,6 +35,7 @@ BASE_URL="http://${WA_HOST}:${WA_HTTP_PORT}/"
+ LOG_DIR=/var/log/webarena
+ PID_DIR=/run/webarena
+ mkdir -p "$LOG_DIR" "$PID_DIR" /run/nginx /run/mysqld /run/redis
++rm -f /run/webarena/ready 2>/dev/null || true
+ 
+ cleanup() {
+   for pid_file in "$PID_DIR"/*.pid; do
+@@ -114,6 +115,7 @@ if [ "$WA_SKIP_INIT" != "1" ]; then
+ fi
+ 
+ echo "[entry] READY: ${BASE_URL}$([ "$WA_SITE" = shopping_admin ] && echo admin)"
++touch /run/webarena/ready  # signals launcher/smoke that init is complete
+ echo "[entry] internal ports: mysql=$WA_MYSQL_PORT redis=$WA_REDIS_PORT fpm=$WA_FPM_PORT"
+ 
+ if [ "$WA_RUN_SECONDS" != "0" ]; then
+diff --git a/webarena-verified-hopper/container/wa_map_entry.sh b/webarena-verified-hopper/container/wa_map_entry.sh
+index 0825cd6..d5a869a 100644
+--- a/webarena-verified-hopper/container/wa_map_entry.sh
++++ b/webarena-verified-hopper/container/wa_map_entry.sh
+@@ -24,6 +24,7 @@ WA_RUN_SECONDS="${WA_RUN_SECONDS:-0}"
+ LOG_DIR=/var/log/webarena
+ PID_DIR=/run/webarena
+ mkdir -p "$LOG_DIR" "$PID_DIR" /run/postgresql /run/renderd /run/apache2
++rm -f /run/webarena/ready 2>/dev/null || true
+ 
+ PG14=/usr/lib/postgresql/14/bin
+ PG15=/usr/lib/postgresql/15/bin
+@@ -157,6 +158,7 @@ if [ "$ready" != "1" ]; then
+ fi
+ 
+ echo "[entry] READY: http://${WA_HOST}:${WA_HTTP_PORT}/"
++touch /run/webarena/ready  # signals launcher/smoke that init is complete
+ echo "[entry] internal: rails=3000 apache=8080/8085(loopback) osrm=5000-5002 pg=5432/5433/5434"
+ 
+ if [ "$WA_RUN_SECONDS" != "0" ]; then
+diff --git a/webarena-verified-hopper/container/wa_reddit_entry.sh b/webarena-verified-hopper/container/wa_reddit_entry.sh
+index 6eebfd6..a05258b 100644
+--- a/webarena-verified-hopper/container/wa_reddit_entry.sh
++++ b/webarena-verified-hopper/container/wa_reddit_entry.sh
+@@ -23,6 +23,7 @@ APP=/var/www/html
+ LOG_DIR=/var/log/webarena
+ PID_DIR=/run/webarena
+ mkdir -p "$LOG_DIR" "$PID_DIR" /run/nginx /run/postgresql
++rm -f /run/webarena/ready 2>/dev/null || true
+ 
+ cleanup() {
+   for pid_file in "$PID_DIR"/*.pid; do
+@@ -95,6 +96,7 @@ if [ "$WA_SKIP_INIT" != "1" ]; then
+ fi
+ 
+ echo "[entry] READY: http://${WA_HOST}:${WA_HTTP_PORT}/"
++touch /run/webarena/ready  # signals launcher/smoke that init is complete
+ echo "[entry] internal ports: postgres=$WA_PG_PORT fpm=$WA_FPM_PORT"
+ 
+ if [ "$WA_RUN_SECONDS" != "0" ]; then
+diff --git a/webarena-verified-hopper/slurm/webarena_sites.sbatch b/webarena-verified-hopper/slurm/webarena_sites.sbatch
+index a9e64c3..2fb25a8 100644
+--- a/webarena-verified-hopper/slurm/webarena_sites.sbatch
++++ b/webarena-verified-hopper/slurm/webarena_sites.sbatch
+@@ -92,8 +92,10 @@ wait_http() { # wait_http <site>
+   while [ "$i" -lt "$tries" ]; do
+     code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${port}${path}" || true)"
+     case "$code" in 200 | 302)
+-      echo "[job] $1 ready ($code)"
+-      return 0
++      if [ -f "$WA_RUN_DIR/$1/webarena/ready" ]; then
++        echo "[job] $1 ready ($code)"
++        return 0
++      fi
+       ;;
+     esac
+     i=$((i + 1))
+diff --git a/webarena-verified-hopper/wa_site.sh b/webarena-verified-hopper/wa_site.sh
+index b29a9ea..7aa6009 100644
+--- a/webarena-verified-hopper/wa_site.sh
++++ b/webarena-verified-hopper/wa_site.sh
+@@ -282,8 +282,13 @@ cmd_smoke() {
+     fi
+     code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${HTTP_PORT}${HEALTH_PATH}" || true)"
+     case "$code" in 200 | 302)
+-      ok=1
+-      break
++      # HTTP answering is necessary but not sufficient: the entry may still be
++      # running init (magento's setup:store-config:set answered 302 mid-init).
++      # Require the ready marker so we never tear down a half-configured site.
++      if [ -f "$RUN/webarena/ready" ]; then
++        ok=1
++        break
++      fi
+       ;;
+     esac
+     i=$((i + 1))
+-- 
+2.43.0
+
+
+From 8627e99c13f50b2d20f21c94f367e47acca895b3 Mon Sep 17 00:00:00 2001
+From: czhai <czhai@gmu.edu>
+Date: Mon, 13 Jul 2026 20:42:57 +0000
+Subject: [PATCH 06/10] wa_site.sh: fix silent set-e exit when map data is
+ absent
+
+setup_map ended with a '[ -d ] && BINDS+=' guard; with the data dir missing
+the function returned nonzero and set -e killed the script before apptainer
+ever ran. All guarded binds/chmods converted to if-form.
+---
+ webarena-verified-hopper/wa_site.sh | 22 +++++++++++++++-------
+ 1 file changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/webarena-verified-hopper/wa_site.sh b/webarena-verified-hopper/wa_site.sh
+index 7aa6009..9e7ba25 100644
+--- a/webarena-verified-hopper/wa_site.sh
++++ b/webarena-verified-hopper/wa_site.sh
+@@ -154,7 +154,9 @@ setup_reddit() {
+     --bind "$STATE/dot-env/.env:/var/www/html/.env"
+   )
+   # nginx-lib only exists if the image had /var/lib/nginx
+-  [ -d "$STATE/nginx-lib" ] && BINDS+=(--bind "$STATE/nginx-lib:/var/lib/nginx")
++  if [ -d "$STATE/nginx-lib" ]; then
++    BINDS+=(--bind "$STATE/nginx-lib:/var/lib/nginx")
++  fi
+   ENVS+=(
+     --env "WA_PG_PORT=$REDDIT_PG_PORT"
+     --env "WA_FPM_PORT=$REDDIT_FPM_PORT"
+@@ -195,17 +197,23 @@ setup_map() {
+     --bind "$STATE/style:/data/style"
+     --bind "$STATE/nominatim:/nominatim"
+   )
+-  [ -d "$WA_MAP_DATA_DIR/tile-db" ] &&
++  # NB: if-form, not '[ ] &&' — a false test as a function's last statement
++  # makes the function return nonzero, which set -e turns into a silent exit.
++  if [ -d "$WA_MAP_DATA_DIR/tile-db" ]; then
+     BINDS+=(--bind "$WA_MAP_DATA_DIR/tile-db:/data/database")
++  fi
+   local prof
+   for prof in car bike foot; do
+-    [ -d "$WA_MAP_DATA_DIR/routing/$prof" ] &&
++    if [ -d "$WA_MAP_DATA_DIR/routing/$prof" ]; then
+       BINDS+=(--bind "$WA_MAP_DATA_DIR/routing/$prof:/data/routing/$prof:ro")
++    fi
+   done
+-  [ -d "$WA_MAP_DATA_DIR/nominatim-db" ] &&
++  if [ -d "$WA_MAP_DATA_DIR/nominatim-db" ]; then
+     BINDS+=(--bind "$WA_MAP_DATA_DIR/nominatim-db:/data/nominatim/postgres")
+-  [ -d "$WA_MAP_DATA_DIR/nominatim-flatnode" ] &&
++  fi
++  if [ -d "$WA_MAP_DATA_DIR/nominatim-flatnode" ]; then
+     BINDS+=(--bind "$WA_MAP_DATA_DIR/nominatim-flatnode:/data/nominatim/flatnode")
++  fi
+ }
+ 
+ cmd_start() {
+@@ -224,8 +232,8 @@ cmd_start() {
+   "setup_$KIND"
+   chmod -R u+rwX "$STATE" "$RUN" "$LOGS" 2>/dev/null || true
+   # postgres insists on 0700 data dirs
+-  [ -d "$STATE/pgdata" ] && chmod 700 "$STATE/pgdata"
+-  [ -d "$STATE/website-pg" ] && chmod 700 "$STATE/website-pg"
++  if [ -d "$STATE/pgdata" ]; then chmod 700 "$STATE/pgdata"; fi
++  if [ -d "$STATE/website-pg" ]; then chmod 700 "$STATE/website-pg"; fi
+   check_ports_free
+ 
+   BINDS+=(--bind "$ENTRY:/$ENTRY_BASENAME:ro")
+-- 
+2.43.0
+
+
+From a39d63fa09080409e85970011697d72a65a22cd8 Mon Sep 17 00:00:00 2001
+From: czhai <czhai@gmu.edu>
+Date: Mon, 13 Jul 2026 20:53:24 +0000
+Subject: [PATCH 07/10] map: ssl=off in pg cluster confs; pre-create
+ pg_stat_tmp dirs
+
+--fix-perms leaves ssl-cert-snakeoil.key group-readable and PG14 refuses to
+start; TLS serves no purpose for a benchmark-local postgres, so patch_map
+disables it in every cluster conf. Raw pg_ctl (unlike pg_ctlcluster) doesn't
+create stats_temp_directory; the entry now mkdirs the three cluster dirs.
+---
+ webarena-verified-hopper/02_patch_sandbox.sh       | 7 +++++++
+ webarena-verified-hopper/container/wa_map_entry.sh | 4 ++++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/webarena-verified-hopper/02_patch_sandbox.sh b/webarena-verified-hopper/02_patch_sandbox.sh
+index 77e3a02..c668690 100644
+--- a/webarena-verified-hopper/02_patch_sandbox.sh
++++ b/webarena-verified-hopper/02_patch_sandbox.sh
+@@ -325,6 +325,13 @@ patch_map() {
+ 
+   # --- postgres clusters: data dirs at their runtime bind locations --------------
+   # /etc is read-only at runtime (SIF), so all config edits happen now.
++  # ssl=off in every cluster: --fix-perms leaves the snakeoil key group-readable
++  # and postgres refuses to boot; TLS is pointless for a benchmark-local pg.
++  local pgconf
++  for pgconf in "$ROOT"/etc/postgresql/*/*/postgresql.conf; do
++    [ -f "$pgconf" ] || continue
++    sed -i -E 's/^([[:space:]]*)ssl[[:space:]]*=[[:space:]]*on/\1ssl = off/' "$pgconf"
++  done
+   local pg15="$ROOT/etc/postgresql/15/main"
+   if [ -d "$pg15" ]; then
+     sed -i "s|data_directory = '.*'|data_directory = '/data/database/postgres'|" \
+diff --git a/webarena-verified-hopper/container/wa_map_entry.sh b/webarena-verified-hopper/container/wa_map_entry.sh
+index d5a869a..52a5263 100644
+--- a/webarena-verified-hopper/container/wa_map_entry.sh
++++ b/webarena-verified-hopper/container/wa_map_entry.sh
+@@ -24,6 +24,10 @@ WA_RUN_SECONDS="${WA_RUN_SECONDS:-0}"
+ LOG_DIR=/var/log/webarena
+ PID_DIR=/run/webarena
+ mkdir -p "$LOG_DIR" "$PID_DIR" /run/postgresql /run/renderd /run/apache2
++# debian cluster confs point stats_temp_directory at /var/run/postgresql/<c>.pg_stat_tmp;
++# pg_ctlcluster would create these, raw pg_ctl does not
++mkdir -p /run/postgresql/14-main.pg_stat_tmp /run/postgresql/14-nominatim.pg_stat_tmp \
++  /run/postgresql/15-main.pg_stat_tmp
+ rm -f /run/webarena/ready 2>/dev/null || true
+ 
+ PG14=/usr/lib/postgresql/14/bin
+-- 
+2.43.0
+
+
+From ed77db7f2d5354cc4749878956ffa18053a8c0f0 Mon Sep 17 00:00:00 2001
+From: czhai <czhai@gmu.edu>
+Date: Mon, 13 Jul 2026 21:06:50 +0000
+Subject: [PATCH 08/10] map: rewrite pg_hba to trust (first-match beats the
+ image's appended trust line)
+
+Rootless psql must go over TCP; stock Debian hba rules demand passwords on
+127.0.0.1 before the image's appended 0.0.0.0/0 trust line is reached. The
+docker entrypoint used 'su - postgres' + peer auth, unavailable single-uid.
+---
+ webarena-verified-hopper/02_patch_sandbox.sh | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/webarena-verified-hopper/02_patch_sandbox.sh b/webarena-verified-hopper/02_patch_sandbox.sh
+index c668690..a33d1fe 100644
+--- a/webarena-verified-hopper/02_patch_sandbox.sh
++++ b/webarena-verified-hopper/02_patch_sandbox.sh
+@@ -332,6 +332,21 @@ patch_map() {
+     [ -f "$pgconf" ] || continue
+     sed -i -E 's/^([[:space:]]*)ssl[[:space:]]*=[[:space:]]*on/\1ssl = off/' "$pgconf"
+   done
++  # pg_hba: the image appends a 0.0.0.0/0 trust line, but stock Debian rules
++  # above it win first-match and demand passwords on 127.0.0.1. Docker's
++  # entrypoint dodged this via 'su - postgres' + unix-socket peer auth, which
++  # rootless can't do. Blanket trust is fine for a loopback-only benchmark pg.
++  local pghba
++  for pghba in "$ROOT"/etc/postgresql/*/*/pg_hba.conf; do
++    [ -f "$pghba" ] || continue
++    cat >"$pghba" <<'EOF_HBA'
++# rewritten for rootless apptainer runtime (single uid, TCP-only psql)
++local   all   all                 trust
++host    all   all   127.0.0.1/32  trust
++host    all   all   ::1/128       trust
++host    all   all   0.0.0.0/0     trust
++EOF_HBA
++  done
+   local pg15="$ROOT/etc/postgresql/15/main"
+   if [ -d "$pg15" ]; then
+     sed -i "s|data_directory = '.*'|data_directory = '/data/database/postgres'|" \
+-- 
+2.43.0
+
+
+From 3acdce48abee1bf4ecafc1208509182de1831e91 Mon Sep 17 00:00:00 2001
+From: czhai <czhai@gmu.edu>
+Date: Mon, 13 Jul 2026 22:09:33 +0000
+Subject: [PATCH 09/10] map: sweep leftover port-80 Listen/vhost from apache
+ tree (EPERM rootless)
+
+---
+ webarena-verified-hopper/02_patch_sandbox.sh | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/webarena-verified-hopper/02_patch_sandbox.sh b/webarena-verified-hopper/02_patch_sandbox.sh
+index a33d1fe..022a6f8 100644
+--- a/webarena-verified-hopper/02_patch_sandbox.sh
++++ b/webarena-verified-hopper/02_patch_sandbox.sh
+@@ -336,6 +336,15 @@ patch_map() {
+   # above it win first-match and demand passwords on 127.0.0.1. Docker's
+   # entrypoint dodged this via 'su - postgres' + unix-socket peer auth, which
+   # rootless can't do. Blanket trust is fine for a loopback-only benchmark pg.
++  # sweep any leftover port-80 Listen/vhost anywhere in the apache tree:
++  # binding <1024 is EPERM rootless (apache exits "no listening sockets").
++  grep -rl -E '^[[:space:]]*Listen[[:space:]]+(0\.0\.0\.0:|\[::\]:)?80[[:space:]]*$' "$ROOT/etc/apache2" 2>/dev/null \
++    | xargs -r sed -i -E 's/^([[:space:]]*)Listen[[:space:]]+(0\.0\.0\.0:|\[::\]:)?80[[:space:]]*$/\1# Listen 80 disabled (rootless, unprivileged ports only)/'
++  grep -rl 'VirtualHost \*:80>' "$ROOT/etc/apache2/sites-enabled" 2>/dev/null \
++    | xargs -r sed -i 's/VirtualHost \*:80>/VirtualHost 127.0.0.1:8080>/'
++  echo "[patch] apache Listen lines now:"
++  grep -rn '^[[:space:]]*Listen' "$ROOT/etc/apache2" | grep -v '#' || true
++
+   local pghba
+   for pghba in "$ROOT"/etc/postgresql/*/*/pg_hba.conf; do
+     [ -f "$pghba" ] || continue
+-- 
+2.43.0
+
+
+From e30e4a7cd935651dd009ef7ae55e3bd65299ba90 Mon Sep 17 00:00:00 2001
+From: czhai <czhai@gmu.edu>
+Date: Tue, 14 Jul 2026 14:40:34 +0000
+Subject: [PATCH 10/10] gitlab: pg_hba trust + per-start nginx port rewrite
+ (verified locally); README status
+
+---
+ webarena-verified-hopper/02_patch_sandbox.sh  |  7 +++++
+ webarena-verified-hopper/README.md            | 30 +++++++++++--------
+ .../container/wa_gitlab_entry.sh              |  7 +++++
+ 3 files changed, 32 insertions(+), 12 deletions(-)
+
+diff --git a/webarena-verified-hopper/02_patch_sandbox.sh b/webarena-verified-hopper/02_patch_sandbox.sh
+index 022a6f8..a2dac5b 100644
+--- a/webarena-verified-hopper/02_patch_sandbox.sh
++++ b/webarena-verified-hopper/02_patch_sandbox.sh
+@@ -294,6 +294,13 @@ patch_gitlab() {
+   [ -d "$ROOT/var/opt/gitlab/postgresql/data" ] &&
+     chmod 700 "$ROOT/var/opt/gitlab/postgresql/data" || true
+ 
++  # pg peer auth maps OS user 'gitlab' -> db users; rootless we are one
++  # arbitrary uid, so the unix-socket map can never match. Trust the socket.
++  local ghba="$ROOT/var/opt/gitlab/postgresql/data/pg_hba.conf"
++  if [ -f "$ghba" ]; then
++    sed -i -E 's/^(local[[:space:]]+all[[:space:]]+all[[:space:]]+)peer([[:space:]]+map=gitlab)?/\1trust/' "$ghba"
++  fi
++
+   echo "[patch] gitlab: user-switching stripped, sshd/monitoring disabled"
+   echo "[patch] NOTE: external_url is fixed per-start by container/wa_gitlab_entry.sh"
+   echo "[patch]       (edits gitlab.yml directly; gitlab-ctl reconfigure is never run)"
+diff --git a/webarena-verified-hopper/README.md b/webarena-verified-hopper/README.md
+index f731557..84e0dea 100644
+--- a/webarena-verified-hopper/README.md
++++ b/webarena-verified-hopper/README.md
+@@ -170,22 +170,28 @@ returns 200.* Notes from that bring-up, now handled by the scripts:
+ 3. `02_patch_sandbox.sh` auto-detects the php-fpm pool dir and postgres data
+    dir (records the latter in `sandbox/.wa_pgdata_path`); check its output.
+ 
+-**gitlab**
+-1. The `chpst -u` strip covers `/opt/gitlab/sv/*/run` and `*/log/run`; if a
+-   service loops in `runsvdir`, check `$STATE/gitlab-log/<svc>/current` for a
+-   remaining user-switch or a chown failure.
++**gitlab** — *verified end-to-end locally (WSL2 Hopper sim, 24G RAM): full
++omnibus stack under runit, `/users/sign_in` -> 200.* Fixes baked in from that
++bring-up: pg_hba `local peer map=gitlab` -> `trust` (single-uid peer auth can
++never match the map), and the entry rewrites the nginx listen port per start.
++1. If a service loops in `runsvdir`, check `$STATE/gitlab-log/<svc>/current`.
+ 2. Startup is legitimately slow (5–15 min). The entry script waits up to 900 s
+    for `/users/sign_in`.
+ 3. Never run `gitlab-ctl reconfigure` inside the container.
+ 
+-**map**
+-1. Tile db / nominatim db / osrm data missing ⇒ entry logs a WARNING and
+-   keeps going: the website works, but tiles/geocoding/routing don't. Check
+-   the binds against `$WA_MAP_DATA_DIR`.
+-2. First start runs rails `db:migrate` + possibly `nominatim refresh` and a
+-   carto style build — allow the full 600 s budget.
+-3. Postgres data dirs must be mode 700 and owned by you (the scripts
+-   `chmod` them, but verify if a cluster refuses to start).
++**map** — *structure verified locally without external data: three pg
++clusters, role/db init, full rails db:migrate, puma, apache on 3030 all come
++up rootless; /api/0.6/* returns 200.* Fixes baked in: ssl=off + trust hba in
++all cluster confs, pg_stat_tmp dirs pre-created, leftover apache port-80
++Listens swept.
++1. KNOWN ISSUE: `/` (homepage) returned 500 locally — Sprockets claims
++   "index.js not present in the asset pipeline" although the compiled bundle
++   and manifest exist in public/assets. Not containment-related. Retest on
++   Hopper with real data; if it persists, a `rails assets:precompile` inside
++   the sandbox (RAILS_ENV=production, any SECRET_KEY_BASE) is the lever.
++2. Tile db / nominatim db / osrm data missing ⇒ entry logs a WARNING and
++   keeps going: the API works, but tiles/geocoding/routing don't.
++3. First start runs rails `db:migrate` — allow the full 600 s budget.
+ 
+ ## Troubleshooting
+ 
+diff --git a/webarena-verified-hopper/container/wa_gitlab_entry.sh b/webarena-verified-hopper/container/wa_gitlab_entry.sh
+index 994b1be..722ba5c 100644
+--- a/webarena-verified-hopper/container/wa_gitlab_entry.sh
++++ b/webarena-verified-hopper/container/wa_gitlab_entry.sh
+@@ -44,6 +44,13 @@ cleanup() {
+ trap cleanup INT TERM EXIT
+ 
+ # --- start runit ----------------------------------------------------------------
++# nginx listen port is baked by the image's reconfigure; rewrite per start
++NGX=/var/opt/gitlab/nginx/conf/gitlab-http.conf
++if [ -f "$NGX" ]; then
++  sed -i -E "s/^([[:space:]]*listen[[:space:]]+[^:;]*:)[0-9]+/\1${WA_HTTP_PORT}/; s/^([[:space:]]*listen[[:space:]]+)[0-9]+([; ])/\1${WA_HTTP_PORT}\2/" "$NGX"
++  grep -n "listen" "$NGX" | head -4
++fi
++
+ echo "[entry] starting runsvdir..."
+ /opt/gitlab/embedded/bin/runsvdir-start >"$LOG_DIR/runsvdir.log" 2>&1 &
+ RUNSVDIR_PID=$!
+-- 
+2.43.0

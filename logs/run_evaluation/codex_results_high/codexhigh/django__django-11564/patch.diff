@@ -1,0 +1,148 @@
+diff --git a/django/core/files/storage.py b/django/core/files/storage.py
+index 4c27fce605..efcb4568c6 100644
+--- a/django/core/files/storage.py
++++ b/django/core/files/storage.py
+@@ -13,6 +13,7 @@ from django.utils.crypto import get_random_string
+ from django.utils.deconstruct import deconstructible
+ from django.utils.encoding import filepath_to_uri
+ from django.utils.functional import LazyObject, cached_property
++from django.utils.http import _add_script_prefix
+ from django.utils.module_loading import import_string
+ from django.utils.text import get_valid_filename
+ 
+@@ -332,7 +333,7 @@ class FileSystemStorage(Storage):
+         url = filepath_to_uri(name)
+         if url is not None:
+             url = url.lstrip('/')
+-        return urljoin(self.base_url, url)
++        return urljoin(_add_script_prefix(self.base_url), url)
+ 
+     def _datetime_from_timestamp(self, ts):
+         """
+diff --git a/django/template/context_processors.py b/django/template/context_processors.py
+index 0e9efb2f69..12b26a46cf 100644
+--- a/django/template/context_processors.py
++++ b/django/template/context_processors.py
+@@ -11,7 +11,9 @@ import itertools
+ 
+ from django.conf import settings
+ from django.middleware.csrf import get_token
++from django.utils.encoding import iri_to_uri
+ from django.utils.functional import SimpleLazyObject, lazy
++from django.utils.http import _add_script_prefix
+ 
+ 
+ def csrf(request):
+@@ -67,14 +69,24 @@ def static(request):
+     """
+     Add static-related context variables to the context.
+     """
+-    return {'STATIC_URL': settings.STATIC_URL}
++    return {
++        'STATIC_URL': _add_script_prefix(
++            iri_to_uri(settings.STATIC_URL),
++            getattr(request, 'META', {}).get('SCRIPT_NAME'),
++        ),
++    }
+ 
+ 
+ def media(request):
+     """
+     Add media-related context variables to the context.
+     """
+-    return {'MEDIA_URL': settings.MEDIA_URL}
++    return {
++        'MEDIA_URL': _add_script_prefix(
++            iri_to_uri(settings.MEDIA_URL),
++            getattr(request, 'META', {}).get('SCRIPT_NAME'),
++        ),
++    }
+ 
+ 
+ def request(request):
+diff --git a/django/templatetags/static.py b/django/templatetags/static.py
+index 39712aaba0..356302251a 100644
+--- a/django/templatetags/static.py
++++ b/django/templatetags/static.py
+@@ -4,6 +4,7 @@ from django import template
+ from django.apps import apps
+ from django.utils.encoding import iri_to_uri
+ from django.utils.html import conditional_escape
++from django.utils.http import _add_script_prefix
+ 
+ register = template.Library()
+ 
+@@ -44,10 +45,14 @@ class PrefixNode(template.Node):
+             prefix = ''
+         else:
+             prefix = iri_to_uri(getattr(settings, name, ''))
+-        return prefix
++        return _add_script_prefix(prefix)
+ 
+     def render(self, context):
+         prefix = self.handle_simple(self.name)
++        if 'request' in context:
++            prefix = _add_script_prefix(
++                prefix, getattr(context['request'], 'META', {}).get('SCRIPT_NAME')
++            )
+         if self.varname is None:
+             return prefix
+         context[self.varname] = prefix
+@@ -104,6 +109,10 @@ class StaticNode(template.Node):
+ 
+     def render(self, context):
+         url = self.url(context)
++        if 'request' in context:
++            url = _add_script_prefix(
++                url, getattr(context['request'], 'META', {}).get('SCRIPT_NAME')
++            )
+         if context.autoescape:
+             url = conditional_escape(url)
+         if self.varname is None:
+diff --git a/django/utils/http.py b/django/utils/http.py
+index 572cfb4347..4d30aa63fd 100644
+--- a/django/utils/http.py
++++ b/django/utils/http.py
+@@ -9,7 +9,7 @@ from email.utils import formatdate
+ from urllib.parse import (
+     ParseResult, SplitResult, _coerce_args, _splitnetloc, _splitparams, quote,
+     quote_plus, scheme_chars, unquote, unquote_plus,
+-    urlencode as original_urlencode, uses_params,
++    urlencode as original_urlencode, urlsplit, uses_params,
+ )
+ 
+ from django.core.exceptions import TooManyFieldsSent
+@@ -100,6 +100,33 @@ def urlunquote_plus(quoted_url):
+     return unquote_plus(quoted_url)
+ 
+ 
++def _add_script_prefix(url, script_prefix=None):
++    """
++    Add the currently active script prefix to local, absolute URLs.
++    """
++    if not url or not url.startswith('/'):
++        return url
++    if urlsplit(url).netloc:
++        return url
++    from django.urls import get_script_prefix
++    current_script_prefix = get_script_prefix()
++    if script_prefix is None:
++        script_prefix = current_script_prefix
++    if not script_prefix:
++        return url
++    if not script_prefix.endswith('/'):
++        script_prefix += '/'
++    if (
++        current_script_prefix != '/' and
++        current_script_prefix != script_prefix and
++        url.startswith(current_script_prefix)
++    ):
++        url = '/' + url[len(current_script_prefix):]
++    if script_prefix == '/' or url.startswith(script_prefix):
++        return url
++    return '%s%s' % (script_prefix.rstrip('/'), url)
++
++
+ def urlencode(query, doseq=False):
+     """
+     A version of Python's urllib.parse.urlencode() function that can operate on

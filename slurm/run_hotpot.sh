@@ -1,12 +1,19 @@
 #!/bin/bash
 # Run ONLY the HotpotQA generation harness with the Codex agent on Hopper.
 #
+# DEFAULT MODE IS FULLWIKI: no context is given; the agent searches Wikipedia
+# itself, so the default AGENT is an open-book row (codexlow-search). Pass
+# HOTPOT_MODE=distractor (with a closed-book AGENT) for the old inline-context
+# setting.
+#
 # USAGE:
 #     cd /projects/kzhou6/czhai/Agent-Bench && mkdir -p logs   # your repo root
 #     export OPENAI_API_KEY=sk-...
-#     sbatch slurm/run_hotpot.sh
+#     sbatch slurm/run_hotpot.sh                    # fullwiki, codexlow-search
 #     # smoke test:            HOTPOT_LIMIT=5 sbatch slurm/run_hotpot.sh
 #     # resume after timeout:  RESUME=1 sbatch slurm/run_hotpot.sh
+#     # closed-book distractor setting:
+#     HOTPOT_MODE=distractor AGENT=codex sbatch slurm/run_hotpot.sh
 #
 #SBATCH --job-name=agentbench-hotpot
 #SBATCH --output=logs/agentbench-hotpot-%j.out
@@ -24,7 +31,9 @@
 set -euo pipefail
 
 # --- knobs -------------------------------------------------------------------
-AGENT="${AGENT:-codex}"
+# Default agent matches the default (fullwiki) mode: open-book with web search.
+# For HOTPOT_MODE=distractor, pass a closed-book row, e.g. AGENT=codex.
+AGENT="${AGENT:-codexlow-search}"
 REPO_DIR="${REPO_DIR:-/projects/kzhou6/czhai/Agent-Bench}"
 CONDA_ROOT="${CONDA_ROOT:-/projects/kzhou6/czhai/miniconda3}"
 CONDA_ENV="${CONDA_ENV:-$CONDA_ROOT/envs/bench}"
@@ -33,8 +42,20 @@ RESUME="${RESUME:-0}"
 # consumes $HOTPOT_LIMIT, which was previously never set -- unbound under set -u).
 HOTPOT_LIMIT="${HOTPOT_LIMIT:-${HOTPOT_N:-50}}"
 HARNESS_DIR="${HARNESS_DIR:-$REPO_DIR/harness}"
+# fullwiki (default): no context given; agent searches Wikipedia itself.
+# Requires an open-book agent row (codex*-search / claude-search) and the
+# fullwiki dev file:
+#   wget -P datasets/ http://curtis.ml.cmu.edu/datasets/hotpot/hotpot_dev_fullwiki_v1.json
+# (fetch on a LOGIN node -- compute-node egress is throttled; ditto the agent's
+# live web searches, so consider higher --timeout for fullwiki runs).
+# distractor: answer from the 10 provided paragraphs, closed-book agent.
+HOTPOT_MODE="${HOTPOT_MODE:-fullwiki}"
 # ADAPT: dataset ships at the repo root in this repo.
-HOTPOT_INPUT="${HOTPOT_INPUT:-$REPO_DIR/datasets/hotpot_dev_distractor_v1.json}"
+if [ "$HOTPOT_MODE" = "fullwiki" ]; then
+  HOTPOT_INPUT="${HOTPOT_INPUT:-$REPO_DIR/datasets/hotpot_dev_fullwiki_v1.json}"
+else
+  HOTPOT_INPUT="${HOTPOT_INPUT:-$REPO_DIR/datasets/hotpot_dev_distractor_v1.json}"
+fi
 # ------------------------------------------------------------------------------
 
 : "${OPENAI_API_KEY:?OPENAI_API_KEY not set -- run: export OPENAI_API_KEY=... before sbatch}"
@@ -78,13 +99,13 @@ RESUME_ARG=""
 
 echo "host=$(hostname) job=${SLURM_JOB_ID:-local} agent=$AGENT env=$CONDA_ENV"
 echo "codex: $(command -v codex)"
-echo "hotpot_limit=$HOTPOT_LIMIT resume=$RESUME"
+echo "hotpot_limit=$HOTPOT_LIMIT mode=$HOTPOT_MODE resume=$RESUME"
 
 echo
 echo "========== STAGE: hotpotqa =========="
 rc=0
 if [ -f "$HOTPOT_INPUT" ]; then
-  python "$HARNESS_DIR/run_hotpot_agent.py" --agent "$AGENT" \
+  python "$HARNESS_DIR/run_hotpot_agent.py" --agent "$AGENT" --mode "$HOTPOT_MODE" \
     --input "$HOTPOT_INPUT" --limit "$HOTPOT_LIMIT" $RESUME_ARG || rc=$?
   if [ "$rc" -eq 0 ]; then echo "[hotpotqa] OK"; else echo "[hotpotqa] FAILED (rc=$rc)"; fi
 else

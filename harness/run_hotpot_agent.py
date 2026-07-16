@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 """
-run_hotpot_agent.py — run ANY agent in agents.yaml over the HotpotQA distractor
-set and write predictions.json in the exact format the official scorer
+run_hotpot_agent.py — run ANY agent in agents.yaml over HotpotQA and write
+predictions.json in the exact format the official scorer
 (hotpot_evaluate_v1.py) expects.
+
+Two modes (--mode), matching the two official HotpotQA settings:
+  fullwiki (DEFAULT): no context is given; the agent retrieves evidence itself
+      from live Wikipedia with its web tools. Use an open-book agent row
+      (codex*-search, claude-search) and hotpot_dev_fullwiki_v1.json.
+  distractor: the item's 10 paragraphs (2 gold + 8 distractors) are inlined in
+      the prompt; closed-book answering. Use a closed-book agent row and
+      hotpot_dev_distractor_v1.json. Pass --mode distractor explicitly.
 
 Agent-open, exactly like run_swebench_agent.py: pick an agent by name (--agent),
 it's loaded from agents.yaml, and the harness only hands it a prompt and reads
@@ -11,17 +19,24 @@ latency, turn count, per-usage breakdown, and any other field an agent chooses
 to emit) goes to a SEPARATE metrics file so predictions.json stays exactly what
 the scorer reads.
 
-    python harness/run_hotpot_agent.py --agent claude-closedbook \
+    # fullwiki (default): open-book agent, no context provided
+    python harness/run_hotpot_agent.py --agent codexlow-search \
+        --input datasets/hotpot_dev_fullwiki_v1.json --limit 100
+
+    # distractor: closed-book agent, 10 paragraphs inlined
+    python harness/run_hotpot_agent.py --agent claude --mode distractor \
         --input datasets/hotpot_dev_distractor_v1.json --limit 100
 
 Output paths default to data/<agent-family>/ (family = agent name up to the
-first '-', so claude-closedbook -> data/claude/):
-    predictions -> data/<family>/hotpot_predictions.json
-    metrics     -> data/<family>/hotpot_metrics.json
+first '-', so codexlow-search -> data/codexlow/). Fullwiki carries a mode
+suffix so the two modes never clobber each other (and so pre-existing
+unsuffixed distractor outputs stay unambiguous):
+    fullwiki:   data/<family>/hotpot_fullwiki_predictions.json / _metrics.json
+    distractor: data/<family>/hotpot_predictions.json / hotpot_metrics.json
 Override either with --output / --metrics.
 
-Then score:
-    python eval/hotpot_evaluate_v1.py predictions.json datasets/hotpot_dev_distractor_v1.json
+Then score against the SAME setting's gold file:
+    python eval/hotpot_evaluate_v1.py hotpot_fullwiki_predictions.json datasets/hotpot_dev_fullwiki_v1.json
 
 ------------------------------------------------------------------------------
 TELEMETRY IS PASS-THROUGH BY DEFAULT
@@ -35,14 +50,20 @@ anything new -- lands in the metrics file with no harness change. Don't re-add
 an allowlist; that's the bug this replaced.
 
 ------------------------------------------------------------------------------
-CONTEXT-ONLY ANSWERING IS DATA, NOT CODE
+TOOL POSTURE IS DATA, NOT CODE — AND IT MUST MATCH THE MODE
 ------------------------------------------------------------------------------
-HotpotQA is closed-book: the agent must answer from the prompt context ONLY, not
-the web or local files. Tool posture is part of "how to invoke it" and lives in
-the agent's agents.yaml row (e.g. claude-closedbook with empty --allowedTools +
-a denylist). The prompt also instructs context-only answering, which is the only
-lever for agents that don't expose tool gating (codex, local scripts) -- for
-those, closed-book is enforced by the empty scratch cwd plus the prompt.
+Tool posture is part of "how to invoke it" and lives in the agent's agents.yaml
+row; the harness only picks the prompt. The row must match --mode:
+
+  fullwiki (default): the agent MUST be able to search the web (codex*-search
+      with tools.web_search=true, or claude-search with WebSearch/WebFetch
+      allowed). A closed-book row in fullwiki mode just guesses from parametric
+      knowledge.
+  distractor: the agent must answer from the prompt context ONLY. Use a
+      closed-book row (empty allowlist + denylist). The prompt also instructs
+      context-only answering, which is the only lever for agents that don't
+      expose tool gating (codex, local scripts) -- for those, closed-book is
+      enforced by the empty scratch cwd plus the prompt.
 """
 
 import argparse
@@ -97,17 +118,46 @@ SUMMABLE = (
 )
 
 
-def default_paths(agent_name):
-    """(predictions, metrics) under data/<family>/, family = name up to '-'."""
+def default_paths(agent_name, mode="fullwiki"):
+    """(predictions, metrics) under data/<family>/, family = name up to '-'.
+    Fullwiki runs get their own default filenames so the two modes never
+    clobber each other."""
     fam = agent_name.split("-", 1)[0]
     d = os.path.join(DATA_ROOT, fam)
-    return (os.path.join(d, "hotpot_predictions.json"),
-            os.path.join(d, "hotpot_metrics.json"))
+    suffix = "" if mode == "distractor" else f"_{mode}"
+    return (os.path.join(d, f"hotpot{suffix}_predictions.json"),
+            os.path.join(d, f"hotpot{suffix}_metrics.json"))
 
 
-def build_prompt(item):
-    """Self-contained prompt from a HotpotQA distractor item. Sentences carry
-    their 0-based index so the agent can cite [paragraph_title, sentence_index]."""
+def build_prompt(item, mode="fullwiki"):
+    """Prompt for one HotpotQA item.
+
+    fullwiki (default): NO context is provided. The agent must retrieve
+                evidence itself from Wikipedia using its own tools (web
+                search / fetch). Pair with an open-book agent row
+                (codex*-search, claude-search); a closed-book row will just
+                guess.
+    distractor: inline the item's 10 context paragraphs (2 gold + 8
+                distractors) with 0-based sentence indices; closed-book
+                answering.
+    """
+    if mode == "fullwiki":
+        return (
+            "Answer the multi-hop question below. No context is provided: use your "
+            "web search / fetch tools to find the evidence on English Wikipedia "
+            "(en.wikipedia.org). Reason across articles as needed.\n\n"
+            "End your reply with EXACTLY these two lines:\n"
+            f"{SENTINEL} <shortest exact answer>\n"
+            f"{SP_SENTINEL} <JSON list of [article_title, sentence_index] pairs>\n\n"
+            "Rules:\n"
+            "- The answer must be an entity, a short phrase, or 'yes'/'no' — nothing else on that line.\n"
+            "- For supporting facts, cite the Wikipedia article title exactly as it appears "
+            "on Wikipedia, and the 0-based index of the supporting sentence within the "
+            "article's relevant paragraph (best effort).\n"
+            f'- Example: {SP_SENTINEL} [["Scott Derrickson", 0], ["Ed Wood", 2]]\n\n'
+            f"=== QUESTION ===\n{item['question']}\n"
+        )
+
     blocks = []
     for title, sents in item["context"]:
         lines = [f"## {title}"]
@@ -145,12 +195,20 @@ def extract_answer(raw):
     return lines[-1] if lines else raw.strip()
 
 
-def extract_supporting_facts(raw, item):
-    """Parse [title, sentence_index] pairs after the SP sentinel and validate
-    against the actual context. Invalid pairs are dropped."""
+def extract_supporting_facts(raw, item, mode="fullwiki"):
+    """Parse [title, sentence_index] pairs after the SP sentinel.
+
+    fullwiki (default): there is no provided context to validate against — the
+                agent cited live Wikipedia — so keep every well-typed pair.
+                Dropping them here would zero out sp/joint scores by
+                construction.
+    distractor: validate each pair against the item's provided context and DROP
+                invalid pairs (hallucinated titles / out-of-range indices).
+    """
     if not raw:
         return []
-    title_lens = {title: len(sents) for title, sents in item["context"]}
+    title_lens = (None if mode == "fullwiki"
+                  else {title: len(sents) for title, sents in item["context"]})
     matches = list(re.finditer(re.escape(SP_SENTINEL), raw, flags=re.I))
     if not matches:
         return []
@@ -174,7 +232,7 @@ def extract_supporting_facts(raw, item):
         title, idx = pair[0], pair[1]
         if not (isinstance(title, str) and isinstance(idx, int)):
             continue
-        if title in title_lens and 0 <= idx < title_lens[title]:
+        if title_lens is None or (title in title_lens and 0 <= idx < title_lens[title]):
             key = (title, idx)
             if key not in seen:
                 seen.add(key)
@@ -238,11 +296,17 @@ def summarize(metrics):
 def main():
     ap = argparse.ArgumentParser(description="Agent-open HotpotQA harness (agents.yaml-driven).")
     ap.add_argument("--agent", default="claude",
-                    help="Agent name from the agents file (default: claude). For HotpotQA "
-                         "use a closed-book agent.")
+                    help="Agent name from the agents file (default: claude). Match the "
+                         "mode: open-book rows (codex*-search, claude-search) for the "
+                         "default fullwiki mode; closed-book rows for --mode distractor.")
     ap.add_argument("--agents-file", default=str(AGENTS_FILE),
                     help=f"Path to the agent registry (default: {AGENTS_FILE}).")
-    ap.add_argument("--input", help="hotpot_dev_distractor_v1.json")
+    ap.add_argument("--input", help="hotpot_dev_fullwiki_v1.json (or _distractor_ with --mode distractor)")
+    ap.add_argument("--mode", choices=["fullwiki", "distractor"], default="fullwiki",
+                    help="fullwiki (default): NO context given; the agent searches Wikipedia "
+                         "itself (use an open-book agent row, e.g. codexlow-search). "
+                         "distractor: answer from the item's 10 provided paragraphs "
+                         "(use a closed-book agent).")
     ap.add_argument("--output", default=None,
                     help="predictions JSON (default: data/<agent>/hotpot_predictions.json)")
     ap.add_argument("--metrics", default=None,
@@ -267,7 +331,7 @@ def main():
         ap.error("--input is required (unless using --list-agents)")
 
     # Auto-route output/metrics into data/<agent-family>/ unless overridden.
-    def_out, def_metrics = default_paths(args.agent)
+    def_out, def_metrics = default_paths(args.agent, args.mode)
     if not args.output:
         args.output = def_out
     metrics_path = args.metrics or def_metrics
@@ -296,7 +360,7 @@ def main():
         print(f"Resuming: {len(answers)} predictions already on disk.")
 
     scratch = tempfile.mkdtemp(prefix="hotpot_")
-    print(f"Agent: {args.agent} | questions: {len(data)} | cwd: {scratch} | "
+    print(f"Agent: {args.agent} | mode: {args.mode} | questions: {len(data)} | cwd: {scratch} | "
           f"output: {args.output}")
 
     try:
@@ -307,9 +371,9 @@ def main():
 
             t0 = time.time()
             try:
-                raw, meta = agent.run(build_prompt(item), cwd=scratch, model=args.model)
+                raw, meta = agent.run(build_prompt(item, args.mode), cwd=scratch, model=args.model)
                 pred = extract_answer(raw or "")
-                facts = extract_supporting_facts(raw or "", item)
+                facts = extract_supporting_facts(raw or "", item, args.mode)
             except Exception as e:
                 print(f"\n[{qid}] ERROR: {e}", file=sys.stderr)
                 meta = {"error": str(e)[:200], "wall_time_s": round(time.time() - t0, 2)}

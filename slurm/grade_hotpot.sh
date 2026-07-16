@@ -1,8 +1,13 @@
 #!/bin/bash
 # Grade already-generated Agent-Bench HotpotQA predictions on Hopper.
 #
-# Grading is OFFLINE (official EM/F1 script vs the gold distractor file) --
+# Grading is OFFLINE (official EM/F1 script vs the gold file for the mode) --
 # no API key, no internet needed on the compute node.
+#
+# HOTPOT_MODE picks which run to grade (default fullwiki, matching the
+# runner's default): it selects the gold file AND the prediction/metrics
+# filenames the runner wrote. HOTPOT_MODE=distractor grades the old
+# unsuffixed hotpot_predictions.json against the distractor gold file.
 #
 # USAGE (submit from the repo root):
 #     cd /projects/kzhou6/czhai/Agent-Bench   # your repo root
@@ -14,6 +19,8 @@
 #     RESUME=1 sbatch slurm/grade_hotpot.sh
 #     # grade a different output family dir under data/:
 #     FAM=codexlow sbatch slurm/grade_hotpot.sh
+#     # grade a distractor-mode run:
+#     HOTPOT_MODE=distractor sbatch slurm/grade_hotpot.sh
 #
 #SBATCH --job-name=hotpot-grade
 #SBATCH --output=logs/hotpot-grade-%j.out
@@ -40,9 +47,18 @@ RESUME="${RESUME:-0}" # 1 = skip if metrics file exists
 DATA_DIR="${DATA_DIR:-$REPO_DIR/data/$FAM}"
 EVAL_DIR="${EVAL_DIR:-$REPO_DIR/eval}"
 
-HOTPOT_GOLD="${HOTPOT_GOLD:-$REPO_DIR/datasets/hotpot_dev_distractor_v1.json}"
-HOTPOT_PRED="${HOTPOT_PRED:-$DATA_DIR/hotpot_predictions.json}"
-HOTPOT_METRICS="${HOTPOT_METRICS:-$DATA_DIR/hotpot_metrics.txt}"
+# Mode-aware defaults. The runner writes fullwiki output with a _fullwiki
+# suffix (distractor stays unsuffixed, matching pre-existing data/ files).
+HOTPOT_MODE="${HOTPOT_MODE:-fullwiki}"
+if [ "$HOTPOT_MODE" = "fullwiki" ]; then
+  HOTPOT_GOLD="${HOTPOT_GOLD:-$REPO_DIR/datasets/hotpot_dev_fullwiki_v1.json}"
+  HOTPOT_PRED="${HOTPOT_PRED:-$DATA_DIR/hotpot_fullwiki_predictions.json}"
+  HOTPOT_METRICS="${HOTPOT_METRICS:-$DATA_DIR/hotpot_fullwiki_metrics.txt}"
+else
+  HOTPOT_GOLD="${HOTPOT_GOLD:-$REPO_DIR/datasets/hotpot_dev_distractor_v1.json}"
+  HOTPOT_PRED="${HOTPOT_PRED:-$DATA_DIR/hotpot_predictions.json}"
+  HOTPOT_METRICS="${HOTPOT_METRICS:-$DATA_DIR/hotpot_metrics.txt}"
+fi
 HOTPOT_LIMIT="${HOTPOT_LIMIT:-}" # optional 3rd arg; empty = score all
 # ----------------------------------------------------------------------------
 
