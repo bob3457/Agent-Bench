@@ -206,7 +206,7 @@ write_def() { # <def path> <bootstrap: localimage|docker> <from>
     # v2.3: node v$NODE_VERSION host-extracted into /usr/local (npm -g's
     # default prefix), zero in-build egress. musl images swap it in %post.
     mkdir -p \${APPTAINER_ROOTFS}/usr/local
-    tar -xzf \"$NODE_TARBALL\" --strip-components=1 -C \${APPTAINER_ROOTFS}/usr/local"
+    tar -xzf \"$NODE_TARBALL\" --no-same-owner --strip-components=1 -C \${APPTAINER_ROOTFS}/usr/local"
     AGENT_POST="
     # --- v2.3: bake agent runtimes. With the binaries present, harbor's
     # _installed_*_satisfies_version() short-circuits install() at trial
